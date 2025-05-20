@@ -1,0 +1,62 @@
+# Build directories
+build/
+tmp/
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# CUDA specific
+*.cubin
+*.ptx
+*.fatbin
+*.fatbin.c
+*.cudafe1.c
+*.cudafe2.c
+*.cudafe1.cpp
+*.cudafe2.cpp
+*.cudafe1.gpu
+*.cudafe2.gpu
+*.cudafe1.stub.c
+*.cudafe2.stub.c
+*.cudafe1.decl.h
+*.cudafe2.decl.h
+*.cudafe1.h
+*.cudafe2.h
+*.linkinfo
+*.hash
