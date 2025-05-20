@@ -12,6 +12,7 @@
 // Default matrix dimensions
 constexpr int DEFAULT_M = 1000;    // Rows of first matrix
 constexpr int DEFAULT_N = 10000;   // Columns of first matrix / Rows of second matrix
+constexpr int DEFAULT_GPU_MEM = 16; // GPU memory size in GB
 constexpr unsigned int NULL_FLAGS = 0;
 
 // CUDA kernel for matrix multiplication
@@ -46,6 +47,7 @@ int main(int argc, char** argv) {
     options.add_options()
         ("nrows", "Number of rows in first matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
         ("ncols", "Number of columns in first matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
+        ("gpumem", "GPU memory size", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_GPU_MEM)))
         ("h,help", "Print usage");
 
     try {
@@ -60,8 +62,20 @@ int main(int argc, char** argv) {
         const int M = result["nrows"].as<int>();
         const int N = result["ncols"].as<int>();
         const int size = M * N;
+        const int gpu_mem = result["gpumem"].as<int>();
+        constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
+        const float matrix_size_gb = size * sizeof(float) / GB;
+        const float mem_gb = matrix_size_gb * 3;
+        std::cout
+            << "Matrix dimensions: " << M << "x" << N << " * " << N << "x" << M << "\n"
+            << "Matrix size      : " << matrix_size_gb << " GB\n"
+            << "Required mem     : " << mem_gb << " GB"
+            << std::endl;
+        if (mem_gb > gpu_mem) {
+            std::cerr << "[ERROR] GPU memory size is less than the matrix size" << std::endl;
+            return 1;
+        }
 
-        std::cout << "Matrix dimensions: " << M << "x" << N << " * " << N << "x" << M << std::endl;
 
         std::cout << "SETUP:" << std::endl;
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
@@ -104,7 +118,7 @@ int main(int argc, char** argv) {
         std::cout << setup_step_dt4.count() << " ms (" << setup_total_dt4.count() << " ms total)" << std::endl;
 
 
-        std::cout << "GPU:" << std::endl;
+        std::cout << "KERNEL:" << std::endl;
         const auto gpu_tp0 = std::chrono::high_resolution_clock::now();
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
@@ -120,7 +134,7 @@ int main(int argc, char** argv) {
         const auto gpu_step_2 = "Copy data to device";
         cuda_check_error(cudaMemcpyAsync(d_A, h_A.data(), size * sizeof(float), cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaMemcpyAsync(d_B, h_B.data(), size * sizeof(float), cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
-        cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
+        cuda_check_error(cudaEventRecord(e2, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
 
@@ -151,41 +165,41 @@ int main(int argc, char** argv) {
 
 
         // Print execution time
-        float gpu_step_dt1, gpu_step_dt2, gpu_step_dt3, gpu_step_dt4, gpu_step_dt5;
-        float gpu_total_dt1, gpu_total_dt2, gpu_total_dt3, gpu_total_dt4, gpu_total_dt5;
+        float gpu_step_dt1 = 0.0f, gpu_step_dt2 = 0.0f, gpu_step_dt3 = 0.0f, gpu_step_dt4 = 0.0f, gpu_step_dt5 = 0.0f;
+        float gpu_total_dt1 = 0.0f, gpu_total_dt2 = 0.0f, gpu_total_dt3 = 0.0f, gpu_total_dt4 = 0.0f, gpu_total_dt5 = 0.0f;
 
         std::chrono::duration<double, std::milli> cpu_step_dt1 = gpu_tp1 - gpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = gpu_tp1 - gpu_tp0;
-        cudaEventElapsedTime(&gpu_step_dt1, e0, e1);
-        cudaEventElapsedTime(&gpu_total_dt1, e0, e1);
+        cuda_check_error(cudaEventElapsedTime(&gpu_step_dt1, e0, e1), "cudaEventElapsedTime");
+        cuda_check_error(cudaEventElapsedTime(&gpu_total_dt1, e0, e1), "cudaEventElapsedTime");
         std::cout << " - CPU " << gpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
         std::cout << " - GPU " << gpu_step_1 << ": " << gpu_step_dt1 << " ms (" << gpu_total_dt1 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> cpu_step_dt2 = gpu_tp2 - gpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = gpu_tp2 - gpu_tp0;
-        cudaEventElapsedTime(&gpu_step_dt2, e1, e2);
-        cudaEventElapsedTime(&gpu_total_dt2, e0, e2);
+        cuda_check_error(cudaEventElapsedTime(&gpu_step_dt2, e1, e2), "cudaEventElapsedTime");
+        cuda_check_error(cudaEventElapsedTime(&gpu_total_dt2, e0, e2), "cudaEventElapsedTime");
         std::cout << " - CPU " << gpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
         std::cout << " - GPU " << gpu_step_2 << ": " << gpu_step_dt2 << " ms (" << gpu_total_dt2 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> cpu_step_dt3 = gpu_tp3 - gpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = gpu_tp3 - gpu_tp0;
-        cudaEventElapsedTime(&gpu_step_dt3, e2, e3);
-        cudaEventElapsedTime(&gpu_total_dt3, e0, e3);
+        cuda_check_error(cudaEventElapsedTime(&gpu_step_dt3, e2, e3), "cudaEventElapsedTime");
+        cuda_check_error(cudaEventElapsedTime(&gpu_total_dt3, e0, e3), "cudaEventElapsedTime");
         std::cout << " - CPU " << gpu_step_3 << ": " << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
         std::cout << " - GPU " << gpu_step_3 << ": " << gpu_step_dt3 << " ms (" << gpu_total_dt3 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> cpu_step_dt4 = gpu_tp4 - gpu_tp3;
         std::chrono::duration<double, std::milli> cpu_total_dt4 = gpu_tp4 - gpu_tp0;
-        cudaEventElapsedTime(&gpu_step_dt4, e3, e4);
-        cudaEventElapsedTime(&gpu_total_dt4, e0, e4);
+        cuda_check_error(cudaEventElapsedTime(&gpu_step_dt4, e3, e4), "cudaEventElapsedTime");
+        cuda_check_error(cudaEventElapsedTime(&gpu_total_dt4, e0, e4), "cudaEventElapsedTime");
         std::cout << " - CPU " << gpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
         std::cout << " - GPU " << gpu_step_4 << ": " << gpu_step_dt4 << " ms (" << gpu_total_dt4 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> cpu_step_dt5 = gpu_tp5 - gpu_tp4;
         std::chrono::duration<double, std::milli> cpu_total_dt5 = gpu_tp5 - gpu_tp0;
-        cudaEventElapsedTime(&gpu_step_dt5, e4, e5);
-        cudaEventElapsedTime(&gpu_total_dt5, e0, e5);
+        cuda_check_error(cudaEventElapsedTime(&gpu_step_dt5, e4, e5), "cudaEventElapsedTime");
+        cuda_check_error(cudaEventElapsedTime(&gpu_total_dt5, e0, e5), "cudaEventElapsedTime");
         std::cout << " - CPU " << gpu_step_5 << ": " << cpu_step_dt5.count() << " ms (" << cpu_total_dt5.count() << " ms total)" << std::endl;
         std::cout << " - GPU " << gpu_step_5 << ": " << gpu_step_dt5 << " ms (" << gpu_total_dt5 << " ms total)" << std::endl;
 
