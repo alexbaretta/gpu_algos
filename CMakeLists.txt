@@ -21,7 +21,10 @@ include_directories(
 )
 
 # Add executable
-add_executable(matrix_multiply src/matrix_multiply/matrix_multiply.cu)
+add_executable(matrix_multiply
+    src/matrix_multiply/matrix_multiply.cu
+    src/common/cuda/cuda_utils.cu
+)
 
 # Set CUDA specific properties
 set_target_properties(matrix_multiply PROPERTIES

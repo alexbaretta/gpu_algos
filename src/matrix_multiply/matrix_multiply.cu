@@ -5,9 +5,14 @@
 #include <chrono>
 #include <cxxopts.hpp>
 
+#include "common/cuda/check_errors.h"
+#include "common/cuda/cuda_utils.cuh"
+
 // Default matrix dimensions
 constexpr int DEFAULT_M = 1000;    // Rows of first matrix
 constexpr int DEFAULT_N = 10000;   // Columns of first matrix / Rows of second matrix
+constexpr unsigned int NULL_FLAGS = 0;
+
 // CUDA kernel for matrix multiplication
 __global__ void matrixMultiply(const float* A, const float* B, float* C, int m, int n, int k) {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -23,7 +28,7 @@ __global__ void matrixMultiply(const float* A, const float* B, float* C, int m, 
 }
 
 // Function to initialize matrix with random values
-void initializeMatrix(std::vector<float>& matrix, int rows, int cols) {
+void initialize_matrix(std::vector<float>& matrix, int rows, int cols) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> dis(0.0f, 1.0f);
@@ -32,6 +37,7 @@ void initializeMatrix(std::vector<float>& matrix, int rows, int cols) {
         matrix[i] = dis(gen);
     }
 }
+
 
 int main(int argc, char** argv) {
     // Parse command line arguments
@@ -56,52 +62,91 @@ int main(int argc, char** argv) {
 
         std::cout << "Matrix dimensions: " << M << "x" << N << " * " << N << "x" << M << std::endl;
 
-        // Allocate host memory
-        std::vector<float> h_A(size);
-        std::vector<float> h_B(size);
-        std::vector<float> h_C(size);
+        std::cout << "CPU:" << std::endl;
+        auto t0 = std::chrono::high_resolution_clock::now();
 
-        // Initialize matrices
-        initializeMatrix(h_A, M, N);
-        initializeMatrix(h_B, N, M);
+        std::cout << "  - Allocating memory: ";
+        std::vector<float> h_A(size, 0.0f);
+        std::vector<float> h_B(size, 0.0f);
+        std::vector<float> h_C(size, 0.0f);
+        auto t1 = std::chrono::high_resolution_clock::now();
+        std::cout << (t1 - t0).count() << " s (" << (t1 - t0).count() << " s total)" << std::endl;
 
-        // Allocate device memory
+        std::cout << "  - Initializing matrices: ";
+        initialize_matrix(h_A, M, N);
+        initialize_matrix(h_B, N, M);
+        auto t2 = std::chrono::high_resolution_clock::now();
+        std::cout << t2 - t1 << " s (" << (t2 - t0).count() << " s total)" << std::endl;
+
+        std::cout << "  - Creating GPU streams: ";
+        cudaStream_t stream;
+        cuda_check_error(cudaStreamCreate(&stream), "cudaStreamCreate");
+        auto t3 = std::chrono::high_resolution_clock::now();
+        std::cout << t3 - t2 << " s (" << (t3 - t0).count() << " s total)" << std::endl;
+
+        std::cout << "  - Creating GPU events: ";
+        cudaEvent_t e0, e1, e2, e3, e4, e5;
+        cuda_check_error(cudaEventCreate(&e0), "cudaEventCreate");
+        cuda_check_error(cudaEventCreate(&e1), "cudaEventCreate");
+        cuda_check_error(cudaEventCreate(&e2), "cudaEventCreate");
+        cuda_check_error(cudaEventCreate(&e3), "cudaEventCreate");
+        cuda_check_error(cudaEventCreate(&e4), "cudaEventCreate");
+        cuda_check_error(cudaEventCreate(&e5), "cudaEventCreate");
+        auto t4 = std::chrono::high_resolution_clock::now();
+        std::cout << t4 - t3 << " s (" << (t4 - t0).count() << " s total)" << std::endl;
+
+
+        std::cout << "GPU:" << std::endl;
+        cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
+
         float *d_A, *d_B, *d_C;
-        cudaMalloc(&d_A, size * sizeof(float));
-        cudaMalloc(&d_B, size * sizeof(float));
-        cudaMalloc(&d_C, size * sizeof(float));
+        cudaMallocAsync(&d_A, size * sizeof(float), stream);
+        cudaMallocAsync(&d_B, size * sizeof(float), stream);
+        cudaMallocAsync(&d_C, size * sizeof(float), stream);
+        cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
+        auto step1 = std::make_tuple(e1, e0, e0, "allocating device memory");
+        cudaStreamAddCallback(stream, report_completion_callback, &step1, NULL_FLAGS);
 
         // Copy data to device
         cudaMemcpy(d_A, h_A.data(), size * sizeof(float), cudaMemcpyHostToDevice);
         cudaMemcpy(d_B, h_B.data(), size * sizeof(float), cudaMemcpyHostToDevice);
+        cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
+        auto step2 = std::make_tuple(e2, e1, e0, "copying data to device");
+        cudaStreamAddCallback(stream, report_completion_callback, &step2, NULL_FLAGS);
 
         // Define block and grid dimensions
         dim3 blockDim(16, 16);
         dim3 gridDim((M + blockDim.x - 1) / blockDim.x, (M + blockDim.y - 1) / blockDim.y);
 
-        // Start timing
-        auto start = std::chrono::high_resolution_clock::now();
-
-        // Launch kernel
+        // Compute kernel
         matrixMultiply<<<gridDim, blockDim>>>(d_A, d_B, d_C, M, N, M);
-
-        // Wait for kernel to finish
-        cudaDeviceSynchronize();
-
-        // End timing
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> duration = end - start;
+        cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
+        auto step3 = std::make_tuple(e3, e2, e0, "computing kernel");
+        cudaStreamAddCallback(stream, report_completion_callback, &step3, NULL_FLAGS);
 
         // Copy result back to host
-        cudaMemcpy(h_C.data(), d_C, size * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpyAsync(h_C.data(), d_C, size * sizeof(float), cudaMemcpyDeviceToHost, stream);
+        cuda_check_error(cudaEventRecord(e4, stream), "cudaEventRecord");
+        auto step4 = std::make_tuple(e4, e3, e0, "copying result to host");
+        cudaStreamAddCallback(stream, report_completion_callback, &step4, NULL_FLAGS);
 
-        // Print execution time
-        std::cout << "Matrix multiplication completed in " << duration.count() << " seconds" << std::endl;
 
         // Free device memory
-        cudaFree(d_A);
-        cudaFree(d_B);
-        cudaFree(d_C);
+        cudaFreeAsync(d_A, stream);
+        cudaFreeAsync(d_B, stream);
+        cudaFreeAsync(d_C, stream);
+        cuda_check_error(cudaEventRecord(e5, stream), "cudaEventRecord");
+        auto step5 = std::make_tuple(e5, e4, e0, "freeing device memory");
+        cudaStreamAddCallback(stream, report_completion_callback, &step5, NULL_FLAGS);
+
+        // Wait for stream to finish
+        cudaStreamSynchronize(stream);
+
+
+        // Print execution time
+        auto t5 = std::chrono::high_resolution_clock::now();
+        std::cout << "DONE: " << t5 - t4 << " s (" << (t5 - t0).count() << " s total)" << std::endl;
+
 
     } catch (const cxxopts::exceptions::exception& e) {
         std::cerr << "Error parsing options: " << e.what() << std::endl;
