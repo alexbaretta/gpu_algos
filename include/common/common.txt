@@ -1,0 +1,1 @@
+This directory contains common header files that define the public interface for shared functionality across executables.

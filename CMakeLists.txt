@@ -9,11 +9,14 @@ set(CMAKE_CUDA_ARCHITECTURES 89)  # Compute capability 8.9
 # Find CUDA package
 find_package(CUDA 12.9 REQUIRED)
 
-# Add executable
-add_executable(matrix_multiply src/main.cu)
+# Add include directories
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/common
+)
 
-# Include directories
-target_include_directories(matrix_multiply PRIVATE include)
+# Add executable
+add_executable(matrix_multiply src/matrix_multiply/matrix_multiply.cu)
 
 # Set CUDA specific properties
 set_target_properties(matrix_multiply PROPERTIES

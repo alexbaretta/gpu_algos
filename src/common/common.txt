@@ -1,0 +1,1 @@
+This directory contains common implementation files that provide shared functionality across executables.
