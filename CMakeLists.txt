@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.18)
 # Set C++ compiler before project()
 set(CMAKE_CXX_COMPILER "g++-14")
 
-project(cuda_matrix_multiply CUDA CXX)
+project(gpu_algos CUDA CXX)
 
 # Set CUDA specific flags
 set(CMAKE_CUDA_STANDARD 17)
@@ -17,6 +17,7 @@ find_package(CUDA 12.9 REQUIRED)
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cxxopts/include
 )
 
 # Add executable
