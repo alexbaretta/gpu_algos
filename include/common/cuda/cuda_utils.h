@@ -8,4 +8,4 @@
 #include <chrono>
 #include "check_errors.h"
 
-void report_completion_callback(cudaStream_t stream, cudaError_t status, void* userData);
+void report_completion_time_callback(cudaStream_t stream, cudaError_t status, void* userData);

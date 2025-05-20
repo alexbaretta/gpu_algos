@@ -8,7 +8,12 @@ project(gpu_algos CUDA CXX)
 # Set CUDA specific flags
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_ARCHITECTURES 89)  # Compute capability 8.9
+set(CMAKE_CUDA_ARCHITECTURES 75)  # Compute capability 7.5
+
+# Add debug flags if DEBUG is set
+if(DEFINED ENV{DEBUG})
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -g -G")
+endif()
 
 # Find CUDA package
 find_package(CUDA 12.9 REQUIRED)
@@ -29,5 +34,11 @@ add_executable(matrix_multiply
 # Set CUDA specific properties
 set_target_properties(matrix_multiply PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
-    CUDA_ARCHITECTURES 89
+    CUDA_ARCHITECTURES 75
+)
+
+# Link CUDA libraries
+target_link_libraries(matrix_multiply
+    cudart
+    cuda
 )

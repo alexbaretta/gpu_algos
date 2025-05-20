@@ -1,5 +1,6 @@
 #include <cuda_runtime.h>
 #include <iostream>
+#include <ratio>
 #include <vector>
 #include <random>
 #include <chrono>
@@ -62,30 +63,32 @@ int main(int argc, char** argv) {
 
         std::cout << "Matrix dimensions: " << M << "x" << N << " * " << N << "x" << M << std::endl;
 
-        std::cout << "CPU:" << std::endl;
-        auto t0 = std::chrono::high_resolution_clock::now();
+        std::cout << "SETUP:" << std::endl;
+        const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
         std::vector<float> h_A(size, 0.0f);
         std::vector<float> h_B(size, 0.0f);
         std::vector<float> h_C(size, 0.0f);
-        auto t1 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dt1 = t1 - t0;
-        std::cout << dt1.count() << " s (" << dt1.count() << " s total)" << std::endl;
+        const auto setup_tp1 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
+        std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
         std::cout << "  - Initializing matrices: ";
         initialize_matrix(h_A, M, N);
         initialize_matrix(h_B, N, M);
-        auto t2 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dt2 = t2 - t1;
-        std::cout << dt2.count() << " s (" << dt2.count() << " s total)" << std::endl;
+        const auto setup_tp2 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> setup_step_dt2 = setup_tp2 - setup_tp1;
+        std::chrono::duration<double, std::milli> setup_total_dt2 = setup_tp2 - setup_tp0;
+        std::cout << setup_step_dt2.count() << " ms (" << setup_total_dt2.count() << " ms total)" << std::endl;
 
         std::cout << "  - Creating GPU streams: ";
         cudaStream_t stream;
         cuda_check_error(cudaStreamCreate(&stream), "cudaStreamCreate");
-        auto t3 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dt3 = t3 - t2;
-        std::cout << dt3.count() << " s (" << dt3.count() << " s total)" << std::endl;
+        const auto setup_tp3 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> setup_step_dt3 = setup_tp3 - setup_tp2;
+        std::chrono::duration<double, std::milli> setup_total_dt3 = setup_tp3 - setup_tp0;
+        std::cout << setup_step_dt3.count() << " ms (" << setup_total_dt3.count() << " ms total)" << std::endl;
 
         std::cout << "  - Creating GPU events: ";
         cudaEvent_t e0, e1, e2, e3, e4, e5;
@@ -95,62 +98,101 @@ int main(int argc, char** argv) {
         cuda_check_error(cudaEventCreate(&e3), "cudaEventCreate");
         cuda_check_error(cudaEventCreate(&e4), "cudaEventCreate");
         cuda_check_error(cudaEventCreate(&e5), "cudaEventCreate");
-        auto t4 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dt4 = t4 - t3;
-        std::cout << dt4.count() << " s (" << dt4.count() << " s total)" << std::endl;
+        const auto setup_tp4 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> setup_step_dt4 = setup_tp4 - setup_tp3;
+        std::chrono::duration<double, std::milli> setup_total_dt4 = setup_tp4 - setup_tp0;
+        std::cout << setup_step_dt4.count() << " ms (" << setup_total_dt4.count() << " ms total)" << std::endl;
 
 
         std::cout << "GPU:" << std::endl;
+        const auto gpu_tp0 = std::chrono::high_resolution_clock::now();
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
+        const auto gpu_step_1 = "Allocate device memory";
         float *d_A, *d_B, *d_C;
-        cudaMallocAsync(&d_A, size * sizeof(float), stream);
-        cudaMallocAsync(&d_B, size * sizeof(float), stream);
-        cudaMallocAsync(&d_C, size * sizeof(float), stream);
+        cuda_check_error(cudaMallocAsync(&d_A, size * sizeof(float), stream), "cudaMallocAsync");
+        cuda_check_error(cudaMallocAsync(&d_B, size * sizeof(float), stream), "cudaMallocAsync");
+        cuda_check_error(cudaMallocAsync(&d_C, size * sizeof(float), stream), "cudaMallocAsync");
         cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
-        auto step1 = std::make_tuple(e1, e0, e0, "allocating device memory");
-        cudaStreamAddCallback(stream, report_completion_callback, &step1, NULL_FLAGS);
+        std::chrono::high_resolution_clock::time_point gpu_tp1{};
+        cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
 
-        // Copy data to device
-        cudaMemcpy(d_A, h_A.data(), size * sizeof(float), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_B, h_B.data(), size * sizeof(float), cudaMemcpyHostToDevice);
+        const auto gpu_step_2 = "Copy data to device";
+        cuda_check_error(cudaMemcpyAsync(d_A, h_A.data(), size * sizeof(float), cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(d_B, h_B.data(), size * sizeof(float), cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
-        auto step2 = std::make_tuple(e2, e1, e0, "copying data to device");
-        cudaStreamAddCallback(stream, report_completion_callback, &step2, NULL_FLAGS);
+        std::chrono::high_resolution_clock::time_point gpu_tp2{};
+        cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
 
-        // Define block and grid dimensions
+        const auto gpu_step_3 = "Compute kernel";
         dim3 blockDim(16, 16);
         dim3 gridDim((M + blockDim.x - 1) / blockDim.x, (M + blockDim.y - 1) / blockDim.y);
-
-        // Compute kernel
-        matrixMultiply<<<gridDim, blockDim>>>(d_A, d_B, d_C, M, N, M);
+        matrixMultiply<<<gridDim, blockDim, 0, stream>>>(d_A, d_B, d_C, M, N, M);
         cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
-        auto step3 = std::make_tuple(e3, e2, e0, "computing kernel");
-        cudaStreamAddCallback(stream, report_completion_callback, &step3, NULL_FLAGS);
+        std::chrono::high_resolution_clock::time_point gpu_tp3{};
+        cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
 
-        // Copy result back to host
-        cudaMemcpyAsync(h_C.data(), d_C, size * sizeof(float), cudaMemcpyDeviceToHost, stream);
+        const auto gpu_step_4 = "Copy result back to host";
+        cuda_check_error(cudaMemcpyAsync(h_C.data(), d_C, size * sizeof(float), cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e4, stream), "cudaEventRecord");
-        auto step4 = std::make_tuple(e4, e3, e0, "copying result to host");
-        cudaStreamAddCallback(stream, report_completion_callback, &step4, NULL_FLAGS);
+        std::chrono::high_resolution_clock::time_point gpu_tp4{};
+        cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp4, NULL_FLAGS), "cudaStreamAddCallback");
 
-
-        // Free device memory
-        cudaFreeAsync(d_A, stream);
-        cudaFreeAsync(d_B, stream);
-        cudaFreeAsync(d_C, stream);
+        const auto gpu_step_5 = "Free device memory";
+        cuda_check_error(cudaFreeAsync(d_A, stream), "cudaFreeAsync");
+        cuda_check_error(cudaFreeAsync(d_B, stream), "cudaFreeAsync");
+        cuda_check_error(cudaFreeAsync(d_C, stream), "cudaFreeAsync");
         cuda_check_error(cudaEventRecord(e5, stream), "cudaEventRecord");
-        auto step5 = std::make_tuple(e5, e4, e0, "freeing device memory");
-        cudaStreamAddCallback(stream, report_completion_callback, &step5, NULL_FLAGS);
+        std::chrono::high_resolution_clock::time_point gpu_tp5{};
+        cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp5, NULL_FLAGS), "cudaStreamAddCallback");
 
         // Wait for stream to finish
-        cudaStreamSynchronize(stream);
+        cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
 
         // Print execution time
-        auto t5 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dt5 = t5 - t4;
-        std::cout << "DONE: " << dt5.count() << " s (" << dt5.count() << " s total)" << std::endl;
+        float gpu_step_dt1, gpu_step_dt2, gpu_step_dt3, gpu_step_dt4, gpu_step_dt5;
+        float gpu_total_dt1, gpu_total_dt2, gpu_total_dt3, gpu_total_dt4, gpu_total_dt5;
+
+        std::chrono::duration<double, std::milli> cpu_step_dt1 = gpu_tp1 - gpu_tp0;
+        std::chrono::duration<double, std::milli> cpu_total_dt1 = gpu_tp1 - gpu_tp0;
+        cudaEventElapsedTime(&gpu_step_dt1, e0, e1);
+        cudaEventElapsedTime(&gpu_total_dt1, e0, e1);
+        std::cout << " - CPU " << gpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
+        std::cout << " - GPU " << gpu_step_1 << ": " << gpu_step_dt1 << " ms (" << gpu_total_dt1 << " ms total)" << std::endl;
+
+        std::chrono::duration<double, std::milli> cpu_step_dt2 = gpu_tp2 - gpu_tp1;
+        std::chrono::duration<double, std::milli> cpu_total_dt2 = gpu_tp2 - gpu_tp0;
+        cudaEventElapsedTime(&gpu_step_dt2, e1, e2);
+        cudaEventElapsedTime(&gpu_total_dt2, e0, e2);
+        std::cout << " - CPU " << gpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
+        std::cout << " - GPU " << gpu_step_2 << ": " << gpu_step_dt2 << " ms (" << gpu_total_dt2 << " ms total)" << std::endl;
+
+        std::chrono::duration<double, std::milli> cpu_step_dt3 = gpu_tp3 - gpu_tp2;
+        std::chrono::duration<double, std::milli> cpu_total_dt3 = gpu_tp3 - gpu_tp0;
+        cudaEventElapsedTime(&gpu_step_dt3, e2, e3);
+        cudaEventElapsedTime(&gpu_total_dt3, e0, e3);
+        std::cout << " - CPU " << gpu_step_3 << ": " << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
+        std::cout << " - GPU " << gpu_step_3 << ": " << gpu_step_dt3 << " ms (" << gpu_total_dt3 << " ms total)" << std::endl;
+
+        std::chrono::duration<double, std::milli> cpu_step_dt4 = gpu_tp4 - gpu_tp3;
+        std::chrono::duration<double, std::milli> cpu_total_dt4 = gpu_tp4 - gpu_tp0;
+        cudaEventElapsedTime(&gpu_step_dt4, e3, e4);
+        cudaEventElapsedTime(&gpu_total_dt4, e0, e4);
+        std::cout << " - CPU " << gpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
+        std::cout << " - GPU " << gpu_step_4 << ": " << gpu_step_dt4 << " ms (" << gpu_total_dt4 << " ms total)" << std::endl;
+
+        std::chrono::duration<double, std::milli> cpu_step_dt5 = gpu_tp5 - gpu_tp4;
+        std::chrono::duration<double, std::milli> cpu_total_dt5 = gpu_tp5 - gpu_tp0;
+        cudaEventElapsedTime(&gpu_step_dt5, e4, e5);
+        cudaEventElapsedTime(&gpu_total_dt5, e0, e5);
+        std::cout << " - CPU " << gpu_step_5 << ": " << cpu_step_dt5.count() << " ms (" << cpu_total_dt5.count() << " ms total)" << std::endl;
+        std::cout << " - GPU " << gpu_step_5 << ": " << gpu_step_dt5 << " ms (" << gpu_total_dt5 << " ms total)" << std::endl;
+
+
+        const auto tp_done = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
+        std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
 
 
     } catch (const cxxopts::exceptions::exception& e) {
