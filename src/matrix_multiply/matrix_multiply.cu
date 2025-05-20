@@ -6,7 +6,7 @@
 #include <cxxopts.hpp>
 
 #include "common/cuda/check_errors.h"
-#include "common/cuda/cuda_utils.cuh"
+#include "common/cuda/cuda_utils.h"
 
 // Default matrix dimensions
 constexpr int DEFAULT_M = 1000;    // Rows of first matrix
@@ -70,19 +70,22 @@ int main(int argc, char** argv) {
         std::vector<float> h_B(size, 0.0f);
         std::vector<float> h_C(size, 0.0f);
         auto t1 = std::chrono::high_resolution_clock::now();
-        std::cout << (t1 - t0).count() << " s (" << (t1 - t0).count() << " s total)" << std::endl;
+        std::chrono::duration<double> dt1 = t1 - t0;
+        std::cout << dt1.count() << " s (" << dt1.count() << " s total)" << std::endl;
 
         std::cout << "  - Initializing matrices: ";
         initialize_matrix(h_A, M, N);
         initialize_matrix(h_B, N, M);
         auto t2 = std::chrono::high_resolution_clock::now();
-        std::cout << t2 - t1 << " s (" << (t2 - t0).count() << " s total)" << std::endl;
+        std::chrono::duration<double> dt2 = t2 - t1;
+        std::cout << dt2.count() << " s (" << dt2.count() << " s total)" << std::endl;
 
         std::cout << "  - Creating GPU streams: ";
         cudaStream_t stream;
         cuda_check_error(cudaStreamCreate(&stream), "cudaStreamCreate");
         auto t3 = std::chrono::high_resolution_clock::now();
-        std::cout << t3 - t2 << " s (" << (t3 - t0).count() << " s total)" << std::endl;
+        std::chrono::duration<double> dt3 = t3 - t2;
+        std::cout << dt3.count() << " s (" << dt3.count() << " s total)" << std::endl;
 
         std::cout << "  - Creating GPU events: ";
         cudaEvent_t e0, e1, e2, e3, e4, e5;
@@ -93,7 +96,8 @@ int main(int argc, char** argv) {
         cuda_check_error(cudaEventCreate(&e4), "cudaEventCreate");
         cuda_check_error(cudaEventCreate(&e5), "cudaEventCreate");
         auto t4 = std::chrono::high_resolution_clock::now();
-        std::cout << t4 - t3 << " s (" << (t4 - t0).count() << " s total)" << std::endl;
+        std::chrono::duration<double> dt4 = t4 - t3;
+        std::cout << dt4.count() << " s (" << dt4.count() << " s total)" << std::endl;
 
 
         std::cout << "GPU:" << std::endl;
@@ -145,7 +149,8 @@ int main(int argc, char** argv) {
 
         // Print execution time
         auto t5 = std::chrono::high_resolution_clock::now();
-        std::cout << "DONE: " << t5 - t4 << " s (" << (t5 - t0).count() << " s total)" << std::endl;
+        std::chrono::duration<double> dt5 = t5 - t4;
+        std::cout << "DONE: " << dt5.count() << " s (" << dt5.count() << " s total)" << std::endl;
 
 
     } catch (const cxxopts::exceptions::exception& e) {

@@ -3,11 +3,11 @@
 
 #pragma once
 
-#define cuda_check_error(cuda_err, msg) \
+#define cuda_check_error(cuda_err, step_name) \
     do { \
         if (cuda_err != cudaSuccess) { \
             auto msg = cudaGetErrorString(cuda_err); \
-            std::cerr << "[CUDA error] " << msg << " (" << __FILE__ << ":" << __LINE__ << ")\n"; \
+            std::cerr << "[CUDA error " << step_name << "] " << msg << " (" << __FILE__ << ":" << __LINE__ << ")\n"; \
             exit(1); \
         } \
     } while (0)
