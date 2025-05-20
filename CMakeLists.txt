@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.18)
+
+# Set C++ compiler before project()
+set(CMAKE_CXX_COMPILER "g++-14")
+
 project(cuda_matrix_multiply CUDA CXX)
 
 # Set CUDA specific flags

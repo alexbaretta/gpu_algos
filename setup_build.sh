@@ -11,6 +11,29 @@ if [ ! -f "CMakeLists.txt" ]; then
     handle_error "This script must be run from the project root directory (where CMakeLists.txt is located)"
 fi
 
+# Parse command line arguments
+CLEAN_BUILD=false
+for arg in "$@"; do
+    case $arg in
+        --clean)
+            read -p "Are you sure you want to clean the build directory? (y/N): " confirm
+            if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+                CLEAN_BUILD=true
+            else
+                echo "[INFO] Clean build cancelled"
+                exit 0
+            fi
+            ;;
+    esac
+done
+
+# Handle clean build if requested
+if [ "$CLEAN_BUILD" = true ]; then
+    echo "[INFO] Cleaning build directory..."
+    rm -rf build || handle_error "Failed to remove build directory"
+fi
+
+
 # Create build directory if it doesn't exist
 if [ ! -d "build" ]; then
     echo "[INFO] Creating build directory..."
