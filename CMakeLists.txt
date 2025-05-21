@@ -16,16 +16,26 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_ARCHITECTURES 75)  # Compute capability 7.5
 
 # Add compiler warnings
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --Werror all-warnings")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --Werror all-warnings -diag-suppress 20012,20015")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wall -Wextra")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Werror -Wall -Wextra -diag-suppress 20012,20015")
 
 # Add debug flags if DEBUG is set
 if(DEFINED ENV{DEBUG})
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -g -G")
 endif()
 
+# Set OpenMP flags and libraries
+set(OpenMP_CXX_FLAGS "-fopenmp")
+set(OpenMP_CXX_LIB_NAMES "omp")
+set(OpenMP_CUDA_FLAGS "-Xcompiler=-fopenmp")
+set(OpenMP_CUDA_LIB_NAMES "omp")
+set(OpenMP_omp_LIBRARY "omp")
+
 # Find Eigen package
 find_package(Eigen3 REQUIRED)
+
+# Find OpenMP
+find_package(OpenMP REQUIRED)
 
 # Add include directories
 include_directories(
@@ -52,4 +62,5 @@ target_link_libraries(matrix_multiply
     cudart
     cuda
     Eigen3::Eigen
+    OpenMP::OpenMP_CXX
 )
