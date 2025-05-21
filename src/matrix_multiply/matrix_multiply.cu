@@ -6,8 +6,11 @@
 #include <chrono>
 #include <cxxopts.hpp>
 
+#include <Eigen/Core>
+
 #include "common/cuda/check_errors.h"
 #include "common/cuda/cuda_utils.h"
+// #include "common/eigen/algorithms.h"
 
 // Default matrix dimensions
 constexpr int DEFAULT_M = 1000;    // Rows of first matrix
@@ -168,41 +171,75 @@ int main(int argc, char** argv) {
         float gpu_step_dt1 = 0.0f, gpu_step_dt2 = 0.0f, gpu_step_dt3 = 0.0f, gpu_step_dt4 = 0.0f, gpu_step_dt5 = 0.0f;
         float gpu_total_dt1 = 0.0f, gpu_total_dt2 = 0.0f, gpu_total_dt3 = 0.0f, gpu_total_dt4 = 0.0f, gpu_total_dt5 = 0.0f;
 
-        std::chrono::duration<double, std::milli> cpu_step_dt1 = gpu_tp1 - gpu_tp0;
-        std::chrono::duration<double, std::milli> cpu_total_dt1 = gpu_tp1 - gpu_tp0;
+        std::chrono::duration<double, std::milli> chrono_step_dt1 = gpu_tp1 - gpu_tp0;
+        std::chrono::duration<double, std::milli> chrono_total_dt1 = gpu_tp1 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt1, e0, e1), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt1, e0, e1), "cudaEventElapsedTime");
-        std::cout << " - CPU " << gpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
+        std::cout << " - CPU " << gpu_step_1 << ": " << chrono_step_dt1.count() << " ms (" << chrono_total_dt1.count() << " ms total)" << std::endl;
         std::cout << " - GPU " << gpu_step_1 << ": " << gpu_step_dt1 << " ms (" << gpu_total_dt1 << " ms total)" << std::endl;
 
-        std::chrono::duration<double, std::milli> cpu_step_dt2 = gpu_tp2 - gpu_tp1;
-        std::chrono::duration<double, std::milli> cpu_total_dt2 = gpu_tp2 - gpu_tp0;
+        std::chrono::duration<double, std::milli> chrono_step_dt2 = gpu_tp2 - gpu_tp1;
+        std::chrono::duration<double, std::milli> chrono_total_dt2 = gpu_tp2 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt2, e1, e2), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt2, e0, e2), "cudaEventElapsedTime");
-        std::cout << " - CPU " << gpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
+        std::cout << " - CPU " << gpu_step_2 << ": " << chrono_step_dt2.count() << " ms (" << chrono_total_dt2.count() << " ms total)" << std::endl;
         std::cout << " - GPU " << gpu_step_2 << ": " << gpu_step_dt2 << " ms (" << gpu_total_dt2 << " ms total)" << std::endl;
 
-        std::chrono::duration<double, std::milli> cpu_step_dt3 = gpu_tp3 - gpu_tp2;
-        std::chrono::duration<double, std::milli> cpu_total_dt3 = gpu_tp3 - gpu_tp0;
+        std::chrono::duration<double, std::milli> chrono_step_dt3 = gpu_tp3 - gpu_tp2;
+        std::chrono::duration<double, std::milli> chrono_total_dt3 = gpu_tp3 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt3, e2, e3), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt3, e0, e3), "cudaEventElapsedTime");
-        std::cout << " - CPU " << gpu_step_3 << ": " << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
+        std::cout << " - CPU " << gpu_step_3 << ": " << chrono_step_dt3.count() << " ms (" << chrono_total_dt3.count() << " ms total)" << std::endl;
         std::cout << " - GPU " << gpu_step_3 << ": " << gpu_step_dt3 << " ms (" << gpu_total_dt3 << " ms total)" << std::endl;
 
-        std::chrono::duration<double, std::milli> cpu_step_dt4 = gpu_tp4 - gpu_tp3;
-        std::chrono::duration<double, std::milli> cpu_total_dt4 = gpu_tp4 - gpu_tp0;
+        std::chrono::duration<double, std::milli> chrono_step_dt4 = gpu_tp4 - gpu_tp3;
+        std::chrono::duration<double, std::milli> chrono_total_dt4 = gpu_tp4 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt4, e3, e4), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt4, e0, e4), "cudaEventElapsedTime");
-        std::cout << " - CPU " << gpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
+        std::cout << " - CPU " << gpu_step_4 << ": " << chrono_step_dt4.count() << " ms (" << chrono_total_dt4.count() << " ms total)" << std::endl;
         std::cout << " - GPU " << gpu_step_4 << ": " << gpu_step_dt4 << " ms (" << gpu_total_dt4 << " ms total)" << std::endl;
 
-        std::chrono::duration<double, std::milli> cpu_step_dt5 = gpu_tp5 - gpu_tp4;
-        std::chrono::duration<double, std::milli> cpu_total_dt5 = gpu_tp5 - gpu_tp0;
+        std::chrono::duration<double, std::milli> chrono_step_dt5 = gpu_tp5 - gpu_tp4;
+        std::chrono::duration<double, std::milli> chrono_total_dt5 = gpu_tp5 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt5, e4, e5), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt5, e0, e5), "cudaEventElapsedTime");
-        std::cout << " - CPU " << gpu_step_5 << ": " << cpu_step_dt5.count() << " ms (" << cpu_total_dt5.count() << " ms total)" << std::endl;
+        std::cout << " - CPU " << gpu_step_5 << ": " << chrono_step_dt5.count() << " ms (" << chrono_total_dt5.count() << " ms total)" << std::endl;
         std::cout << " - GPU " << gpu_step_5 << ": " << gpu_step_dt5 << " ms (" << gpu_total_dt5 << " ms total)" << std::endl;
 
+        const auto cpu_tp0 = std::chrono::high_resolution_clock::now();
+
+        std::cout << "CHECK WITH CPU:" << std::endl;
+        const auto cpu_step_1 = "Convert data to Eigen";
+        const Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A{h_A.data(), M, N};
+        const Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> B{h_B.data(), N, M};
+        const Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> C{h_C.data(), M, M};
+        const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
+        std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
+        std::cout << " - " << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
+
+        const auto cpu_step_2 = "Compute result with Eigen";
+        const auto C_cpu = A * B;
+        const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
+        std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;
+        std::cout << " - " << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
+
+        const auto cpu_step_3 = "Compute error matrix";
+        const auto E = C - C_cpu;
+        const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
+        std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
+        std::cout << " - " << cpu_step_3 << ": " << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
+
+        // const auto cpu_step_4 = "Compute error RMS";
+        // const auto E_rms = calculateRMS(E);
+        // const auto cpu_tp4 = std::chrono::high_resolution_clock::now();
+        // std::chrono::duration<double, std::milli> cpu_step_dt4 = cpu_tp4 - cpu_tp3;
+        // std::chrono::duration<double, std::milli> cpu_total_dt4 = cpu_tp4 - cpu_tp0;
+        // std::cout << " - " << cpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
+
+        // std::cout << "Error RMS: " << E_rms << std::endl;
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;

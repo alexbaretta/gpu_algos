@@ -1,9 +1,10 @@
 #!/bin/bash
 
+# Do not call exit here, as this script is sourced
+
 # Function to handle errors
 handle_error() {
     echo "[ERROR] $1"
-    exit 1
 }
 
 # Check if we're in the project root (where CMakeLists.txt should be)
@@ -21,7 +22,6 @@ for arg in "$@"; do
                 CLEAN_BUILD=true
             else
                 echo "[INFO] Clean build cancelled"
-                exit 0
             fi
             ;;
     esac
