@@ -1,16 +1,17 @@
-#include <cuda_runtime.h>
+#include <chrono>
+#include <cmath>
 #include <iostream>
+#include <random>
 #include <ratio>
 #include <vector>
-#include <random>
-#include <chrono>
-#include <cxxopts.hpp>
 
+#include <cuda_runtime.h>
+#include <cxxopts.hpp>
 #include <Eigen/Core>
 
 #include "common/cuda/check_errors.h"
 #include "common/cuda/cuda_utils.h"
-// #include "common/eigen/algorithms.h"
+#include "common/eigen/algorithms.h"
 
 // Default matrix dimensions
 constexpr int DEFAULT_M = 1000;    // Rows of first matrix
@@ -232,14 +233,14 @@ int main(int argc, char** argv) {
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
         std::cout << " - " << cpu_step_3 << ": " << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
 
-        // const auto cpu_step_4 = "Compute error RMS";
-        // const auto E_rms = calculateRMS(E);
-        // const auto cpu_tp4 = std::chrono::high_resolution_clock::now();
-        // std::chrono::duration<double, std::milli> cpu_step_dt4 = cpu_tp4 - cpu_tp3;
-        // std::chrono::duration<double, std::milli> cpu_total_dt4 = cpu_tp4 - cpu_tp0;
-        // std::cout << " - " << cpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
+        const auto cpu_step_4 = "Compute error RMS";
+        const auto E_rms = std::sqrt(E.squaredNorm() / size);
+        const auto cpu_tp4 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> cpu_step_dt4 = cpu_tp4 - cpu_tp3;
+        std::chrono::duration<double, std::milli> cpu_total_dt4 = cpu_tp4 - cpu_tp0;
+        std::cout << " - " << cpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
 
-        // std::cout << "Error RMS: " << E_rms << std::endl;
+        std::cout << "Error RMS: " << E_rms << std::endl;
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
