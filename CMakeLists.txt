@@ -1,3 +1,6 @@
+# Copyright (c) 2025 Alessandro Baretta
+# All rights reserved.
+
 cmake_minimum_required(VERSION 3.18)
 
 # Set C++ compiler before project()

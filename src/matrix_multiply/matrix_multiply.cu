@@ -1,3 +1,6 @@
+// Copyright (c) 2025 Alessandro Baretta
+// All rights reserved.
+
 #include <chrono>
 #include <cmath>
 #include <iostream>

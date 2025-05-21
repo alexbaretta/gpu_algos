@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2025 Alessandro Baretta -->
+<!-- All rights reserved. -->
+
 # CUDA Matrix Multiplication
 
 This project demonstrates matrix multiplication using CUDA, targeting compute capability 8.9 and CUDA 12.9.

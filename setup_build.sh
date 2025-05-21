@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (c) 2025 Alessandro Baretta
+# All rights reserved.
 
 # Do not call exit here, as this script is sourced
 
