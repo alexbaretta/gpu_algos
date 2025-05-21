@@ -16,6 +16,10 @@
 #include "common/cuda/cuda_utils.h"
 #include "common/eigen/algorithms.h"
 
+#ifndef _OPENMP
+static_assert(false, "OpenMP is not supported");
+#endif
+
 // Default matrix dimensions
 constexpr int DEFAULT_M = 1000;    // Rows of first matrix
 constexpr int DEFAULT_N = 10000;   // Columns of first matrix / Rows of second matrix

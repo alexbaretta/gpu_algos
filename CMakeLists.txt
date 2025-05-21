@@ -18,6 +18,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_ARCHITECTURES "89")  # Compute capability 8.9
 
+# Add OpenMP flags for CUDA
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fopenmp")
+
 # Add compiler warnings
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --Werror all-warnings")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --Werror all-warnings -diag-suppress 20012,20015")
@@ -61,7 +64,7 @@ set_target_properties(matrix_multiply PROPERTIES
 )
 
 # Link CUDA libraries
-target_link_libraries(matrix_multiply
+target_link_libraries(matrix_multiply PRIVATE
     cudart
     cuda
     Eigen3::Eigen
