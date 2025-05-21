@@ -46,15 +46,15 @@ find_package(OpenMP REQUIRED)
 # Add include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/cuda
     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cxxopts/include
     ${EIGEN3_INCLUDE_DIR}
 )
 
 # Add executable
 add_executable(matrix_multiply
-    src/matrix_multiply/matrix_multiply.cu
-    src/common/cuda/cuda_utils.cu
+    src/tools/matrix_multiply/matrix_multiply.cu
+    src/cuda/cuda_utils.cu
 )
 
 # Set CUDA specific properties

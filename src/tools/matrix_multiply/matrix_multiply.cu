@@ -13,9 +13,8 @@
 #include <cxxopts.hpp>
 #include <Eigen/Core>
 
-#include "common/cuda/check_errors.h"
-#include "common/cuda/cuda_utils.h"
-#include "common/eigen/algorithms.h"
+#include "cuda/check_errors.h"
+#include "cuda/cuda_utils.h"
 #include "common/random.h"
 #ifndef _OPENMP
 static_assert(false, "OpenMP is not supported");
