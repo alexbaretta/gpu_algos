@@ -13,7 +13,7 @@ set(CMAKE_CUDA_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_ARCHITECTURES 75)  # Compute capability 7.5
+set(CMAKE_CUDA_ARCHITECTURES "89")  # Compute capability 8.9
 
 # Add compiler warnings
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --Werror all-warnings")
