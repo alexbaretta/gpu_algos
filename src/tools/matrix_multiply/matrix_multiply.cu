@@ -15,6 +15,7 @@
 
 #include "cuda/check_errors.h"
 #include "cuda/cuda_utils.h"
+#include "cuda/kernels/matrix_product.h"
 #include "common/random.h"
 #ifndef _OPENMP
 static_assert(false, "OpenMP is not supported");
@@ -27,18 +28,7 @@ constexpr int DEFAULT_GPU_MEM = 16; // GPU memory size in GB
 constexpr unsigned int NULL_FLAGS = 0;
 constexpr int DEFAULT_SEED = 42;
 // CUDA kernel for matrix multiplication
-__global__ void matrixMultiply(const float* A, const float* B, float* C, int m, int n, int k) {
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (row < m && col < k) {
-        float sum = 0.0f;
-        for (int i = 0; i < n; ++i) {
-            sum += A[row * n + i] * B[i * k + col];
-        }
-        C[row * k + col] = sum;
-    }
-}
 
 int main(int argc, char** argv) {
     // Parse command line arguments
@@ -147,7 +137,7 @@ int main(int argc, char** argv) {
         const auto gpu_step_3 = "Compute kernel";
         dim3 blockDim(16, 16);
         dim3 gridDim((M + blockDim.x - 1) / blockDim.x, (M + blockDim.y - 1) / blockDim.y);
-        matrixMultiply<<<gridDim, blockDim, 0, stream>>>(d_A, d_B, d_C, M, N, M);
+        matrix_product_naive<<<gridDim, blockDim, 0, stream>>>(d_A, d_B, d_C, M, N, M);
         cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp3{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
