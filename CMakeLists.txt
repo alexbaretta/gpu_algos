@@ -16,8 +16,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_ARCHITECTURES 75)  # Compute capability 7.5
 
 # Add compiler warnings
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wall -Wextra")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Werror -Wall -Wextra -diag-suppress 20012,20015")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --Werror all-warnings")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --Werror all-warnings -diag-suppress 20012,20015")
 
 # Add debug flags if DEBUG is set
 if(DEFINED ENV{DEBUG})
