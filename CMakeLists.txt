@@ -52,19 +52,19 @@ include_directories(
 )
 
 # Add executable
-add_executable(matrix_multiply
-    src/tools/matrix_multiply/matrix_multiply.cu
+add_executable(matrix_product_naive
+    src/tools/matrix_product/matrix_product_naive.cu
     src/cuda/cuda_utils.cu
 )
 
 # Set CUDA specific properties
-set_target_properties(matrix_multiply PROPERTIES
+set_target_properties(matrix_product_naive PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_ARCHITECTURES 75
 )
 
 # Link CUDA libraries
-target_link_libraries(matrix_multiply PRIVATE
+target_link_libraries(matrix_product_naive PRIVATE
     cudart
     cuda
     Eigen3::Eigen
