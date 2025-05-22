@@ -50,11 +50,11 @@ int main(int argc, char** argv) {
         }
 
         // Get matrix dimensions from command line or use defaults
-        const int M = result["nrows"].as<int>();
-        const int N = result["ncols"].as<int>();
+        const int nrows = result["nrows"].as<int>();
+        const int ncols = result["ncols"].as<int>();
         const int seed = result["seed"].as<int>();
-        const int input_size = M * N;
-        const int output_size = M * M;
+        const int input_size = nrows * ncols;
+        const int output_size = nrows * nrows;
         const int gpu_mem = result["gpumem"].as<int>();
         const bool verbose = result["verbose"].as<bool>();
         constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
         const float output_matrix_size_gb = output_size * sizeof(float) / GB;
         const float mem_gb = 2*input_matrix_size_gb + output_matrix_size_gb;
         std::cout
-            << "Matrix dimensions   : " << M << "x" << N << " * " << N << "x" << M << "\n"
+            << "Matrix dimensions   : " << nrows << "x" << ncols << " * " << ncols << "x" << nrows << "\n"
             << "Input matrices size : " << input_matrix_size_gb << " GB\n"
             << "Output matrix size  : " << output_matrix_size_gb << " GB\n"
             << "Required mem        : " << mem_gb << " GB"
@@ -77,16 +77,16 @@ int main(int argc, char** argv) {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        std::vector<float> h_A(input_size, 0.0f);
-        std::vector<float> h_B(input_size, 0.0f);
-        std::vector<float> h_C(output_size, 0.0f);
+        std::vector<float> vec_A(input_size, 0.0f);
+        std::vector<float> vec_B(input_size, 0.0f);
+        std::vector<float> vec_C(output_size, 0.0f);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
         std::cout << "  - Initializing matrices: ";
-        randomize_vector(h_A, seed);
-        randomize_vector(h_B, seed+1);
+        randomize_vector(vec_A, seed);
+        randomize_vector(vec_B, seed+1);
         const auto setup_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_step_dt2 = setup_tp2 - setup_tp1;
         std::chrono::duration<double, std::milli> setup_total_dt2 = setup_tp2 - setup_tp0;
@@ -119,39 +119,39 @@ int main(int argc, char** argv) {
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        float *d_A, *d_B, *d_C;
-        cuda_check_error(cudaMallocAsync(&d_A, input_size * sizeof(float), stream), "cudaMallocAsync");
-        cuda_check_error(cudaMallocAsync(&d_B, input_size * sizeof(float), stream), "cudaMallocAsync");
-        cuda_check_error(cudaMallocAsync(&d_C, output_size * sizeof(float), stream), "cudaMallocAsync");
+        float *gpu_data_A = nullptr, *gpu_data_B = nullptr, *gpu_data_C = nullptr;
+        cuda_check_error(cudaMallocAsync(&gpu_data_A, input_size * sizeof(float), stream), "cudaMallocAsync");
+        cuda_check_error(cudaMallocAsync(&gpu_data_B, input_size * sizeof(float), stream), "cudaMallocAsync");
+        cuda_check_error(cudaMallocAsync(&gpu_data_C, output_size * sizeof(float), stream), "cudaMallocAsync");
         cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp1{};
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
 
         const auto gpu_step_2 = "Copy data to device";
-        cuda_check_error(cudaMemcpyAsync(d_A, h_A.data(), input_size * sizeof(float), cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
-        cuda_check_error(cudaMemcpyAsync(d_B, h_B.data(), input_size * sizeof(float), cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(gpu_data_A, vec_A.data(), input_size * sizeof(float), cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(gpu_data_B, vec_B.data(), input_size * sizeof(float), cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e2, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
 
         const auto gpu_step_3 = "Compute kernel";
         dim3 blockDim(16, 16);
-        dim3 gridDim((M + blockDim.x - 1) / blockDim.x, (M + blockDim.y - 1) / blockDim.y);
-        matrix_product_naive<<<gridDim, blockDim, 0, stream>>>(d_A, d_B, d_C, M, N, M);
+        dim3 gridDim((nrows + blockDim.x - 1) / blockDim.x, (nrows + blockDim.y - 1) / blockDim.y);
+        matrix_product_naive<<<gridDim, blockDim, 0, stream>>>(gpu_data_A, gpu_data_B, gpu_data_C, nrows, ncols);
         cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp3{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
-        cuda_check_error(cudaMemcpyAsync(h_C.data(), d_C, output_size * sizeof(float), cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(vec_C.data(), gpu_data_C, output_size * sizeof(float), cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e4, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp4{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp4, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_5 = "Free device memory";
-        cuda_check_error(cudaFreeAsync(d_A, stream), "cudaFreeAsync");
-        cuda_check_error(cudaFreeAsync(d_B, stream), "cudaFreeAsync");
-        cuda_check_error(cudaFreeAsync(d_C, stream), "cudaFreeAsync");
+        cuda_check_error(cudaFreeAsync(gpu_data_A, stream), "cudaFreeAsync");
+        cuda_check_error(cudaFreeAsync(gpu_data_B, stream), "cudaFreeAsync");
+        cuda_check_error(cudaFreeAsync(gpu_data_C, stream), "cudaFreeAsync");
         cuda_check_error(cudaEventRecord(e5, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp5{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp5, NULL_FLAGS), "cudaStreamAddCallback");
@@ -206,9 +206,9 @@ int main(int argc, char** argv) {
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Eigen";
-        const Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A{h_A.data(), M, N};
-        const Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> B{h_B.data(), N, M};
-        const Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> C_gpu{h_C.data(), M, M};
+        const Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A{vec_A.data(), nrows, ncols};
+        const Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> B{vec_B.data(), ncols, nrows};
+        const Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> C_gpu{vec_C.data(), nrows, nrows};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;

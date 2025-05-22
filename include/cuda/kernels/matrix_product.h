@@ -8,18 +8,17 @@ __global__ void matrix_product_naive(
     const CUDA_FLOAT* A,
     const CUDA_FLOAT* B,
     CUDA_FLOAT* C,
-    unsigned int m,
-    unsigned int n,
-    unsigned int k
+    unsigned int nrows,
+    unsigned int ncols
 ) {
     unsigned int row = blockIdx.y * blockDim.y + threadIdx.y;
     unsigned int col = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (row < m && col < k) {
+    if (row < nrows && col < nrows) {
         CUDA_FLOAT sum = 0.0f;
-        for (int i = 0; i < n; ++i) {
-            sum += A[row * n + i] * B[i * k + col];
+        for (int i = 0; i < ncols; ++i) {
+            sum += A[row * ncols + i] * B[i * nrows + col];
         }
-        C[row * k + col] = sum;
+        C[row * nrows + col] = sum;
     }
 }
