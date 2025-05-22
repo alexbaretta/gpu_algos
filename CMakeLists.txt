@@ -25,10 +25,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fopenmp")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --Werror all-warnings")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --Werror all-warnings -diag-suppress 20012,20015")
 
-# Add debug flags if DEBUG is set
-if(DEFINED ENV{DEBUG})
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -g -G")
-endif()
 
 # Set OpenMP flags and libraries
 set(OpenMP_CXX_FLAGS "-fopenmp")

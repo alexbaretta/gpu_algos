@@ -1,0 +1,47 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+      "major": 4,
+      "minor": 0,
+      "patch": 2
+    },
+    "configurePresets": [
+      {
+        "name": "release",
+        "displayName": "Release Config",
+        "description": "Release build configuration",
+        "binaryDir": "${sourceDir}/builds/release",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Release",
+          "CMAKE_CUDA_ARCHITECTURES": "89",
+          "CMAKE_CUDA_COMPILER": "nvcc",
+          "CMAKE_CXX_COMPILER": "g++-14",
+          "CMAKE_CUDA_HOST_COMPILER": "g++-14",
+          "CMAKE_CXX_FLAGS": "-O3 -Werror -Wall",
+          "CMAKE_CUDA_FLAGS": "-O3 --Werror all-warnings -diag-suppress 20012,20015"
+        }
+      },
+      {
+        "name": "debug",
+        "displayName": "Debug Config",
+        "description": "Debug build configuration",
+        "inherits": "release",
+        "binaryDir": "${sourceDir}/builds/debug",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Debug",
+          "CMAKE_CXX_FLAGS": "-O0 -g -Werror -Wall",
+          "CMAKE_CUDA_FLAGS": "-O0 -g -G --Werror all-warnings -diag-suppress 20012,20015"
+        }
+      }
+    ],
+    "buildPresets": [
+      {
+        "name": "release",
+        "configurePreset": "release"
+      },
+      {
+        "name": "debug",
+        "configurePreset": "debug"
+      }
+    ]
+}
