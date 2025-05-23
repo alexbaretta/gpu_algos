@@ -7,13 +7,10 @@
 
 #include "cuda/kernels/matrix_product.h"
 
-#ifndef _OPENMP
-static_assert(false, "OpenMP is not supported");
-#endif
 
 // Default matrix dimensions
-constexpr int DEFAULT_NROWS = 3000;     // Rows of first matrix
-constexpr int DEFAULT_NCOLS = 300;      // Columns of first matrix / Rows of second matrix
+constexpr int DEFAULT_NROWS = 3000; // Rows of first matrix
+constexpr int DEFAULT_NCOLS = 300;  // Columns of first matrix / Rows of second matrix
 constexpr int DEFAULT_GPU_MEM = 16; // GPU memory size in GB
 constexpr int DEFAULT_SEED = 42;
 

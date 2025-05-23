@@ -15,6 +15,10 @@
 #include "cuda/check_errors.h"
 #include "cuda/cuda_utils.h"
 
+#ifndef _OPENMP
+static_assert(false, "OpenMP is not supported");
+#endif
+
 template <typename KERNEL_SPEC>
 struct Benchmark {
     public:
