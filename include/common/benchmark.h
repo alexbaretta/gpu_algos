@@ -27,9 +27,8 @@ template <typename KERNEL_SPEC>
 class Benchmark {
     public:
     using NUMBER = typename KERNEL_SPEC::NUMBER;
+    using PRINTABLE_NUMBER = std::conditional_t<std::is_same_v<NUMBER, __half>, float, NUMBER>;
 
-    const cxxopts::Options options;
-    const cxxopts::ParseResult result;
     const int nrows;
     const int ncols;
     const int seed;
@@ -38,16 +37,12 @@ class Benchmark {
 
     // Parse CLI options
     Benchmark(
-        cxxopts::Options options,
-        int argc,
-        char** argv
-    ) : options(options),
-        result(options.parse(argc, argv)),
-        nrows(result["nrows"].as<int>()),
-        ncols(result["ncols"].as<int>()),
-        seed(result["seed"].as<int>()),
-        gpu_mem(result["gpumem"].as<int>()),
-        verbose(result["verbose"].as<bool>())
+        cxxopts::ParseResult options_parsed
+    ) : nrows(options_parsed["nrows"].as<int>()),
+        ncols(options_parsed["ncols"].as<int>()),
+        seed(options_parsed["seed"].as<int>()),
+        gpu_mem(options_parsed["gpumem"].as<int>()),
+        verbose(options_parsed["verbose"].as<bool>())
     {}
 
     int run() {
@@ -226,28 +221,23 @@ class Benchmark {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_3 << ": " << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
 
         const auto cpu_step_4 = "Compute max error";
-        const auto E_max = E.cwiseAbs().maxCoeff();
+        const double E_max = E.cwiseAbs().maxCoeff();
+        const double C_cpu_max = C_cpu.cwiseAbs().maxCoeff();
+        const auto E_max_pct = (E_max / C_cpu_max) * 100.0f;
         const auto cpu_tp4 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt4 = cpu_tp4 - cpu_tp3;
         std::chrono::duration<double, std::milli> cpu_total_dt4 = cpu_tp4 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
 
-        const auto cpu_step_5 = "Compute max relative error";
-        const auto E_max_pct = E_max / C_cpu.cwiseAbs().maxCoeff() * 100.0f;
-        const auto cpu_tp5 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> cpu_step_dt5 = cpu_tp5 - cpu_tp4;
-        std::chrono::duration<double, std::milli> cpu_total_dt5 = cpu_tp5 - cpu_tp0;
-        std::cout << " - " << std::setw(check_field_width) << cpu_step_5 << ": " << cpu_step_dt5.count() << " ms (" << cpu_total_dt5.count() << " ms total)" << std::endl;
-
         std::cout << "Max error: " << E_max << " (" << E_max_pct << " % )" << std::endl;
 
         if (verbose) {
             const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A :\n" << A.format(clean_matrix_format) << std::endl;
-            std::cout << "B :\n" << B.format(clean_matrix_format) << std::endl;
-            std::cout << "C_gpu :\n" << C_gpu.format(clean_matrix_format) << std::endl;
-            std::cout << "C_cpu :\n" << C_cpu.format(clean_matrix_format) << std::endl;
-            std::cout << "E :\n" << E.format(clean_matrix_format) << std::endl;
+            std::cout << "A :\n" << A.template cast<PRINTABLE_NUMBER>().format(clean_matrix_format) << std::endl;
+            std::cout << "B :\n" << B.template cast<PRINTABLE_NUMBER>().format(clean_matrix_format) << std::endl;
+            std::cout << "C_gpu :\n" << C_gpu.template cast<PRINTABLE_NUMBER>().format(clean_matrix_format) << std::endl;
+            std::cout << "C_cpu :\n" << C_cpu.template cast<PRINTABLE_NUMBER>().format(clean_matrix_format) << std::endl;
+            std::cout << "E :\n" << E.template cast<PRINTABLE_NUMBER>().format(clean_matrix_format) << std::endl;
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
