@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+#pragma once
+
 #include <cuda_runtime.h>
 #include <iostream>
 #include <string>

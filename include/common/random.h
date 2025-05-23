@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+#pragma once
+
 #include <random>
 #include <vector>
 

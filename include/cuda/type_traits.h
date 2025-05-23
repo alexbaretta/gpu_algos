@@ -1,12 +1,16 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+#pragma once
+
 #include <cuda_fp16.h>
 #include <concepts>
 #include <type_traits>
 
 template <typename T>
-using is_CUDA_floating_point = std::integral_constant<bool, std::is_floating_point_v<T> || std::is_same_v<T, __half>>;
+using is_CUDA_floating_point = std::bool_constant<
+    std::is_floating_point_v<T> || std::is_same_v<T, __half>
+>;
 
 template <typename T>
 constexpr bool is_CUDA_floating_point_v = is_CUDA_floating_point<T>::value;
