@@ -1,20 +1,11 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-#include <chrono>
-#include <iostream>
-#include <iomanip>
-#include <ratio>
-
-#include <cuda_runtime.h>
 #include <cxxopts.hpp>
-#include <Eigen/Core>
 
-#include "cuda/check_errors.h"
-#include "cuda/cuda_utils.h"
-#include "cuda/kernels/matrix_product.h"
-#include "common/random.h"
 #include "common/benchmark.h"
+
+#include "cuda/kernels/matrix_product.h"
 
 #ifndef _OPENMP
 static_assert(false, "OpenMP is not supported");
