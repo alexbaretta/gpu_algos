@@ -3,6 +3,7 @@ _scratch/
 
 # Build directories
 build/
+builds/
 tmp/
 
 # IDE specific files
