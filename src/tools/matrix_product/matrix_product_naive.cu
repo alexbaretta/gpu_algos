@@ -7,7 +7,7 @@
 
 #include "common/benchmark.h"
 
-#include "cuda/kernels/matrix_product.h"
+#include "cuda/kernels/matrix_product_naive.h"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("matrix_product_naive", "Naive matrix multiplication");
