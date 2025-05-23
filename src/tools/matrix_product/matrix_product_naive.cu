@@ -2,12 +2,9 @@
 // All rights reserved.
 
 #include <chrono>
-#include <cmath>
 #include <iostream>
 #include <iomanip>
-#include <random>
 #include <ratio>
-#include <vector>
 
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
