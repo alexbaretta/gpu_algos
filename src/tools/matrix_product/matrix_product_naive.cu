@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+// source path: src/tools/matrix_product/matrix_product_naive.cu
+
 #include <cxxopts.hpp>
 
 #include "common/benchmark.h"
@@ -10,25 +12,19 @@
 int main(int argc, char** argv) {
     cxxopts::Options options("matrix_product_naive", "Naive matrix multiplication");
     add_benchmark_options(options);
-    options.add_options()
-        ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
+    Matrix_product_naive_spec::add_kernel_spec_options(options);
 
     try {
         cxxopts::ParseResult options_parsed = options.parse(argc, argv);
 
-        // Validate the type option
-        std::string type = options_parsed["type"].as<std::string>();
-        if (type != "half" && type != "single" && type != "float" && type != "double") {
-            std::cerr << "[ERROR] --type must be one of: half, single/float, double" << std::endl;
-            return 1;
-        }
+        Matrix_product_naive_spec spec = Matrix_product_naive_spec::make(options_parsed);
 
-        if (type == "half") {
-            return Benchmark<Matrix_product_naive<half>>(options_parsed).run();
-        } else if (type == "single" || type == "float") {
-            return Benchmark<Matrix_product_naive<float>>(options_parsed).run();
-        } else if (type == "double") {
-            return Benchmark<Matrix_product_naive<double>>(options_parsed).run();
+        if (spec.type_ == "half") {
+            return Benchmark<Matrix_product_naive_kernel<Matrix_product_naive_spec, __half>>(spec, options_parsed).run();
+        } else if (spec.type_ == "single" || spec.type_ == "float") {
+            return Benchmark<Matrix_product_naive_kernel<Matrix_product_naive_spec, float>>(spec, options_parsed).run();
+        } else if (spec.type_ == "double") {
+            return Benchmark<Matrix_product_naive_kernel<Matrix_product_naive_spec, double>>(spec, options_parsed).run();
         }
     } catch (const cxxopts::exceptions::exception& e) {
        std::cerr << "Error parsing options: " << e.what() << std::endl;

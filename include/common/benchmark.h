@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+// source path: include/common/benchmark.h
+
 #pragma once
 
 #include <iostream>
@@ -15,50 +17,57 @@
 #include "common/random.h"
 #include "cuda/check_errors.h"
 #include "cuda/cuda_utils.h"
+#include "cuda/kernel_api.h"
 
 #ifndef _OPENMP
 static_assert(false, "OpenMP is not supported");
 #endif
 
+constexpr int DEFAULT_GPU_MEM = 16; // GPU memory size in GB
+constexpr int DEFAULT_SEED = 42;
 
 void add_benchmark_options(cxxopts::Options& options);
 
-template <typename KERNEL_SPEC>
+template <Kernel KERNEL>
 class Benchmark {
     public:
-    using NUMBER = typename KERNEL_SPEC::NUMBER;
+    using KERNEL_SPEC = typename KERNEL::KERNEL_SPEC;
+    using NUMBER = typename KERNEL::NUMBER;
     using PRINTABLE_NUMBER = std::conditional_t<std::is_same_v<NUMBER, __half>, float, NUMBER>;
 
-    const int nrows;
-    const int ncols;
+    const KERNEL_SPEC spec;
     const int seed;
     const int gpu_mem;
     const bool verbose;
 
     // Parse CLI options
     Benchmark(
-        cxxopts::ParseResult options_parsed
-    ) : nrows(options_parsed["nrows"].as<int>()),
-        ncols(options_parsed["ncols"].as<int>()),
+        const KERNEL_SPEC spec,
+        const cxxopts::ParseResult& options_parsed
+    ) : spec(spec),
         seed(options_parsed["seed"].as<int>()),
         gpu_mem(options_parsed["gpumem"].as<int>()),
         verbose(options_parsed["verbose"].as<bool>())
     {}
 
     int run() {
-        const int input_size = nrows * ncols;
-        const int output_size = nrows * nrows;
-        const int input_size_bytes = input_size * sizeof(NUMBER);
-        const int output_size_bytes = output_size * sizeof(NUMBER);
+        const int size_A = spec.n_rows_A_ * spec.n_cols_A_;
+        const int size_B = spec.n_rows_B_ * spec.n_cols_B_;
+        const int size_C = spec.n_rows_C_ * spec.n_cols_C_;
+        const int size_A_bytes = size_A * sizeof(NUMBER);
+        const int size_B_bytes = size_B * sizeof(NUMBER);
+        const int size_C_bytes = size_C * sizeof(NUMBER);
+        const int input_size_bytes = size_A_bytes + size_B_bytes;
+        const int output_size_bytes = size_C_bytes;
         constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
-        const float input_matrix_size_gb = input_size_bytes / GB;
-        const float output_matrix_size_gb = output_size_bytes / GB;
-        const float mem_gb = 2*input_matrix_size_gb + output_matrix_size_gb;
+        const float input_size_gb = input_size_bytes / GB;
+        const float output_size_gb = output_size_bytes / GB;
+        const float mem_gb = 2*input_size_gb + output_size_gb;
         std::cout
-            << "Matrix dimensions   : " << nrows << "x" << ncols << " * " << ncols << "x" << nrows << "\n"
-            << "Input matrices size : " << input_matrix_size_gb << " GB\n"
-            << "Output matrix size  : " << output_matrix_size_gb << " GB\n"
-            << "Required mem        : " << mem_gb << " GB"
+            << "Input matrices dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << " * " << spec.n_cols_B_ << "x" << spec.n_rows_B_ << "\n"
+            << "Input size                  : " << input_size_gb << " GB\n"
+            << "Output size                 : " << output_size_gb << " GB\n"
+            << "Required memory             : " << mem_gb << " GB"
             << std::endl;
         if (mem_gb > gpu_mem) {
             std::cerr << "[ERROR] GPU memory size is less than the matrix size" << std::endl;
@@ -70,9 +79,9 @@ class Benchmark {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        std::vector<NUMBER> vec_A(input_size, 0.0f);
-        std::vector<NUMBER> vec_B(input_size, 0.0f);
-        std::vector<NUMBER> vec_C(output_size, 0.0f);
+        std::vector<NUMBER> vec_A(size_A, 0.0f);
+        std::vector<NUMBER> vec_B(size_B, 0.0f);
+        std::vector<NUMBER> vec_C(size_C, 0.0f);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
@@ -128,8 +137,8 @@ class Benchmark {
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
 
         const auto gpu_step_3 = "Compute kernel";
-        KERNEL_SPEC kernel_spec(gpu_data_A, gpu_data_B, gpu_data_C, nrows, ncols, stream);
-        kernel_spec.run_kernel();
+        KERNEL kernel(spec, gpu_data_A, gpu_data_B, gpu_data_C, stream);
+        kernel.run_kernel();
         cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp3{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
@@ -198,9 +207,9 @@ class Benchmark {
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Eigen";
-        const Eigen::Map<Eigen::Matrix<NUMBER, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A{vec_A.data(), nrows, ncols};
-        const Eigen::Map<Eigen::Matrix<NUMBER, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> B{vec_B.data(), ncols, nrows};
-        const Eigen::Map<Eigen::Matrix<NUMBER, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> C_gpu{vec_C.data(), nrows, nrows};
+        const Eigen::Map<Eigen::Matrix<NUMBER, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A{vec_A.data(), spec.n_rows_A_, spec.n_cols_A_};
+        const Eigen::Map<Eigen::Matrix<NUMBER, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> B{vec_B.data(), spec.n_rows_B_, spec.n_cols_B_};
+        const Eigen::Map<Eigen::Matrix<NUMBER, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> C_gpu{vec_C.data(), spec.n_rows_C_, spec.n_cols_C_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;

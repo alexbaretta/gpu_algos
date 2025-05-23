@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+// source path: include/cuda/cuda_utils.h
+
 #pragma once
 
 #include <cuda_runtime.h>

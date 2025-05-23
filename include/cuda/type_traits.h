@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+// source path: include/cuda/type_traits.h
+
 #pragma once
 
 #include <cuda_fp16.h>

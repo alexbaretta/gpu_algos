@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+// source path: include/cuda/check_errors.h
+
 #pragma once
 
 #define cuda_check_error(cuda_err, step_name) \
