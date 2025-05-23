@@ -17,7 +17,8 @@ concept Kernel_spec = requires (KERNEL_SPEC spec) {
     { spec.grid_dim } -> std::same_as<const dim3&>;
     { spec.block_dim } -> std::same_as<const dim3&>;
     { spec.shared_mem_size } -> std::same_as<const size_t&>;
-    { spec.run_kernel(std::declval<cudaStream_t>()) } -> std::same_as<void>;
+    { spec.stream } -> std::same_as<cudaStream_t&>;
+    { spec.run_kernel() } -> std::same_as<void>;
 };
 
 template <typename KERNEL_SPEC>
@@ -29,9 +30,18 @@ struct Check_kernel_spec {
     static_assert(std::same_as<decltype(std::declval<KERNEL_SPEC>().block_dim), const dim3>);
     static_assert(std::same_as<decltype(std::declval<KERNEL_SPEC>().shared_mem_size), const size_t>);
 
-    static_assert(std::same_as<decltype(std::declval<KERNEL_SPEC>().run_kernel(std::declval<cudaStream_t>())), void>);
+    static_assert(std::same_as<decltype(std::declval<KERNEL_SPEC>().run_kernel()), void>);
 
     static_assert(Kernel_spec<KERNEL_SPEC>, "KERNEL_SPEC is not a valid kernel");
+
+    constexpr static bool check_passed = true;
+};
+
+template <template <CUDA_floating_point CUDA_FLOAT> class KERNEL_SPEC>
+struct Check_kernel_spec_template {
+    static_assert(Check_kernel_spec<KERNEL_SPEC<__half>>::check_passed);
+    static_assert(Check_kernel_spec<KERNEL_SPEC<float>>::check_passed);
+    static_assert(Check_kernel_spec<KERNEL_SPEC<double>>::check_passed);
 
     constexpr static bool check_passed = true;
 };

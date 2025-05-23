@@ -27,9 +27,10 @@ __global__ void matrix_product_naive(
     }
 }
 
+template <CUDA_floating_point CUDA_FLOAT>
 class Matrix_product_naive {
     public:
-    using NUMBER = float;
+    using NUMBER = CUDA_FLOAT;
 
     const NUMBER* gpu_data_A;
     const NUMBER* gpu_data_B;
@@ -39,13 +40,15 @@ class Matrix_product_naive {
     const dim3 block_dim;
     const dim3 grid_dim;
     const size_t shared_mem_size;
+    cudaStream_t& stream;
 
     Matrix_product_naive(
         const NUMBER* gpu_data_A,
         const NUMBER* gpu_data_B,
         NUMBER* gpu_data_C,
         const unsigned int nrows,
-        const unsigned int ncols
+        const unsigned int ncols,
+        cudaStream_t& stream
     ) : gpu_data_A(gpu_data_A),
         gpu_data_B(gpu_data_B),
         gpu_data_C(gpu_data_C),
@@ -56,12 +59,14 @@ class Matrix_product_naive {
             (nrows + block_dim.x - 1) / block_dim.x,
             (nrows + block_dim.y - 1) / block_dim.y
         ),
-        shared_mem_size(0)
+        shared_mem_size(0),
+        stream(stream)
     {}
 
-    void run_kernel(cudaStream_t stream) {
+    void run_kernel() {
         matrix_product_naive<<<grid_dim, block_dim, shared_mem_size, stream>>>(gpu_data_A, gpu_data_B, gpu_data_C, nrows, ncols);
     }
+
 };
 
-static_assert(Check_kernel_spec<Matrix_product_naive>::check_passed, "Matrix_product_naive is not a valid kernel");
+static_assert(Check_kernel_spec_template<Matrix_product_naive>::check_passed, "Matrix_product_naive is not a valid kernel spec template");

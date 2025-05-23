@@ -46,14 +46,15 @@ int main(int argc, char** argv) {
             return 0;
         }
 
-        // Get matrix dimensions from command line or use defaults
+        // Parse CLI options
         const int nrows = result["nrows"].as<int>();
         const int ncols = result["ncols"].as<int>();
         const int seed = result["seed"].as<int>();
-        const int input_size = nrows * ncols;
-        const int output_size = nrows * nrows;
         const int gpu_mem = result["gpumem"].as<int>();
         const bool verbose = result["verbose"].as<bool>();
+
+        const int input_size = nrows * ncols;
+        const int output_size = nrows * nrows;
         constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
         const float input_matrix_size_gb = input_size * sizeof(float) / GB;
         const float output_matrix_size_gb = output_size * sizeof(float) / GB;
@@ -132,9 +133,8 @@ int main(int argc, char** argv) {
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
 
         const auto gpu_step_3 = "Compute kernel";
-        dim3 blockDim(16, 16);
-        dim3 gridDim((nrows + blockDim.x - 1) / blockDim.x, (nrows + blockDim.y - 1) / blockDim.y);
-        matrix_product_naive<<<gridDim, blockDim, 0, stream>>>(gpu_data_A, gpu_data_B, gpu_data_C, nrows, ncols);
+        Matrix_product_naive<float> kernel_spec(gpu_data_A, gpu_data_B, gpu_data_C, nrows, ncols, stream);
+        kernel_spec.run_kernel();
         cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp3{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
