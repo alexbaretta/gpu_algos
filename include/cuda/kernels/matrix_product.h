@@ -22,7 +22,7 @@ __global__ void matrix_product_naive(
     int row = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (row < m && col < k) {
-        float sum = 0.0f;
+        CUDA_FLOAT sum = 0.0f;
         for (int i = 0; i < n; ++i) {
             sum += A[row * n + i] * B[i * k + col];
         }
@@ -106,23 +106,24 @@ struct Matrix_product_naive_spec {
 static_assert(Check_kernel_spec<Matrix_product_naive_spec>::check_passed, "Matrix_product_naive_spec is not a valid kernel spec");
 
 
-template <Kernel_spec KERNEL_SPEC, CUDA_floating_point CUDA_FLOAT>
+template <CUDA_floating_point NUMBER_>
 class Matrix_product_naive_kernel {
     public:
-    using NUMBER = CUDA_FLOAT;
+    using NUMBER = NUMBER_;
+    using KERNEL_SPEC = Matrix_product_naive_spec;
 
     const KERNEL_SPEC spec_;
 
-    const NUMBER* gpu_data_A_;
-    const NUMBER* gpu_data_B_;
-    NUMBER* gpu_data_C_;
+    const NUMBER* const gpu_data_A_;
+    const NUMBER* const gpu_data_B_;
+    NUMBER* const gpu_data_C_;
     cudaStream_t& stream_;
 
     Matrix_product_naive_kernel(
         const KERNEL_SPEC spec,
-        const NUMBER* gpu_data_A,
-        const NUMBER* gpu_data_B,
-        NUMBER* gpu_data_C,
+        const NUMBER* const gpu_data_A,
+        const NUMBER* const gpu_data_B,
+        NUMBER* const gpu_data_C,
         cudaStream_t& stream
     ) : spec_(spec),
         gpu_data_A_(gpu_data_A),
@@ -137,7 +138,7 @@ class Matrix_product_naive_kernel {
             spec_.block_dim_,
             spec_.shared_mem_size_,
             stream_
-        >>>(gpu_data_A_, gpu_data_B_, gpu_data_C_, spec_.M_, spec_.N_);
+        >>>(gpu_data_A_, gpu_data_B_, gpu_data_C_, spec_.m_, spec_.n_, spec_.k_);
     }
 
 };

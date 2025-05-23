@@ -122,16 +122,16 @@ class Benchmark {
 
         const auto gpu_step_1 = "Allocate device memory";
         NUMBER *gpu_data_A = nullptr, *gpu_data_B = nullptr, *gpu_data_C = nullptr;
-        cuda_check_error(cudaMallocAsync(&gpu_data_A, input_size_bytes, stream), "cudaMallocAsync");
-        cuda_check_error(cudaMallocAsync(&gpu_data_B, input_size_bytes, stream), "cudaMallocAsync");
-        cuda_check_error(cudaMallocAsync(&gpu_data_C, output_size_bytes, stream), "cudaMallocAsync");
+        cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
+        cuda_check_error(cudaMallocAsync(&gpu_data_B, size_B_bytes, stream), "cudaMallocAsync");
+        cuda_check_error(cudaMallocAsync(&gpu_data_C, size_C_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp1{};
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
 
         const auto gpu_step_2 = "Copy data to device";
-        cuda_check_error(cudaMemcpyAsync(gpu_data_A, vec_A.data(), input_size_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
-        cuda_check_error(cudaMemcpyAsync(gpu_data_B, vec_B.data(), input_size_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(gpu_data_A, vec_A.data(), size_A_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(gpu_data_B, vec_B.data(), size_B_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e2, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
@@ -144,7 +144,7 @@ class Benchmark {
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
-        cuda_check_error(cudaMemcpyAsync(vec_C.data(), gpu_data_C, output_size_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(vec_C.data(), gpu_data_C, size_C_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e4, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp4{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp4, NULL_FLAGS), "cudaStreamAddCallback");

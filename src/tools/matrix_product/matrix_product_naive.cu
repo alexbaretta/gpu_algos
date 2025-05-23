@@ -20,11 +20,11 @@ int main(int argc, char** argv) {
         Matrix_product_naive_spec spec = Matrix_product_naive_spec::make(options_parsed);
 
         if (spec.type_ == "half") {
-            return Benchmark<Matrix_product_naive_kernel<Matrix_product_naive_spec, __half>>(spec, options_parsed).run();
+            return Benchmark<Matrix_product_naive_kernel<__half>>(spec, options_parsed).run();
         } else if (spec.type_ == "single" || spec.type_ == "float") {
-            return Benchmark<Matrix_product_naive_kernel<Matrix_product_naive_spec, float>>(spec, options_parsed).run();
+            return Benchmark<Matrix_product_naive_kernel<float>>(spec, options_parsed).run();
         } else if (spec.type_ == "double") {
-            return Benchmark<Matrix_product_naive_kernel<Matrix_product_naive_spec, double>>(spec, options_parsed).run();
+            return Benchmark<Matrix_product_naive_kernel<double>>(spec, options_parsed).run();
         }
     } catch (const cxxopts::exceptions::exception& e) {
        std::cerr << "Error parsing options: " << e.what() << std::endl;

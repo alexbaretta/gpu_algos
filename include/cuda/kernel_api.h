@@ -63,11 +63,10 @@ concept Kernel = requires (KERNEL kernel) {
     // requires CUDA_floating_point<typename KERNEL::FLOAT>;
 
     { kernel.spec_ } -> std::same_as<const typename KERNEL::KERNEL_SPEC&>;
-
-    { kernel.grid_dim } -> std::same_as<const dim3&>;
-    { kernel.block_dim } -> std::same_as<const dim3&>;
-    { kernel.shared_mem_size } -> std::same_as<const size_t&>;
-    { kernel.stream } -> std::same_as<cudaStream_t&>;
+    { kernel.gpu_data_A_ } -> std::same_as<const typename KERNEL::NUMBER* const&>;
+    { kernel.gpu_data_B_ } -> std::same_as<const typename KERNEL::NUMBER* const&>;
+    { kernel.gpu_data_C_ } -> std::same_as<typename KERNEL::NUMBER* const&>;
+    { kernel.stream_ } -> std::same_as<cudaStream_t&>;
     { kernel.run_kernel() } -> std::same_as<void>;
 };
 
@@ -77,12 +76,11 @@ struct Check_kernel {
     using NUMBER = typename KERNEL::NUMBER;
     using KERNEL_SPEC = typename KERNEL::KERNEL_SPEC;
 
-    static_assert(std::same_as<decltype(std::declval<KERNEL>().spec_), const typename KERNEL::KERNEL_SPEC&>);
-
-    static_assert(std::same_as<decltype(std::declval<KERNEL>().grid_dim), const dim3>);
-    static_assert(std::same_as<decltype(std::declval<KERNEL>().block_dim), const dim3>);
-    static_assert(std::same_as<decltype(std::declval<KERNEL>().shared_mem_size), const size_t>);
-
+    static_assert(std::same_as<decltype(std::declval<KERNEL>().spec_), const typename KERNEL::KERNEL_SPEC>);
+    static_assert(std::same_as<decltype(std::declval<KERNEL>().gpu_data_A_), const typename KERNEL::NUMBER* const>);
+    static_assert(std::same_as<decltype(std::declval<KERNEL>().gpu_data_B_), const typename KERNEL::NUMBER* const>);
+    static_assert(std::same_as<decltype(std::declval<KERNEL>().gpu_data_C_), typename KERNEL::NUMBER* const>);
+    static_assert(std::same_as<decltype(std::declval<KERNEL>().stream_), cudaStream_t&>);
     static_assert(std::same_as<decltype(std::declval<KERNEL>().run_kernel()), void>);
 
     static_assert(Kernel<KERNEL>, "KERNEL is not a valid kernel");
