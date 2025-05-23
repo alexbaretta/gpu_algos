@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 
 #include <cuda_runtime.h>
+#include <cxxopts.hpp>
 
 #include "common/random.h"
 #include "cuda/check_errors.h"
@@ -19,28 +20,34 @@
 static_assert(false, "OpenMP is not supported");
 #endif
 
+
+void add_benchmark_options(cxxopts::Options& options);
+
 template <typename KERNEL_SPEC>
-struct Benchmark {
+class Benchmark {
     public:
     using NUMBER = typename KERNEL_SPEC::NUMBER;
 
+    const cxxopts::Options options;
+    const cxxopts::ParseResult result;
     const int nrows;
     const int ncols;
     const int seed;
     const int gpu_mem;
     const bool verbose;
 
+    // Parse CLI options
     Benchmark(
-        const int nrows,
-        const int ncols,
-        const int seed,
-        const int gpu_mem,
-        const bool verbose
-    ) : nrows(nrows),
-        ncols(ncols),
-        seed(seed),
-        gpu_mem(gpu_mem),
-        verbose(verbose)
+        cxxopts::Options options,
+        int argc,
+        char** argv
+    ) : options(options),
+        result(options.parse(argc, argv)),
+        nrows(result["nrows"].as<int>()),
+        ncols(result["ncols"].as<int>()),
+        seed(result["seed"].as<int>()),
+        gpu_mem(result["gpumem"].as<int>()),
+        verbose(result["verbose"].as<bool>())
     {}
 
     int run() {

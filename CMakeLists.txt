@@ -22,7 +22,7 @@ set(CMAKE_CUDA_ARCHITECTURES "89")  # Compute capability 8.9
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fopenmp")
 
 # Add compiler warnings
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --Werror all-warnings")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wall")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --Werror all-warnings -diag-suppress 20012,20015")
 
 
@@ -51,6 +51,7 @@ include_directories(
 add_executable(matrix_product_naive
     src/tools/matrix_product/matrix_product_naive.cu
     src/cuda/cuda_utils.cu
+    src/common/benchmark.cu
 )
 
 # Set CUDA specific properties
