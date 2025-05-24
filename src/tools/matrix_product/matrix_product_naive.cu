@@ -7,7 +7,7 @@
 
 #include "common/benchmark.h"
 
-#include "cuda/kernels/matrix_product_naive.h"
+#include "cuda/kernels/matrix_product/matrix_product_naive.h"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("matrix_product_naive", "Naive matrix multiplication");
@@ -20,11 +20,11 @@ int main(int argc, char** argv) {
         Matrix_product_naive_spec spec = Matrix_product_naive_spec::make(options_parsed);
 
         if (spec.type_ == "half") {
-            return Benchmark<Matrix_product_naive_kernel<__half>>(spec, options_parsed).run();
+            return Benchmark<Matrix_product_naive_kernel<__half>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "single" || spec.type_ == "float") {
-            return Benchmark<Matrix_product_naive_kernel<float>>(spec, options_parsed).run();
+            return Benchmark<Matrix_product_naive_kernel<float>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "double") {
-            return Benchmark<Matrix_product_naive_kernel<double>>(spec, options_parsed).run();
+            return Benchmark<Matrix_product_naive_kernel<double>>(spec, options, options_parsed).run();
         }
     } catch (const cxxopts::exceptions::exception& e) {
        std::cerr << "Error parsing options: " << e.what() << std::endl;

@@ -18,6 +18,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_ARCHITECTURES "89")  # Compute capability 8.9
 
+# Set output directory for executables
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 # Add OpenMP flags for CUDA
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fopenmp")
 
@@ -47,23 +50,5 @@ include_directories(
     ${EIGEN3_INCLUDE_DIR}
 )
 
-# Add executable
-add_executable(matrix_product_naive
-    src/tools/matrix_product/matrix_product_naive.cu
-    src/cuda/cuda_utils.cu
-    src/common/benchmark.cu
-)
-
-# Set CUDA specific properties
-set_target_properties(matrix_product_naive PROPERTIES
-    CUDA_SEPARABLE_COMPILATION ON
-    CUDA_ARCHITECTURES 75
-)
-
-# Link CUDA libraries
-target_link_libraries(matrix_product_naive PRIVATE
-    cudart
-    cuda
-    Eigen3::Eigen
-    OpenMP::OpenMP_CXX
-)
+# Include all tools
+add_subdirectory(src/tools)

@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix_product_naive.h
+// source path: include/cuda/kernels/matrix/matrix_product_naive.h
 
 #pragma once
 #include <cuda_runtime.h>

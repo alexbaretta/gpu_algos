@@ -40,15 +40,22 @@ class Benchmark {
     const int gpu_mem;
     const bool verbose;
 
-    // Parse CLI options
     Benchmark(
         const KERNEL_SPEC spec,
+        const cxxopts::Options& options,
         const cxxopts::ParseResult& options_parsed
     ) : spec(spec),
         seed(options_parsed["seed"].as<int>()),
         gpu_mem(options_parsed["gpumem"].as<int>()),
         verbose(options_parsed["verbose"].as<bool>())
-    {}
+    {
+        // Handle help option first
+        if (options_parsed.count("help")) {
+            std::cout << options.help() << std::endl;
+            exit(0);
+        }
+
+    }
 
     int run() {
         const int size_A = spec.n_rows_A_ * spec.n_cols_A_;
