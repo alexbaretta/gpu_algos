@@ -19,27 +19,55 @@ __global__ void matrix_product_opt(
     unsigned int k
 ) {
     // Tile size (matches block dimensions)
-    const int TILE_SIZE = 16;
+    constexpr int TILE_SIZE = 16;
 
     // Shared memory for caching tiles of A and B
     __shared__ CUDA_FLOAT tile_A[TILE_SIZE][TILE_SIZE];
     __shared__ CUDA_FLOAT tile_B[TILE_SIZE][TILE_SIZE];
 
     // Thread indices within the block
-    int tx = threadIdx.x;
-    int ty = threadIdx.y;
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
 
     // Global indices for the output element this thread computes
-    int global_col = blockIdx.x * blockDim.x + threadIdx.x;
-    int global_row = blockIdx.y * blockDim.y + threadIdx.y;
+    // NOTE: This algorithm uses "one thread per output value" strategy
+    // Each thread computes exactly one element C[global_row][global_col]
+    const int global_col = blockIdx.x * blockDim.x + threadIdx.x;
+    const int global_row = blockIdx.y * blockDim.y + threadIdx.y;
 
     CUDA_FLOAT accumulator = 0.0f;
 
+    // TILING STRATEGY EXPLANATION:
+    //
+    // The tiling algorithm processes the shared dimension 'n' in chunks of TILE_SIZE.
+    // While we call them "tiles", the actual access pattern creates "slivers":
+    //
+    // Matrix A (m×n):               Matrix B (n×k):
+    // ┌─────────────────┐          ┌─────┬─────┬─────┐
+    // │     │     │     │          │  │  │  │  │  │  │
+    // ├─────┼─────┼─────┤          │  │  │  │  │  │  │
+    // │█████│█████│█████│ ← sliver │  │  │  │  │  │  │
+    // ├─────┼─────┼─────┤          │  │  │  │  │  │  │
+    // │     │     │     │          │  │  │  │  │  │  │
+    // └─────────────────┘          └─────┴─────┴─────┘
+    //                                     ↑ sliver
+    //
+    // Each thread block accesses:
+    // - Matrix A: horizontal sliver (fixed rows, all columns across iterations)
+    // - Matrix B: vertical sliver (all rows across iterations, fixed columns)
+    // - Matrix C: square 16x16 output tile (true 2D tiling)
+
     // Process matrix multiplication in tiles across the shared dimension n
-    int num_tiles = (n + TILE_SIZE - 1) / TILE_SIZE;
+    const int num_tiles = (n + TILE_SIZE - 1) / TILE_SIZE;
 
     for (int tile_idx = 0; tile_idx < num_tiles; ++tile_idx) {
+        // COOPERATIVE LOADING PHASE:
+        // All threads in the block work together to load two 16x16 square tiles
+        // into shared memory for maximum data reuse.
+
         // Load tile of matrix A into shared memory
+        // This loads A^(I,t) where I=blockIdx.y, t=tile_idx
+        // Accessing: A[blockIdx.y*16:(blockIdx.y+1)*16, tile_idx*16:(tile_idx+1)*16]
         int a_col = tile_idx * TILE_SIZE + tx;
         if (global_row < m && a_col < n) {
             tile_A[ty][tx] = A[global_row * n + a_col];
@@ -48,6 +76,8 @@ __global__ void matrix_product_opt(
         }
 
         // Load tile of matrix B into shared memory
+        // This loads B^(t,J) where t=tile_idx, J=blockIdx.x
+        // Accessing: B[tile_idx*16:(tile_idx+1)*16, blockIdx.x*16:(blockIdx.x+1)*16]
         int b_row = tile_idx * TILE_SIZE + ty;
         if (b_row < n && global_col < k) {
             tile_B[ty][tx] = B[b_row * k + global_col];
@@ -58,16 +88,20 @@ __global__ void matrix_product_opt(
         // Synchronize threads to ensure tiles are fully loaded
         __syncthreads();
 
-        // Compute partial dot product using the cached tiles
+        // INDEPENDENT COMPUTATION PHASE:
+        // Now each thread computes its portion of the dot product using the
+        // cached tiles. Thread (tx,ty) computes element C[global_row][global_col]
+        // by accumulating: tile_A[ty][i] * tile_B[i][tx] for i=0..15
         for (int i = 0; i < TILE_SIZE; ++i) {
             accumulator += tile_A[ty][i] * tile_B[i][tx];
         }
 
-        // Synchronize before loading the next tile
+        // Synchronize before loading the next tile to prevent race conditions
         __syncthreads();
     }
 
-    // Write the final result to global memory
+    // Write the final accumulated result to global memory
+    // Each thread writes exactly one output element
     if (global_row < m && global_col < k) {
         C[global_row * k + global_col] = accumulator;
     }
@@ -157,11 +191,6 @@ class Matrix_product_opt_kernel {
 
     const KERNEL_SPEC spec_;
 
-    const NUMBER* const gpu_data_A_;
-    const NUMBER* const gpu_data_B_;
-    NUMBER* const gpu_data_C_;
-    cudaStream_t& stream_;
-
     // Calculate shared memory size based on data type
     static constexpr size_t get_shared_mem_size() {
         // Two 16x16 tiles in shared memory
@@ -170,25 +199,22 @@ class Matrix_product_opt_kernel {
     }
 
     Matrix_product_opt_kernel(
-        const KERNEL_SPEC spec,
-        const NUMBER* const gpu_data_A,
-        const NUMBER* const gpu_data_B,
-        NUMBER* const gpu_data_C,
-        cudaStream_t& stream
-    ) : spec_(spec),
-        gpu_data_A_(gpu_data_A),
-        gpu_data_B_(gpu_data_B),
-        gpu_data_C_(gpu_data_C),
-        stream_(stream)
+        const KERNEL_SPEC spec
+    ) : spec_(spec)
     {}
 
-    void run_kernel() {
+    void run_kernel(
+        const NUMBER* gpu_data_A,
+        const NUMBER* gpu_data_B,
+        NUMBER* gpu_data_C,
+        cudaStream_t stream
+    ) const {
         matrix_product_opt<<<
             spec_.grid_dim_,
             spec_.block_dim_,
             get_shared_mem_size(),
-            stream_
-        >>>(gpu_data_A_, gpu_data_B_, gpu_data_C_, spec_.m_, spec_.n_, spec_.k_);
+            stream
+        >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }
 
 };

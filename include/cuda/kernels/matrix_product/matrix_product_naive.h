@@ -114,31 +114,22 @@ class Matrix_product_naive_kernel {
 
     const KERNEL_SPEC spec_;
 
-    const NUMBER* const gpu_data_A_;
-    const NUMBER* const gpu_data_B_;
-    NUMBER* const gpu_data_C_;
-    cudaStream_t& stream_;
-
     Matrix_product_naive_kernel(
-        const KERNEL_SPEC spec,
+        const KERNEL_SPEC spec
+    ) : spec_(spec) {}
+
+    void run_kernel(
         const NUMBER* const gpu_data_A,
         const NUMBER* const gpu_data_B,
         NUMBER* const gpu_data_C,
-        cudaStream_t& stream
-    ) : spec_(spec),
-        gpu_data_A_(gpu_data_A),
-        gpu_data_B_(gpu_data_B),
-        gpu_data_C_(gpu_data_C),
-        stream_(stream)
-    {}
-
-    void run_kernel() {
+        cudaStream_t stream
+    ) {
         matrix_product_naive<<<
             spec_.grid_dim_,
             spec_.block_dim_,
             spec_.shared_mem_size_,
-            stream_
-        >>>(gpu_data_A_, gpu_data_B_, gpu_data_C_, spec_.m_, spec_.n_, spec_.k_);
+            stream
+        >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }
 
 };

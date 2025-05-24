@@ -40,6 +40,8 @@ class Benchmark {
     const int gpu_mem;
     const bool verbose;
 
+    KERNEL kernel;
+
     Benchmark(
         const KERNEL_SPEC spec,
         const cxxopts::Options& options,
@@ -47,14 +49,14 @@ class Benchmark {
     ) : spec(spec),
         seed(options_parsed["seed"].as<int>()),
         gpu_mem(options_parsed["gpumem"].as<int>()),
-        verbose(options_parsed["verbose"].as<bool>())
+        verbose(options_parsed["verbose"].as<bool>()),
+        kernel(spec)
     {
         // Handle help option first
         if (options_parsed.count("help")) {
             std::cout << options.help() << std::endl;
             exit(0);
         }
-
     }
 
     int run() {
@@ -144,8 +146,7 @@ class Benchmark {
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
 
         const auto gpu_step_3 = "Compute kernel";
-        KERNEL kernel(spec, gpu_data_A, gpu_data_B, gpu_data_C, stream);
-        kernel.run_kernel();
+        kernel.run_kernel(gpu_data_A, gpu_data_B, gpu_data_C, stream);
         cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp3{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");

@@ -64,3 +64,14 @@ Makefile
 *.cudafe2.h
 *.linkinfo
 *.hash
+
+# Latex
+*.aux
+*.log
+*.out
+*.pdf
+*.toc
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk

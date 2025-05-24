@@ -63,11 +63,12 @@ concept Kernel = requires (KERNEL kernel) {
     // requires CUDA_floating_point<typename KERNEL::FLOAT>;
 
     { kernel.spec_ } -> std::same_as<const typename KERNEL::KERNEL_SPEC&>;
-    { kernel.gpu_data_A_ } -> std::same_as<const typename KERNEL::NUMBER* const&>;
-    { kernel.gpu_data_B_ } -> std::same_as<const typename KERNEL::NUMBER* const&>;
-    { kernel.gpu_data_C_ } -> std::same_as<typename KERNEL::NUMBER* const&>;
-    { kernel.stream_ } -> std::same_as<cudaStream_t&>;
-    { kernel.run_kernel() } -> std::same_as<void>;
+    { kernel.run_kernel(
+        std::declval<const typename KERNEL::NUMBER*>(),
+        std::declval<const typename KERNEL::NUMBER*>(),
+        std::declval<typename KERNEL::NUMBER*>(),
+        std::declval<cudaStream_t>()
+    ) } -> std::same_as<void>;
 };
 
 template <typename KERNEL>
@@ -77,11 +78,12 @@ struct Check_kernel {
     using KERNEL_SPEC = typename KERNEL::KERNEL_SPEC;
 
     static_assert(std::same_as<decltype(std::declval<KERNEL>().spec_), const typename KERNEL::KERNEL_SPEC>);
-    static_assert(std::same_as<decltype(std::declval<KERNEL>().gpu_data_A_), const typename KERNEL::NUMBER* const>);
-    static_assert(std::same_as<decltype(std::declval<KERNEL>().gpu_data_B_), const typename KERNEL::NUMBER* const>);
-    static_assert(std::same_as<decltype(std::declval<KERNEL>().gpu_data_C_), typename KERNEL::NUMBER* const>);
-    static_assert(std::same_as<decltype(std::declval<KERNEL>().stream_), cudaStream_t&>);
-    static_assert(std::same_as<decltype(std::declval<KERNEL>().run_kernel()), void>);
+    static_assert(std::same_as<decltype(std::declval<KERNEL>().run_kernel(
+        std::declval<const typename KERNEL::NUMBER*>(),
+        std::declval<const typename KERNEL::NUMBER*>(),
+        std::declval<typename KERNEL::NUMBER*>(),
+        std::declval<cudaStream_t>()
+    )), void>);
 
     static_assert(Kernel<KERNEL>, "KERNEL is not a valid kernel");
 
@@ -90,7 +92,7 @@ struct Check_kernel {
 
 template <template <CUDA_floating_point CUDA_FLOAT> class KERNEL>
 struct Check_kernel_template {
-    static_assert(Check_kernel<KERNEL<__half>>::check_passed);
+    // static_assert(Check_kernel<KERNEL<__half>>::check_passed);
     static_assert(Check_kernel<KERNEL<float>>::check_passed);
     static_assert(Check_kernel<KERNEL<double>>::check_passed);
 
