@@ -18,15 +18,58 @@ __global__ void matrix_product_opt(
     unsigned int n,
     unsigned int k
 ) {
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    // Tile size (matches block dimensions)
+    const int TILE_SIZE = 16;
 
-    if (row < m && col < k) {
-        CUDA_FLOAT sum = 0.0f;
-        for (int i = 0; i < n; ++i) {
-            sum += A[row * n + i] * B[i * k + col];
+    // Shared memory for caching tiles of A and B
+    __shared__ CUDA_FLOAT tile_A[TILE_SIZE][TILE_SIZE];
+    __shared__ CUDA_FLOAT tile_B[TILE_SIZE][TILE_SIZE];
+
+    // Thread indices within the block
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    // Global indices for the output element this thread computes
+    int global_col = blockIdx.x * blockDim.x + threadIdx.x;
+    int global_row = blockIdx.y * blockDim.y + threadIdx.y;
+
+    CUDA_FLOAT accumulator = 0.0f;
+
+    // Process matrix multiplication in tiles across the shared dimension n
+    int num_tiles = (n + TILE_SIZE - 1) / TILE_SIZE;
+
+    for (int tile_idx = 0; tile_idx < num_tiles; ++tile_idx) {
+        // Load tile of matrix A into shared memory
+        int a_col = tile_idx * TILE_SIZE + tx;
+        if (global_row < m && a_col < n) {
+            tile_A[ty][tx] = A[global_row * n + a_col];
+        } else {
+            tile_A[ty][tx] = 0.0f;  // Padding for out-of-bounds
         }
-        C[row * k + col] = sum;
+
+        // Load tile of matrix B into shared memory
+        int b_row = tile_idx * TILE_SIZE + ty;
+        if (b_row < n && global_col < k) {
+            tile_B[ty][tx] = B[b_row * k + global_col];
+        } else {
+            tile_B[ty][tx] = 0.0f;  // Padding for out-of-bounds
+        }
+
+        // Synchronize threads to ensure tiles are fully loaded
+        __syncthreads();
+
+        // Compute partial dot product using the cached tiles
+        for (int i = 0; i < TILE_SIZE; ++i) {
+            accumulator += tile_A[ty][i] * tile_B[i][tx];
+        }
+
+        // Synchronize before loading the next tile
+        __syncthreads();
+    }
+
+    // Write the final result to global memory
+    if (global_row < m && global_col < k) {
+        C[global_row * k + global_col] = accumulator;
     }
 }
 
@@ -48,7 +91,7 @@ struct Matrix_product_opt_spec {
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
-    const size_t shared_mem_size_ = 0;
+    const size_t shared_mem_size_ = 0;  // Will be calculated dynamically by kernel
 
     constexpr static int DEFAULT_M = 3000; // Rows of first matrix
     constexpr static int DEFAULT_N = 300;  // Columns of first matrix / Rows of second matrix
@@ -119,6 +162,13 @@ class Matrix_product_opt_kernel {
     NUMBER* const gpu_data_C_;
     cudaStream_t& stream_;
 
+    // Calculate shared memory size based on data type
+    static constexpr size_t get_shared_mem_size() {
+        // Two 16x16 tiles in shared memory
+        constexpr int TILE_SIZE = 16;
+        return 2 * TILE_SIZE * TILE_SIZE * sizeof(NUMBER);
+    }
+
     Matrix_product_opt_kernel(
         const KERNEL_SPEC spec,
         const NUMBER* const gpu_data_A,
@@ -136,7 +186,7 @@ class Matrix_product_opt_kernel {
         matrix_product_opt<<<
             spec_.grid_dim_,
             spec_.block_dim_,
-            spec_.shared_mem_size_,
+            get_shared_mem_size(),
             stream_
         >>>(gpu_data_A_, gpu_data_B_, gpu_data_C_, spec_.m_, spec_.n_, spec_.k_);
     }
