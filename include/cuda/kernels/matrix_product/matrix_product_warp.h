@@ -15,8 +15,8 @@
     will compute the result element for a single row of the left matrix and a single
     column of the right matrix.
 
-    The grid is then defined by the number of result elements, which is the product of
-    the number of rows of the left matrix and the number of columns of the right matrix.
+    The grid is then defined by the Number of result elements, which is the product of
+    the Number of rows of the left matrix and the Number of columns of the right matrix.
 
     The threads in each warp collaborate to compute the result element for a single row
     of the left matrix and a single column of the right matrix: each thread processes
@@ -100,7 +100,7 @@ struct Matrix_product_warp_spec {
     {}
 };
 
-static_assert(Check_kernel_spec<Matrix_product_warp_spec>::check_passed, "Matrix_product_warp_spec is not a valid kernel spec");
+static_assert(Check_kernel_spec_2In_1Out<Matrix_product_warp_spec>::check_passed, "Matrix_product_warp_spec is not a valid kernel spec");
 
 template <CUDA_floating_point CUDA_FLOAT>
 __global__ void matrix_product_warp(
@@ -137,22 +137,22 @@ __global__ void matrix_product_warp(
     }
 }
 
-template <CUDA_floating_point NUMBER_>
+template <CUDA_floating_point Number_>
 class Matrix_product_warp_kernel {
     public:
-    using NUMBER = NUMBER_;
-    using KERNEL_SPEC = Matrix_product_warp_spec;
+    using Number = Number_;
+    using Kernel_spec = Matrix_product_warp_spec;
 
-    const KERNEL_SPEC spec_;
+    const Kernel_spec spec_;
 
     Matrix_product_warp_kernel(
-        const KERNEL_SPEC spec
+        const Kernel_spec spec
     ) : spec_(spec) {}
 
-    void run_kernel(
-        const NUMBER* const gpu_data_A,
-        const NUMBER* const gpu_data_B,
-        NUMBER* const gpu_data_C,
+    void run_device_kernel(
+        const Number* const gpu_data_A,
+        const Number* const gpu_data_B,
+        Number* const gpu_data_C,
         cudaStream_t stream
     ) {
         matrix_product_warp<<<
@@ -162,6 +162,12 @@ class Matrix_product_warp_kernel {
             stream
         >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }
+    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& B
+    ) {
+        return (A * B).eval();
+    }
 
 };
-static_assert(Check_kernel_template<Matrix_product_warp_kernel>::check_passed, "Matrix_product_warp is not a valid kernel template");
+static_assert(Check_kernel_2In_1Out_template<Matrix_product_warp_kernel>::check_passed, "Matrix_product_warp is not a valid kernel template");

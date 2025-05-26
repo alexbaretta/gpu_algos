@@ -107,7 +107,7 @@ __global__ void matrix_product_tiled(
     }
 }
 
-struct matrix_product_tiled_spec {
+struct Matrix_product_tiled_spec {
     const std::string type_;
 
     const unsigned int m_;    // Rows of first matrix
@@ -140,7 +140,7 @@ struct matrix_product_tiled_spec {
         ;
     }
 
-    inline static matrix_product_tiled_spec make(
+    inline static Matrix_product_tiled_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
         // Validate the type option
@@ -149,7 +149,7 @@ struct matrix_product_tiled_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        return matrix_product_tiled_spec(
+        return Matrix_product_tiled_spec(
             type,
             options_parsed["m"].as<int>(),
             options_parsed["n"].as<int>(),
@@ -157,7 +157,7 @@ struct matrix_product_tiled_spec {
         );
     }
 
-    inline matrix_product_tiled_spec(
+    inline Matrix_product_tiled_spec(
         const std::string& type,
         const unsigned int m,
         const unsigned int n,
@@ -180,33 +180,33 @@ struct matrix_product_tiled_spec {
     {}
 };
 
-static_assert(Check_kernel_spec<matrix_product_tiled_spec>::check_passed, "matrix_product_tiled_spec is not a valid kernel spec");
+static_assert(Check_kernel_spec_2In_1Out<Matrix_product_tiled_spec>::check_passed, "Matrix_product_tiled_spec is not a valid kernel spec");
 
 
-template <CUDA_floating_point NUMBER_>
-class matrix_product_tiled_kernel {
+template <CUDA_floating_point Number_>
+class Matrix_product_tiled_kernel {
     public:
-    using NUMBER = NUMBER_;
-    using KERNEL_SPEC = matrix_product_tiled_spec;
+    using Number = Number_;
+    using Kernel_spec = Matrix_product_tiled_spec;
 
-    const KERNEL_SPEC spec_;
+    const Kernel_spec spec_;
 
     // Calculate shared memory size based on data type
     static constexpr size_t get_shared_mem_size() {
         // Two 16x16 tiles in shared memory
         constexpr int TILE_SIZE = 16;
-        return 2 * TILE_SIZE * TILE_SIZE * sizeof(NUMBER);
+        return 2 * TILE_SIZE * TILE_SIZE * sizeof(Number);
     }
 
-    matrix_product_tiled_kernel(
-        const KERNEL_SPEC spec
+    Matrix_product_tiled_kernel(
+        const Kernel_spec spec
     ) : spec_(spec)
     {}
 
-    void run_kernel(
-        const NUMBER* gpu_data_A,
-        const NUMBER* gpu_data_B,
-        NUMBER* gpu_data_C,
+    void run_device_kernel(
+        const Number* gpu_data_A,
+        const Number* gpu_data_B,
+        Number* gpu_data_C,
         cudaStream_t stream
     ) const {
         matrix_product_tiled<<<
@@ -216,6 +216,12 @@ class matrix_product_tiled_kernel {
             stream
         >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }
+    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& B
+    ) {
+        return (A * B).eval();
+    }
 
 };
-static_assert(Check_kernel_template<matrix_product_tiled_kernel>::check_passed, "matrix_product_tiled is not a valid kernel template");
+static_assert(Check_kernel_2In_1Out_template<Matrix_product_tiled_kernel>::check_passed, "matrix_product_tiled is not a valid kernel template");

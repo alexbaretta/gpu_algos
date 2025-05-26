@@ -93,21 +93,21 @@ struct Matrix_product_cublas_spec {
     {}
 };
 
-static_assert(Check_kernel_spec<Matrix_product_cublas_spec>::check_passed, "Matrix_product_cublas_spec is not a valid kernel spec");
+static_assert(Check_kernel_spec_2In_1Out<Matrix_product_cublas_spec>::check_passed, "Matrix_product_cublas_spec is not a valid kernel spec");
 
 
-template <CUDA_floating_point NUMBER_>
+template <CUDA_floating_point Number_>
 class Matrix_product_cublas_kernel {
     public:
-    using NUMBER = NUMBER_;
-    using KERNEL_SPEC = Matrix_product_cublas_spec;
+    using Number = Number_;
+    using Kernel_spec = Matrix_product_cublas_spec;
 
-    const KERNEL_SPEC spec_;
+    const Kernel_spec spec_;
     cublasLtHandle_t cublaslt_handle_;
     cublasHandle_t cublas_handle_;
 
     Matrix_product_cublas_kernel(
-        const KERNEL_SPEC spec
+        const Kernel_spec spec
     ) : spec_(spec) {
         // Initialize cuBLAS and cuBLASLt handles
         cublasCreate(&cublas_handle_);
@@ -126,19 +126,19 @@ class Matrix_product_cublas_kernel {
         }
     }
 
-    void run_kernel(
-        const NUMBER* const gpu_data_A,
-        const NUMBER* const gpu_data_B,
-        NUMBER* const gpu_data_C,
+    void run_device_kernel(
+        const Number* const gpu_data_A,
+        const Number* const gpu_data_B,
+        Number* const gpu_data_C,
         cudaStream_t stream
     ) {
         // Set the stream for cuBLAS operations
         cublasSetStream(cublas_handle_, stream);
 
-        const NUMBER alpha = static_cast<NUMBER>(1.0);
-        const NUMBER beta = static_cast<NUMBER>(0.0);
+        const Number alpha = static_cast<Number>(1.0);
+        const Number beta = static_cast<Number>(0.0);
 
-        if constexpr (std::is_same_v<NUMBER, __half>) {
+        if constexpr (std::is_same_v<Number, __half>) {
             // Use cuBLASLt for half precision to leverage tensor cores
             cublasLtMatmulDesc_t matmul_desc;
             cublasLtMatrixLayout_t A_desc, B_desc, C_desc;
@@ -165,7 +165,7 @@ class Matrix_product_cublas_kernel {
             cublasLtMatrixLayoutDestroy(B_desc);
             cublasLtMatrixLayoutDestroy(C_desc);
             cublasLtMatmulDescDestroy(matmul_desc);
-        } else if constexpr (std::is_same_v<NUMBER, float>) {
+        } else if constexpr (std::is_same_v<Number, float>) {
             // Use cuBLAS for single precision
             cublasSgemm(cublas_handle_,
                        CUBLAS_OP_N, CUBLAS_OP_N,
@@ -175,7 +175,7 @@ class Matrix_product_cublas_kernel {
                        gpu_data_A, spec_.n_,
                        &beta,
                        gpu_data_C, spec_.k_);
-        } else if constexpr (std::is_same_v<NUMBER, double>) {
+        } else if constexpr (std::is_same_v<Number, double>) {
             // Use cuBLAS for double precision
             cublasDgemm(cublas_handle_,
                        CUBLAS_OP_N, CUBLAS_OP_N,
@@ -187,6 +187,12 @@ class Matrix_product_cublas_kernel {
                        gpu_data_C, spec_.k_);
         }
     }
+    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& B
+    ) {
+        return (A * B).eval();
+    }
 
 };
-static_assert(Check_kernel_template<Matrix_product_cublas_kernel>::check_passed, "Matrix_product_cublas is not a valid kernel template");
+static_assert(Check_kernel_2In_1Out_template<Matrix_product_cublas_kernel>::check_passed, "Matrix_product_cublas is not a valid kernel template");
