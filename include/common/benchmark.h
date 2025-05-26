@@ -73,7 +73,7 @@ class Benchmark {
         const float output_size_gb = output_size_bytes / GB;
         const float mem_gb = 2*input_size_gb + output_size_gb;
         std::cout
-            << "Input matrices dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << " * " << spec.n_cols_B_ << "x" << spec.n_rows_B_ << "\n"
+            << "Input matrices dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << " * " << spec.n_rows_B_ << "x" << spec.n_cols_B_ << "\n"
             << "Input size                  : " << input_size_gb << " GB\n"
             << "Output size                 : " << output_size_gb << " GB\n"
             << "Required memory             : " << mem_gb << " GB"

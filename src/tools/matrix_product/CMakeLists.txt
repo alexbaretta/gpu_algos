@@ -5,4 +5,5 @@
 
 # Matrix product executables
 add_gpu_executable(matrix_product_naive matrix_product_naive.cu)
-add_gpu_executable(matrix_product_opt matrix_product_opt.cu)
+add_gpu_executable(matrix_product_tiled matrix_product_tiled.cu)
+add_gpu_executable(matrix_product_warp matrix_product_warp.cu)

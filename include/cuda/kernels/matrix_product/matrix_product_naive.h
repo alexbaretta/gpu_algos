@@ -56,8 +56,8 @@ struct Matrix_product_naive_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("m", "Number of rows in first matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
-            ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
+            ("m", "Number of rows in first matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
+            ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
             ("k", "Number of columns in the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_K)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;

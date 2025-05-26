@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/matrix_product_opt.h
+// source path: include/cuda/kernels/matrix/matrix_product_tiled.h
 
 #pragma once
 #include <cuda_runtime.h>
@@ -10,7 +10,7 @@
 #include "cuda/type_traits.h"
 
 template <CUDA_floating_point CUDA_FLOAT>
-__global__ void matrix_product_opt(
+__global__ void matrix_product_tiled(
     const CUDA_FLOAT* A,
     const CUDA_FLOAT* B,
     CUDA_FLOAT* C,
@@ -107,7 +107,7 @@ __global__ void matrix_product_opt(
     }
 }
 
-struct Matrix_product_opt_spec {
+struct matrix_product_tiled_spec {
     const std::string type_;
 
     const unsigned int m_;    // Rows of first matrix
@@ -140,7 +140,7 @@ struct Matrix_product_opt_spec {
         ;
     }
 
-    inline static Matrix_product_opt_spec make(
+    inline static matrix_product_tiled_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
         // Validate the type option
@@ -149,7 +149,7 @@ struct Matrix_product_opt_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        return Matrix_product_opt_spec(
+        return matrix_product_tiled_spec(
             type,
             options_parsed["m"].as<int>(),
             options_parsed["n"].as<int>(),
@@ -157,7 +157,7 @@ struct Matrix_product_opt_spec {
         );
     }
 
-    inline Matrix_product_opt_spec(
+    inline matrix_product_tiled_spec(
         const std::string& type,
         const unsigned int m,
         const unsigned int n,
@@ -180,14 +180,14 @@ struct Matrix_product_opt_spec {
     {}
 };
 
-static_assert(Check_kernel_spec<Matrix_product_opt_spec>::check_passed, "Matrix_product_opt_spec is not a valid kernel spec");
+static_assert(Check_kernel_spec<matrix_product_tiled_spec>::check_passed, "matrix_product_tiled_spec is not a valid kernel spec");
 
 
 template <CUDA_floating_point NUMBER_>
-class Matrix_product_opt_kernel {
+class matrix_product_tiled_kernel {
     public:
     using NUMBER = NUMBER_;
-    using KERNEL_SPEC = Matrix_product_opt_spec;
+    using KERNEL_SPEC = matrix_product_tiled_spec;
 
     const KERNEL_SPEC spec_;
 
@@ -198,7 +198,7 @@ class Matrix_product_opt_kernel {
         return 2 * TILE_SIZE * TILE_SIZE * sizeof(NUMBER);
     }
 
-    Matrix_product_opt_kernel(
+    matrix_product_tiled_kernel(
         const KERNEL_SPEC spec
     ) : spec_(spec)
     {}
@@ -209,7 +209,7 @@ class Matrix_product_opt_kernel {
         NUMBER* gpu_data_C,
         cudaStream_t stream
     ) const {
-        matrix_product_opt<<<
+        matrix_product_tiled<<<
             spec_.grid_dim_,
             spec_.block_dim_,
             get_shared_mem_size(),
@@ -218,4 +218,4 @@ class Matrix_product_opt_kernel {
     }
 
 };
-static_assert(Check_kernel_template<Matrix_product_opt_kernel>::check_passed, "Matrix_product_opt is not a valid kernel template");
+static_assert(Check_kernel_template<matrix_product_tiled_kernel>::check_passed, "matrix_product_tiled is not a valid kernel template");

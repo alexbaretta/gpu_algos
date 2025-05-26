@@ -65,8 +65,13 @@ Makefile
 *.linkinfo
 *.hash
 
+# Nsight Compute
+*.ncu-rep
+*.sqlite
+
 # Latex
 *.aux
+*.dvi
 *.log
 *.out
 *.pdf
