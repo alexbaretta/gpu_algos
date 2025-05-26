@@ -101,7 +101,7 @@ struct Check_kernel_2In_1Out {
 
 template <template <CUDA_floating_point CUDA_FLOAT> class Kernel_2In_1Out>
 struct Check_kernel_2In_1Out_template {
-    // static_assert(Check_kernel_2In_1Out<Kernel_2In_1Out<__half>>::check_passed);
+    static_assert(Check_kernel_2In_1Out<Kernel_2In_1Out<__half>>::check_passed);
     static_assert(Check_kernel_2In_1Out<Kernel_2In_1Out<float>>::check_passed);
     static_assert(Check_kernel_2In_1Out<Kernel_2In_1Out<double>>::check_passed);
 
@@ -193,9 +193,94 @@ struct Check_kernel_1In_1Out {
 
 template <template <CUDA_floating_point CUDA_FLOAT> class Kernel_1In_1Out>
 struct Check_kernel_1In_1Out_template {
-    // static_assert(Check_kernel_1In_1Out<Kernel_1In_1Out<__half>>::check_passed);
+    static_assert(Check_kernel_1In_1Out<Kernel_1In_1Out<__half>>::check_passed);
     static_assert(Check_kernel_1In_1Out<Kernel_1In_1Out<float>>::check_passed);
     static_assert(Check_kernel_1In_1Out<Kernel_1In_1Out<double>>::check_passed);
+
+    constexpr static bool check_passed = true;
+};
+
+
+
+
+
+
+
+
+
+template <typename Kernel_spec_1InOut>
+concept KERNEL_SPEC_1INOUT = requires (Kernel_spec_1InOut spec) {
+    { spec.m_ } -> std::same_as<const unsigned int&>;
+    { spec.n_ } -> std::same_as<const unsigned int&>;
+
+    { spec.n_rows_C_ } -> std::same_as<const unsigned int&>;
+    { spec.n_cols_C_ } -> std::same_as<const unsigned int&>;
+
+    { spec.block_dim_ } -> std::same_as<const dim3&>;
+    { spec.grid_dim_ } -> std::same_as<const dim3&>;
+    { spec.shared_mem_size_ } -> std::same_as<const size_t&>;
+};
+
+template <typename Kernel_spec_1InOut>
+struct Check_kernel_spec_1InOut {
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().m_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().n_), const unsigned int>);
+
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().n_rows_C_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().n_cols_C_), const unsigned int>);
+
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().block_dim_), const dim3>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().grid_dim_), const dim3>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().shared_mem_size_), const size_t>);
+
+    static_assert(KERNEL_SPEC_1INOUT<Kernel_spec_1InOut>, "not a valid KERNEL_SPEC_1INOUT");
+
+    constexpr static bool check_passed = true;
+};
+
+template <typename Kernel_1InOut>
+concept KERNEL_1INOUT = requires (Kernel_1InOut kernel) {
+    // Concepts evaluate what you actually get when expressions run (references to members)...
+    typename Kernel_1InOut::Number;
+    typename Kernel_1InOut::Kernel_spec_1InOut;
+    // requires CUDA_floating_point<typename Kernel_1InOut::FLOAT>;
+
+    { kernel.spec_ } -> std::same_as<const typename Kernel_1InOut::Kernel_spec&>;
+    { kernel.run_device_kernel(
+        std::declval<typename Kernel_1InOut::Number*>(),
+        std::declval<cudaStream_t>()
+    ) } -> std::same_as<void>;
+    { kernel.run_host_kernel(
+        std::declval<Eigen::Map<Eigen::Matrix<typename Kernel_1InOut::Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>&>()
+    ) } -> std::same_as<void>;
+
+};
+
+template <typename Kernel_1InOut>
+struct Check_kernel_1InOut {
+    // ...while decltype determines the static declared type of expressions (underlying types)
+    using Number = typename Kernel_1InOut::Number;
+    using Kernel_spec = typename Kernel_1InOut::Kernel_spec;
+
+    static_assert(std::same_as<decltype(std::declval<Kernel_1InOut>().spec_), const typename Kernel_1InOut::Kernel_spec>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_1InOut>().run_device_kernel(
+        std::declval<typename Kernel_1InOut::Number*>(),
+        std::declval<cudaStream_t>()
+    )), void>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_1InOut>().run_host_kernel(
+        std::declval<Eigen::Map<Eigen::Matrix<typename Kernel_1InOut::Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>&>()
+    )), void>);
+
+    static_assert(KERNEL_1INOUT<Kernel_1InOut>, "not a valid KERNEL_1INOUT");
+
+    constexpr static bool check_passed = true;
+};
+
+template <template <CUDA_floating_point CUDA_FLOAT> class Kernel_1InOut>
+struct Check_kernel_1InOut_template {
+    static_assert(Check_kernel_1InOut<Kernel_1InOut<__half>>::check_passed);
+    static_assert(Check_kernel_1InOut<Kernel_1InOut<float>>::check_passed);
+    static_assert(Check_kernel_1InOut<Kernel_1InOut<double>>::check_passed);
 
     constexpr static bool check_passed = true;
 };
