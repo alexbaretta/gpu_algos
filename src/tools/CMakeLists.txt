@@ -17,10 +17,12 @@ function(add_gpu_executable target_name source_file)
         CUDA_ARCHITECTURES 89
     )
 
-    # Link CUDA libraries
+    # Link CUDA libraries including cuBLAS
     target_link_libraries(${target_name} PRIVATE
         cudart
         cuda
+        CUDA::cublas
+        CUDA::cublasLt
         Eigen3::Eigen
         OpenMP::OpenMP_CXX
     )
