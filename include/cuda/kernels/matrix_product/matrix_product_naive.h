@@ -53,12 +53,16 @@ struct Matrix_product_naive_spec {
     constexpr static int DEFAULT_M = 3000; // Rows of first matrix
     constexpr static int DEFAULT_N = 300;  // Columns of first matrix / Rows of second matrix
     constexpr static int DEFAULT_K = 1000; // Columns of second matrix
+    constexpr static int DEFAULT_BLOCK_DIM_X = 16;
+    constexpr static int DEFAULT_BLOCK_DIM_Y = 16;
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
             ("m", "Number of rows in first matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
             ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
             ("k", "Number of columns in the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_K)))
+            ("block_dim_x,x", "Number of threads in the x dimension of the block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block_dim_y,y", "Number of threads in the y dimension of the block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -76,7 +80,9 @@ struct Matrix_product_naive_spec {
             type,
             options_parsed["m"].as<int>(),
             options_parsed["n"].as<int>(),
-            options_parsed["k"].as<int>()
+            options_parsed["k"].as<int>(),
+            options_parsed["block_dim_x"].as<int>(),
+            options_parsed["block_dim_y"].as<int>()
         );
     }
 
@@ -84,7 +90,9 @@ struct Matrix_product_naive_spec {
         const std::string& type,
         const unsigned int m,
         const unsigned int n,
-        const unsigned int k
+        const unsigned int k,
+        const unsigned int block_dim_x,
+        const unsigned int block_dim_y
     ) : type_(type),
         m_(m),
         n_(n),
@@ -95,7 +103,7 @@ struct Matrix_product_naive_spec {
         n_cols_B_(k),
         n_rows_C_(m),
         n_cols_C_(k),
-        block_dim_(16, 16),
+        block_dim_(block_dim_x, block_dim_y),
         grid_dim_(
             (k_ + block_dim_.x - 1) / block_dim_.x,
             (m_ + block_dim_.y - 1) / block_dim_.y
