@@ -1,10 +1,11 @@
 \documentclass{amsbook}
-\usepackage{amsmath, amssymb, amsthm}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
-\usepackage{listings}
-\usepackage{xcolor}
-\usepackage{graphicx}
+
+\usepackage{pmboxdraw}
+\pmboxdrawsetup{Block/box={\texttt{0}}}
 
 \title{GPU Algorithms: Analysis and Implementation}
 \author{Alex Baretta \\
@@ -133,17 +134,17 @@ C_{I \cdot b + t_y, J \cdot b + t_x} = \sum_{\ell=1}^{n} A_{I \cdot b + t_y, \el
 \paragraph{Memory Access Pattern:} While we process square $b \times b$ tiles in shared memory during each iteration, the overall access pattern across all iterations creates \textbf{slivers} rather than true 2D tiles:
 
 \begin{center}
-\begin{verbatim}
-Matrix A (m×n):               Matrix B (n×k):
-+-----------------+          +-----+-----+-----+
-|     |     |     |          |  |  |  |  |  |  |
-+-----+-----+-----+          |  |  |  |  |  |  |
-|#####|#####|#####| <- sliver|  |  |  |  |  |  |
-+-----+-----+-----+          |  |  |  |  |  |  |
-|     |     |     |          |  |  |  |  |  |  |
-+-----------------+          +-----+-----+-----+
-                                     ^ sliver
-\end{verbatim}
+    \begin{verbatim}
+   Matrix A (m×n):                Matrix B (n×k):
+┌───────────────────┐          ┌──────┬─────┬──────┐
+│                   │          │      │ ███ │      │
+├───────────────────┤          │      │ ███ │      │  ←
+│███ ███ ... ███ ███│ ← sliver │      │ ... │      │  tiles
+├───────────────────┤          │      │ ███ │      │  ←
+│                   │          │      │ ███ │      │
+└───────────────────┘          └──────┴─────┴──────┘
+      ↑ tiles ↑                          ↑ sliver
+    \end{verbatim}
 \end{center}
 
 Each thread block accesses:
