@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/matrix_transpose_tiled.h
+// source path: include/cuda/kernels/matrix/matrix_transpose_striped.h
 
 #pragma once
 #include <stdio.h>
@@ -10,14 +10,14 @@
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
-constexpr unsigned int TILE_DIM = 32;
+constexpr unsigned int STRIPE_WIDTH = 32;
 
 template <CUDA_floating_point CUDA_FLOAT>
-__global__ void matrix_transpose_tiled(
+__global__ void matrix_transpose_striped(
     const CUDA_FLOAT* A,
     CUDA_FLOAT* C,
-    const unsigned int m_rows_A_cols_C, // rows of A, cols of C
-    const unsigned int n_cols_A_rows_C  // cols of A, rows of C
+    const unsigned int m, // rows of A, cols of C
+    const unsigned int n  // cols of A, rows of C
 ) {
     /*
         CUDA doesn't immediately 'support' dynamically-allocated shared memory arrays in templated functions, as it (apparently)
@@ -26,32 +26,63 @@ __global__ void matrix_transpose_tiled(
 
         Quoted from: See https://stackoverflow.com/questions/20497209/getting-cuda-error-declaration-is-incompatible-with-previous-variable-name
 
-        As a consequence we need to use a statically-allocated shared memory array with a maximum size of TILE_DIM * TILE_DIM.
+        As a consequence we need to use a statically-allocated shared memory array with a maximum size of STRIPE_WIDTH * STRIPE_WIDTH.
     */
-    __shared__ CUDA_FLOAT shared_mem[TILE_DIM][TILE_DIM + 1];
-    // row-major matrix of shape (blockDim.x, blockDim.y)
-    // We add one element of padding to each row to avoid bank conflicts
+    __shared__ CUDA_FLOAT shared_mem[(STRIPE_WIDTH + 1) * STRIPE_WIDTH]; // row-major matrix of shape (blockDim.x, blockDim.y)
 
+    // for readability
+    const unsigned int nrows_A = m;
+    const unsigned int ncols_A = n;
+    const unsigned int nrows_C = n;
+    const unsigned int ncols_C = m;
 
     // const unsigned int n_elems = nrows_A * ncols_A;
 
-    const unsigned int col_A_row_C = threadIdx.x + blockIdx.x * blockDim.x;
-    const unsigned int row_A_col_C = threadIdx.y + blockIdx.y * blockDim.y;
+    const unsigned int col_A = threadIdx.x + blockIdx.x * blockDim.x;
 
-    if (col_A_row_C >= n_cols_A_rows_C || row_A_col_C >= m_rows_A_cols_C) {
-        return;
+    const unsigned int stripe_idx = threadIdx.x;
+    const unsigned int stripe_col_A = stripe_idx;
+    const unsigned int stripe_row_C = stripe_idx;
+
+    // Iterate over the rows to cooperatively load a tile from A
+    const unsigned int start_row_A = blockIdx.y * STRIPE_WIDTH;
+
+    if (col_A < ncols_A) {
+        for (int tile_row_A = 0; tile_row_A < STRIPE_WIDTH; tile_row_A++) {
+            const unsigned int row_A = start_row_A + tile_row_A;
+            if (row_A >= nrows_A) {
+                break;
+            }
+            const unsigned int A_idx = col_A + row_A * ncols_A;
+            const unsigned shm_idx = tile_row_A * (STRIPE_WIDTH + 1) + stripe_col_A;
+            const auto value = A[A_idx];
+            // printf("A_idx:%u col_A:%u row_A:%u tile_row_A=%d stripe_col_A=%d shared_mem[%u]=%f\n",
+            //     A_idx, col_A, row_A, tile_row_A, stripe_col_A, shm_idx, float(value));
+            shared_mem[shm_idx] = value;
+        }
     }
-
-    const unsigned int A_idx = col_A_row_C + row_A_col_C * n_cols_A_rows_C;
-    const auto value_to_shm = A[A_idx];
-    shared_mem[threadIdx.y][threadIdx.x] = value_to_shm;
     __syncthreads();
-    const unsigned int C_idx = row_A_col_C + col_A_row_C * m_rows_A_cols_C;
-    const auto value_from_shm = shared_mem[threadIdx.x][threadIdx.y];
-    C[C_idx] = value_from_shm;
+
+    // Iterate over the columns to cooperatively store a tile to C
+    const int start_col_C = start_row_A;
+    const int row_C = col_A;
+    if (row_C < nrows_C) {
+        for (int tile_col_C = 0; tile_col_C < STRIPE_WIDTH; tile_col_C++) {
+            const unsigned int col_C = start_col_C + tile_col_C;
+            if (col_C >= ncols_C) {
+                break;
+            }
+            const unsigned int C_idx = col_C + row_C * ncols_C;
+            const unsigned shm_idx = tile_col_C * (STRIPE_WIDTH + 1) + stripe_row_C;
+            const auto value = shared_mem[shm_idx];
+            // printf("C_idx:%u col_C:%d row_C:%d tile_col_C=%d stripe_row_C=%d shared_mem[%u]=%f\n",
+            //     C_idx, col_C, row_C, tile_col_C, stripe_row_C, shm_idx, float(value));
+            C[C_idx] = value;
+        }
+    }
 }
 
-struct Matrix_transpose_tiled_spec {
+struct Matrix_transpose_striped_spec {
     const std::string type_;
 
     const unsigned int m_;    // Rows of input matrix, cols of output matrix
@@ -83,7 +114,7 @@ struct Matrix_transpose_tiled_spec {
         ;
     }
 
-    inline static Matrix_transpose_tiled_spec make(
+    inline static Matrix_transpose_striped_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
         // Validate the type option
@@ -92,7 +123,7 @@ struct Matrix_transpose_tiled_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        return Matrix_transpose_tiled_spec(
+        return Matrix_transpose_striped_spec(
             type,
             options_parsed["m"].as<int>(),
             options_parsed["n"].as<int>(),
@@ -100,7 +131,7 @@ struct Matrix_transpose_tiled_spec {
         );
     }
 
-    inline Matrix_transpose_tiled_spec(
+    inline Matrix_transpose_striped_spec(
         const std::string& type,
         const unsigned int m,
         const unsigned int n,
@@ -114,36 +145,36 @@ struct Matrix_transpose_tiled_spec {
         n_cols_C_(m),
 
         // Threads per tile
-        block_dim_(TILE_DIM),
+        block_dim_(STRIPE_WIDTH),
 
         grid_dim_(
             (
                 // Number of tiles to cover the columns of A
-                ((n_cols_A_ + TILE_DIM - 1) / TILE_DIM)
+                ((n_cols_A_ + STRIPE_WIDTH - 1) / STRIPE_WIDTH)
             ),
             (
                 // Number of tiles to cover the rows of A
-                ((n_rows_A_ + TILE_DIM - 1) / TILE_DIM)
+                ((n_rows_A_ + STRIPE_WIDTH - 1) / STRIPE_WIDTH)
             )
         ),
         dynamic_shared_mem_words_(0)
     {
-        assert(grid_dim_.x * grid_dim_.y * block_dim_.x * block_dim_.y * TILE_DIM >= n_ * m_);
+        assert(grid_dim_.x * grid_dim_.y * block_dim_.x * block_dim_.y * STRIPE_WIDTH >= n_ * m_);
     }
 };
 
-static_assert(Check_kernel_spec_1In_1Out<Matrix_transpose_tiled_spec>::check_passed, "Matrix_transpose_tiled_spec is not a valid kernel spec");
+static_assert(Check_kernel_spec_1In_1Out<Matrix_transpose_striped_spec>::check_passed, "Matrix_transpose_striped_spec is not a valid kernel spec");
 
 
 template <CUDA_floating_point Number_>
-class Matrix_transpose_tiled_kernel {
+class Matrix_transpose_striped_kernel {
     public:
     using Number = Number_;
-    using Kernel_spec = Matrix_transpose_tiled_spec;
+    using Kernel_spec = Matrix_transpose_striped_spec;
 
     const Kernel_spec spec_;
 
-    Matrix_transpose_tiled_kernel(
+    Matrix_transpose_striped_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {}
 
@@ -153,12 +184,12 @@ class Matrix_transpose_tiled_kernel {
         cudaStream_t stream
     ) {
         const auto shared_mem_size = spec_.dynamic_shared_mem_words_ * sizeof(Number);
-        std::cout << "[INFO] matrix_transpose_tiled<<<(" <<
+        std::cout << "[INFO] matrix_transpose_striped<<<(" <<
             spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << "), " <<
             "(" << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << "), " <<
             shared_mem_size << ">>>(gpu_data_A, gpu_data_C, " << spec_.m_ << ", " << spec_.n_ << ")" <<
             std::endl;
-        matrix_transpose_tiled<<<
+        matrix_transpose_striped<<<
             spec_.grid_dim_,
             spec_.block_dim_,
             shared_mem_size,
@@ -173,4 +204,4 @@ class Matrix_transpose_tiled_kernel {
     }
 
 };
-static_assert(Check_kernel_1In_1Out_template<Matrix_transpose_tiled_kernel>::check_passed, "Matrix_transpose_tiled is not a valid kernel template");
+static_assert(Check_kernel_1In_1Out_template<Matrix_transpose_striped_kernel>::check_passed, "Matrix_transpose_striped is not a valid kernel template");
