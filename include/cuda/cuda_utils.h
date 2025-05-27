@@ -12,6 +12,6 @@
 #include <chrono>
 #include "check_errors.h"
 
-constexpr unsigned int NULL_FLAGS = 0;
+constexpr size_t NULL_FLAGS = 0;
 
 void report_completion_time_callback(cudaStream_t stream, cudaError_t status, void* userData);

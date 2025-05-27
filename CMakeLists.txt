@@ -28,7 +28,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 find_package(CUDAToolkit REQUIRED)
 
 # Add OpenMP flags for CUDA (avoid duplication)
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fopenmp")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fopenmp -lineinfo")
 
 # Add compiler warnings (avoid duplication by checking if already set)
 if(NOT CMAKE_CXX_FLAGS MATCHES "-Werror")

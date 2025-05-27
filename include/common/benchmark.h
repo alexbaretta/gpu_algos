@@ -60,23 +60,23 @@ class Benchmark_2In_1Out {
     }
 
     int run() {
-        const int size_A = spec.n_rows_A_ * spec.n_cols_A_;
-        const int size_B = spec.n_rows_B_ * spec.n_cols_B_;
-        const int size_C = spec.n_rows_C_ * spec.n_cols_C_;
-        const int size_A_bytes = size_A * sizeof(Number);
-        const int size_B_bytes = size_B * sizeof(Number);
-        const int size_C_bytes = size_C * sizeof(Number);
-        const int input_size_bytes = size_A_bytes + size_B_bytes;
-        const int output_size_bytes = size_C_bytes;
+        const size_t size_A = size_t(spec.n_rows_A_) * size_t(spec.n_cols_A_);
+        const size_t size_B = size_t(spec.n_rows_B_) * size_t(spec.n_cols_B_);
+        const size_t size_C = size_t(spec.n_rows_C_) * size_t(spec.n_cols_C_);
+        const size_t size_A_bytes = size_A * sizeof(Number);
+        const size_t size_B_bytes = size_B * sizeof(Number);
+        const size_t size_C_bytes = size_C * sizeof(Number);
+        const size_t input_size_bytes = size_A_bytes + size_B_bytes;
+        const size_t output_size_bytes = size_C_bytes;
         constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
         const float input_size_gb = input_size_bytes / GB;
         const float output_size_gb = output_size_bytes / GB;
-        const float mem_gb = 2*input_size_gb + output_size_gb;
+        const float mem_gb = input_size_gb + output_size_gb;
         std::cout
             << "Input matrices dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << " * " << spec.n_rows_B_ << "x" << spec.n_cols_B_ << "\n"
-            << "Input size                  : " << input_size_gb << " GB\n"
-            << "Output size                 : " << output_size_gb << " GB\n"
-            << "Required memory             : " << mem_gb << " GB"
+            << "Input size                  : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
+            << "Output size                 : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
+            << "Required memory             : " << mem_gb << " GB (" << (input_size_bytes + output_size_bytes) << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
             std::cerr << "[ERROR] GPU memory size is less than the matrix size" << std::endl;
@@ -268,11 +268,11 @@ class Benchmark_2In_1Out {
 
 
 
-template <KERNEL_2IN_1OUT Kernel_2In_1Out>
+template <KERNEL_1IN_1OUT Kernel_1In_1Out>
 class Benchmark_1In_1Out {
     public:
-    using Kernel_spec = typename Kernel_2In_1Out::Kernel_spec;
-    using Number = typename Kernel_2In_1Out::Number;
+    using Kernel_spec = typename Kernel_1In_1Out::Kernel_spec;
+    using Number = typename Kernel_1In_1Out::Number;
     using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
 
     const Kernel_spec spec;
@@ -280,7 +280,7 @@ class Benchmark_1In_1Out {
     const int gpu_mem;
     const bool verbose;
 
-    Kernel_2In_1Out kernel;
+    Kernel_1In_1Out kernel;
 
     Benchmark_1In_1Out(
         const Kernel_spec spec,
@@ -300,21 +300,22 @@ class Benchmark_1In_1Out {
     }
 
     int run() {
-        const int size_A = spec.n_rows_A_ * spec.n_cols_A_;
-        const int size_C = spec.n_rows_C_ * spec.n_cols_C_;
-        const int size_A_bytes = size_A * sizeof(Number);
-        const int size_C_bytes = size_C * sizeof(Number);
-        const int input_size_bytes = size_A_bytes;
-        const int output_size_bytes = size_C_bytes;
+        const size_t size_A = size_t(spec.n_rows_A_) * size_t(spec.n_cols_A_);
+        const size_t size_C = size_t(spec.n_rows_C_) * size_t(spec.n_cols_C_);
+        const size_t size_A_bytes = size_A * sizeof(Number);
+        const size_t size_C_bytes = size_C * sizeof(Number);
+        const size_t input_size_bytes = size_A_bytes;
+        const size_t output_size_bytes = size_C_bytes;
         constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
         const float input_size_gb = input_size_bytes / GB;
         const float output_size_gb = output_size_bytes / GB;
-        const float mem_gb = 2*input_size_gb + output_size_gb;
+        const float mem_gb = input_size_gb + output_size_gb;
         std::cout
-            << "Input matrices dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << "\n"
-            << "Input size                  : " << input_size_gb << " GB\n"
-            << "Output size                 : " << output_size_gb << " GB\n"
-            << "Required memory             : " << mem_gb << " GB"
+            << "Input matrix dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << "\n"
+            << "Output matrix dimensions  : " << spec.n_rows_C_ << "x" << spec.n_cols_C_ << "\n"
+            << "Input size                : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
+            << "Output size               : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
+            << "Required memory           : " << mem_gb << " GB (" << (input_size_bytes + output_size_bytes) << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
             std::cerr << "[ERROR] GPU memory size is less than the matrix size" << std::endl;
@@ -361,7 +362,7 @@ class Benchmark_1In_1Out {
         std::cout << setup_step_dt4.count() << " ms (" << setup_total_dt4.count() << " ms total)" << std::endl;
 
 
-        std::cout << "KERNEL_2IN_1OUT:" << std::endl;
+        std::cout << "KERNEL_1IN_1OUT:" << std::endl;
         const auto gpu_tp0 = std::chrono::high_resolution_clock::now();
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 

@@ -155,7 +155,7 @@ template <typename Kernel_1In_1Out>
 concept KERNEL_1IN_1OUT = requires (Kernel_1In_1Out kernel) {
     // Concepts evaluate what you actually get when expressions run (references to members)...
     typename Kernel_1In_1Out::Number;
-    typename Kernel_1In_1Out::Kernel_spec_1In_1Out;
+    typename Kernel_1In_1Out::Kernel_spec;
     // requires CUDA_floating_point<typename Kernel_1In_1Out::FLOAT>;
 
     { kernel.spec_ } -> std::same_as<const typename Kernel_1In_1Out::Kernel_spec&>;
@@ -242,7 +242,7 @@ template <typename Kernel_1InOut>
 concept KERNEL_1INOUT = requires (Kernel_1InOut kernel) {
     // Concepts evaluate what you actually get when expressions run (references to members)...
     typename Kernel_1InOut::Number;
-    typename Kernel_1InOut::Kernel_spec_1InOut;
+    typename Kernel_1InOut::Kernel_spec;
     // requires CUDA_floating_point<typename Kernel_1InOut::FLOAT>;
 
     { kernel.spec_ } -> std::same_as<const typename Kernel_1InOut::Kernel_spec&>;
