@@ -43,8 +43,8 @@ struct Matrix_transpose_cublas_spec {
             ("m", "Number of rows in input matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
             ("n", "Number of columns in input matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
             ("k", "Unused", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_K)))
-            ("block_dim_x,x", "Number of threads in the x dimension of the block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("block_dim_y,y", "Number of threads in the y dimension of the block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }

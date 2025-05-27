@@ -78,7 +78,7 @@ struct Matrix_transpose_tiled_spec {
             ("m", "Number of rows in input matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
             ("n", "Number of columns in input matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
             ("k", "Unused", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_K)))
-            ("block_dim,x", "Number of threads of the block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block_dim,x", "Number of threads per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }

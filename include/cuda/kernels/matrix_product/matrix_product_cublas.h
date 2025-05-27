@@ -43,8 +43,8 @@ struct Matrix_product_cublas_spec {
             ("m", "Number of rows in first matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
             ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
             ("k", "Number of columns in the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_K)))
-            ("block_dim_x,x", "Number of threads in the x dimension of the block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("block_dim_y,y", "Number of threads in the y dimension of the block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
