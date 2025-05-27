@@ -107,9 +107,9 @@ __global__ void matrix_product_warp(
     const CUDA_FLOAT* A,
     const CUDA_FLOAT* B,
     CUDA_FLOAT* C,
-    unsigned int m,
-    unsigned int n, // shared dimension
-    unsigned int k
+    const unsigned int m,
+    const unsigned int n, // shared dimension
+    const unsigned int k
 ) {
     // thread id is (x + y Dx + z Dx Dy, see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#thread-hierarchy
     // int thread_id = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;

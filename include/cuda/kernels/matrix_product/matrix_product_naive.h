@@ -14,9 +14,9 @@ __global__ void matrix_product_naive(
     const CUDA_FLOAT* A,
     const CUDA_FLOAT* B,
     CUDA_FLOAT* C,
-    unsigned int m,
-    unsigned int n,
-    unsigned int k
+    const unsigned int m,
+    const unsigned int n,
+    const unsigned int k
 ) {
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     int row = blockIdx.y * blockDim.y + threadIdx.y;

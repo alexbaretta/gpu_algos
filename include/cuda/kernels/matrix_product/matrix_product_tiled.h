@@ -14,9 +14,9 @@ __global__ void matrix_product_tiled(
     const CUDA_FLOAT* A,
     const CUDA_FLOAT* B,
     CUDA_FLOAT* C,
-    unsigned int m,
-    unsigned int n,
-    unsigned int k
+    const unsigned int m,
+    const unsigned int n,
+    const unsigned int k
 ) {
     // Tile size (matches block dimensions)
     constexpr int TILE_SIZE = 16;

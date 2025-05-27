@@ -13,8 +13,8 @@ template <CUDA_floating_point CUDA_FLOAT>
 __global__ void matrix_transpose_naive(
     const CUDA_FLOAT* A,
     CUDA_FLOAT* C,
-    unsigned int m, // rows of A, cols of C
-    unsigned int n  // cols of A, rows of C
+    const unsigned int m, // rows of A, cols of C
+    const unsigned int n  // cols of A, rows of C
 ) {
     // for readability
     const unsigned int nrows_A = m;
