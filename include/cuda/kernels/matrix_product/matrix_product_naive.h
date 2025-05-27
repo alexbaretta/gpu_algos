@@ -48,7 +48,7 @@ struct Matrix_product_naive_spec {
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
-    const size_t shared_mem_size_ = 0;
+    const size_t dynamic_shared_mem_words_ = 0;
 
     constexpr static int DEFAULT_M = 3000; // Rows of first matrix
     constexpr static int DEFAULT_N = 300;  // Columns of first matrix / Rows of second matrix
@@ -135,7 +135,7 @@ class Matrix_product_naive_kernel {
         matrix_product_naive<<<
             spec_.grid_dim_,
             spec_.block_dim_,
-            spec_.shared_mem_size_,
+            spec_.dynamic_shared_mem_words_ * sizeof(Number),
             stream
         >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }

@@ -28,7 +28,9 @@ concept KERNEL_SPEC_2IN_1OUT = requires (Kernel_spec_2In_1Out spec) {
 
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
-    { spec.shared_mem_size_ } -> std::same_as<const size_t&>;
+
+    // Will be allocated at runtime via <<<...>>> kernel launch
+    { spec.dynamic_shared_mem_words_ } -> std::same_as<const size_t&>;
 };
 
 template <typename Kernel_spec_2In_1Out>
@@ -48,7 +50,9 @@ struct Check_kernel_spec_2In_1Out {
 
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().grid_dim_), const dim3>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().shared_mem_size_), const size_t>);
+
+    // Will be allocated at runtime via <<<...>>> kernel launch
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().dynamic_shared_mem_words_), const size_t>);
 
     static_assert(KERNEL_SPEC_2IN_1OUT<Kernel_spec_2In_1Out>, "not a valid KERNEL_SPEC_2IN_1OUT");
 
@@ -127,7 +131,9 @@ concept KERNEL_SPEC_1IN_1OUT = requires (Kernel_spec_1In_1Out spec) {
 
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
-    { spec.shared_mem_size_ } -> std::same_as<const size_t&>;
+
+    // Will be allocated at runtime via <<<...>>> kernel launch
+    { spec.dynamic_shared_mem_words_ } -> std::same_as<const size_t&>;
 };
 
 template <typename Kernel_spec_1In_1Out>
@@ -144,7 +150,9 @@ struct Check_kernel_spec_1In_1Out {
 
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().grid_dim_), const dim3>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().shared_mem_size_), const size_t>);
+
+    // Will be allocated at runtime via <<<...>>> kernel launch
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().dynamic_shared_mem_words_), const size_t>);
 
     static_assert(KERNEL_SPEC_1IN_1OUT<Kernel_spec_1In_1Out>, "not a valid KERNEL_SPEC_1IN_1OUT");
 
@@ -218,7 +226,9 @@ concept KERNEL_SPEC_1INOUT = requires (Kernel_spec_1InOut spec) {
 
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
-    { spec.shared_mem_size_ } -> std::same_as<const size_t&>;
+
+    // Will be allocated at runtime via <<<...>>> kernel launch
+    { spec.dynamic_shared_mem_words_ } -> std::same_as<const size_t&>;
 };
 
 template <typename Kernel_spec_1InOut>
@@ -231,7 +241,9 @@ struct Check_kernel_spec_1InOut {
 
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().grid_dim_), const dim3>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().shared_mem_size_), const size_t>);
+
+    // Will be allocated at runtime via <<<...>>> kernel launch
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().dynamic_shared_mem_words_), const size_t>);
 
     static_assert(KERNEL_SPEC_1INOUT<Kernel_spec_1InOut>, "not a valid KERNEL_SPEC_1INOUT");
 

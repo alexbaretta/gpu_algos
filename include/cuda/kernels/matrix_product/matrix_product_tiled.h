@@ -9,6 +9,8 @@
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
+constexpr unsigned int TILE_SIZE = 16;
+
 template <CUDA_floating_point CUDA_FLOAT>
 __global__ void matrix_product_tiled(
     const CUDA_FLOAT* A,
@@ -18,9 +20,6 @@ __global__ void matrix_product_tiled(
     const unsigned int n,
     const unsigned int k
 ) {
-    // Tile size (matches block dimensions)
-    constexpr int TILE_SIZE = 16;
-
     // Shared memory for caching tiles of A and B
     __shared__ CUDA_FLOAT tile_A[TILE_SIZE][TILE_SIZE];
     __shared__ CUDA_FLOAT tile_B[TILE_SIZE][TILE_SIZE];
@@ -125,8 +124,7 @@ struct Matrix_product_tiled_spec {
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
-    const size_t shared_mem_size_ = 0;  // Will be calculated dynamically by kernel
-
+    constexpr static size_t dynamic_shared_mem_words_ = 0;
     constexpr static int DEFAULT_M = 3000; // Rows of first matrix
     constexpr static int DEFAULT_N = 300;  // Columns of first matrix / Rows of second matrix
     constexpr static int DEFAULT_K = 1000; // Columns of second matrix
@@ -191,13 +189,6 @@ class Matrix_product_tiled_kernel {
 
     const Kernel_spec spec_;
 
-    // Calculate shared memory size based on data type
-    static constexpr size_t get_shared_mem_size() {
-        // Two 16x16 tiles in shared memory
-        constexpr int TILE_SIZE = 16;
-        return 2 * TILE_SIZE * TILE_SIZE * sizeof(Number);
-    }
-
     Matrix_product_tiled_kernel(
         const Kernel_spec spec
     ) : spec_(spec)
@@ -212,7 +203,7 @@ class Matrix_product_tiled_kernel {
         matrix_product_tiled<<<
             spec_.grid_dim_,
             spec_.block_dim_,
-            get_shared_mem_size(),
+            spec_.dynamic_shared_mem_words_ * sizeof(Number),
             stream
         >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }

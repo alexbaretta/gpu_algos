@@ -51,7 +51,7 @@ struct Matrix_product_warp_spec {
     const unsigned int warp_size_;
     const dim3 block_dim_;
     const dim3 grid_dim_;
-    const size_t shared_mem_size_ = 0;
+    const size_t dynamic_shared_mem_words_ = 0;
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
@@ -158,7 +158,7 @@ class Matrix_product_warp_kernel {
         matrix_product_warp<<<
             spec_.grid_dim_,
             spec_.block_dim_,
-            spec_.shared_mem_size_,
+            spec_.dynamic_shared_mem_words_ * sizeof(Number),
             stream
         >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }

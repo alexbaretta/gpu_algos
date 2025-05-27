@@ -17,7 +17,7 @@ __global__ void matrix_transpose_naive(
     const unsigned int n  // cols of A, rows of C
 ) {
     // for readability
-    const unsigned int nrows_A = m;
+    // const unsigned int nrows_A = m;
     const unsigned int ncols_A = n;
     // const unsigned int nrows_C = n;
     const unsigned int ncols_C = m;
@@ -31,9 +31,8 @@ __global__ void matrix_transpose_naive(
     const unsigned int col_C = j;
     const unsigned int row_C = i;
 
-    if (col_A < ncols_A && row_A < nrows_A) {
-        C[col_C + ncols_C * row_C] = A[col_A + ncols_A * row_A];
-    }
+    if (!(col_A < n && row_A < m)) return;
+    C[col_C + ncols_C * row_C] = A[col_A + ncols_A * row_A];
 }
 
 struct Matrix_transpose_naive_spec {
@@ -51,7 +50,7 @@ struct Matrix_transpose_naive_spec {
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
-    const size_t shared_mem_size_ = 0;
+    const size_t dynamic_shared_mem_words_ = 0;
 
     constexpr static int DEFAULT_M = 3000; // rows of A, cols of C
     constexpr static int DEFAULT_N = 300;  // cols of A, rows of C
@@ -132,7 +131,7 @@ class Matrix_transpose_naive_kernel {
         matrix_transpose_naive<<<
             spec_.grid_dim_,
             spec_.block_dim_,
-            spec_.shared_mem_size_,
+            spec_.dynamic_shared_mem_words_ * sizeof(Number),
             stream
         >>>(gpu_data_A, gpu_data_C, spec_.m_, spec_.n_);
     }
