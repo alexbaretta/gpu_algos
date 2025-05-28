@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/vector_cumsum_parallel.h
+// source path: include/cuda/kernels/matrix/vector_cumsum_cooperative.h
 
 #pragma once
 #include <cuda_runtime.h>
@@ -16,13 +16,17 @@ constexpr static unsigned int MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
 constexpr static unsigned int LAST_LANE = WARP_SIZE - 1;
 
 template <CUDA_floating_point CUDA_FLOAT, unsigned int MAX_RECURSION_DEPTH=3>
-__device__ void vector_cumsum_parallel(
+__device__ void vector_cumsum_cooperative(
     const CUDA_FLOAT* A,
     CUDA_FLOAT* C,
     const unsigned int n,  // size of vector
     const unsigned int n_blocks
 ) {
     __shared__ CUDA_FLOAT shm[MAX_N_WARPS]; // for writing, index this using `wid_block` (warp id)
+
+    auto grid = cooperative_groups::this_grid();
+    grid.sync();
+
     // tid_xxx represent the index of the thread within grid, block, and warp
     const unsigned int bid_grid = blockIdx.x;
     const unsigned short tid_block = threadIdx.x;
@@ -138,17 +142,16 @@ __device__ void vector_cumsum_parallel(
             }
         }
     }
+    // Now that we have copied each block's final value to global memory, we need to synchronize.
+    // This is a grid level synchronization: it requires cooperative groups.
+    // The kernel must be launched with cudaLaunchCooperativeKernel.
+    // __threadfence(); // Not necessary because we are callling grid.sync()
+    grid.sync();
+
     // If there is only 1 block we are done; otherwise, we need to call ourselves recursively on the
     // temporary buffer we have set up in C, then update each block's thread's value variables, then
     // write the values to C.
     if (n_blocks > 1) {
-        // Now that we have copied each block's final value to global memory, we need to synchronize.
-        // This is a grid level synchronization: it requires cooperative groups.
-        // The kernel must be launched with cudaLaunchCooperativeKernel.
-        // __threadfence(); // Not necessary because we are callling grid.sync()
-        auto grid = cooperative_groups::this_grid();
-        grid.sync();
-
         // Now the first n_block words of C contain the terminal values of each of n_blocks.
         // We must scan C now. We will replicate the above algorithm.
 
@@ -157,10 +160,10 @@ __device__ void vector_cumsum_parallel(
         // in C only one word per block, or 1 word for every 1024 words in A.
         auto C_prime = C + n_blocks;
 
-        // We must use call ourselves recursively
+        // We must call ourselves recursively
         if constexpr (MAX_RECURSION_DEPTH > 0) {
-            // vector_cumsum_parallel<CUDA_FLOAT, MAX_RECURSION_DEPTH - 1>(C, C_prime, n_blocks, n_blocks/blockDim.x);
-            vector_cumsum_parallel<CUDA_FLOAT, MAX_RECURSION_DEPTH - 1>(C, C_prime, n_blocks, (n_blocks + blockDim.x - 1) / blockDim.x);
+            // vector_cumsum_cooperative<CUDA_FLOAT, MAX_RECURSION_DEPTH - 1>(C, C_prime, n_blocks, n_blocks/blockDim.x);
+            vector_cumsum_cooperative<CUDA_FLOAT, MAX_RECURSION_DEPTH - 1>(C, C_prime, n_blocks, (n_blocks + blockDim.x - 1) / blockDim.x);
         }
         // By the magical powers of recursion, C_prime is now the scanned result of the temporary data we stored in C
         // We must read C_prime back into the last threads of each block, which will then use shared memory
@@ -173,10 +176,13 @@ __device__ void vector_cumsum_parallel(
             const CUDA_FLOAT block_delta_value = updated_value - value;
             shm[0] = block_delta_value;
             value = updated_value;
-            __syncthreads();
-        } else {
+        }
+        __syncthreads();
+         if (
+            // All the other threads of the block read the value from shared memory
+            tid_block != blockDim.x - 1
+        ) {
             // All the other threads execute here
-            __syncthreads();
             value += shm[0];
         }
         // Now each block is fully updated. We just need to write back to C
@@ -185,17 +191,20 @@ __device__ void vector_cumsum_parallel(
 }
 
 template <CUDA_floating_point CUDA_FLOAT>
-__global__ void vector_cumsum_parallel_kernel(
+__global__ void vector_cumsum_cooperative_kernel(
     const CUDA_FLOAT* A,
     CUDA_FLOAT* C,
     const unsigned int n  // size of vector
 ) {
-    const unsigned int n_blocks = gridDim.x;
-    vector_cumsum_parallel<CUDA_FLOAT, 3>(A, C, n, n_blocks);
+    auto grid = cooperative_groups::this_grid();
+    grid.sync();
+
+    // const unsigned int n_blocks = gridDim.x;
+    // vector_cumsum_cooperative<CUDA_FLOAT, 3>(A, C, n, n_blocks);
 }
 
 
-struct Vector_cumsum_parallel_spec {
+struct Vector_cumsum_cooperative_spec {
     const cudaDeviceProp device_prop_;
 
     const std::string type_;
@@ -227,7 +236,7 @@ struct Vector_cumsum_parallel_spec {
         ;
     }
 
-    inline static Vector_cumsum_parallel_spec make(
+    inline static Vector_cumsum_cooperative_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
         // Validate the type option
@@ -236,13 +245,13 @@ struct Vector_cumsum_parallel_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        return Vector_cumsum_parallel_spec(
+        return Vector_cumsum_cooperative_spec(
             type,
             options_parsed["n"].as<int>()
         );
     }
 
-    inline Vector_cumsum_parallel_spec(
+    inline Vector_cumsum_cooperative_spec(
         const std::string& type,
         const unsigned int n
     ) : device_prop_(get_default_device_prop()),
@@ -264,14 +273,14 @@ struct Vector_cumsum_parallel_spec {
     {}
 };
 
-static_assert(Check_kernel_spec_1In_1Out<Vector_cumsum_parallel_spec>::check_passed, "Vector_cumsum_parallel_spec is not a valid kernel spec");
+static_assert(Check_kernel_spec_1In_1Out<Vector_cumsum_cooperative_spec>::check_passed, "Vector_cumsum_cooperative_spec is not a valid kernel spec");
 
 
 template <CUDA_floating_point Number_>
-class Vector_cumsum_parallel_kernel {
+class Vector_cumsum_cooperative_kernel {
     public:
     using Number = Number_;
-    using Kernel_spec = Vector_cumsum_parallel_spec;
+    using Kernel_spec = Vector_cumsum_cooperative_spec;
 
     const Kernel_spec spec_;
     int max_block_size = 0;
@@ -280,19 +289,19 @@ class Vector_cumsum_parallel_kernel {
     dim3 block_dim_;
     dim3 grid_dim_;
 
-    Vector_cumsum_parallel_kernel(
+    Vector_cumsum_cooperative_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {
         cudaOccupancyMaxPotentialBlockSize(
             &max_block_size,
             &opt_grid_size,
-            vector_cumsum_parallel_kernel<Number>,
+            vector_cumsum_cooperative_kernel<Number>,
             0,
             0
         );
         cudaOccupancyMaxActiveBlocksPerMultiprocessor(
             &max_active_blocks_per_multiprocessor,
-            vector_cumsum_parallel_kernel<Number>,
+            vector_cumsum_cooperative_kernel<Number>,
             max_block_size,
             0
         );
@@ -309,11 +318,10 @@ class Vector_cumsum_parallel_kernel {
         std::cout << "[INFO] max_block_size: " << max_block_size << std::endl;
         std::cout << "[INFO] opt_grid_size: " << opt_grid_size << std::endl;
         std::cout << "[INFO] cudaLaunchCooperativeKernel:"
-            // << " grid_dim_ = (" << spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << ")"
-            // << " block_dim_ = (" << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << ")"
-            << " opt_grid_size = " << opt_grid_size << " max_block_size = " << max_block_size
+            << " grid_dim_ = (" << grid_dim_.x << ", " << grid_dim_.y << ", " << grid_dim_.z << ")"
+            << " block_dim_ = (" << block_dim_.x << ", " << block_dim_.y << ", " << block_dim_.z << ")"
             << std::endl;
-        // vector_cumsum_parallel_kernel<<<opt_grid_size, max_block_size, 0, stream>>>(
+        // vector_cumsum_cooperative_kernel<<<opt_grid_size, max_block_size, 0, stream>>>(
         //     gpu_data_A,
         //     gpu_data_C,
         //     spec_.n_
@@ -325,7 +333,7 @@ class Vector_cumsum_parallel_kernel {
             const_cast<unsigned int*>(&spec_.n_)
         };
         cudaLaunchCooperativeKernel(
-            vector_cumsum_parallel_kernel<Number>,
+            vector_cumsum_cooperative_kernel<Number>,
             grid_dim_,
             block_dim_,
             kernel_args,
@@ -349,4 +357,4 @@ class Vector_cumsum_parallel_kernel {
         return result;
     }
 };
-static_assert(Check_kernel_1In_1Out_template<Vector_cumsum_parallel_kernel>::check_passed, "Vector_cumsum_parallel is not a valid kernel template");
+static_assert(Check_kernel_1In_1Out_template<Vector_cumsum_cooperative_kernel>::check_passed, "Vector_cumsum_cooperative is not a valid kernel template");
