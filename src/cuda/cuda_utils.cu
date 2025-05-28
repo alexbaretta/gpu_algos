@@ -11,3 +11,14 @@ void report_completion_time_callback(cudaStream_t stream, cudaError_t status, vo
     auto& time = *static_cast<std::chrono::high_resolution_clock::time_point*>(userData);
     time = std::chrono::high_resolution_clock::now();
 }
+
+cudaDeviceProp get_device_prop(const int device_id) {
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, device_id);
+    return prop;
+}
+cudaDeviceProp get_default_device_prop() {
+    int device_id;
+    cudaGetDevice(&device_id);
+    return get_device_prop(device_id);
+}

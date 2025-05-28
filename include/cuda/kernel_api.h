@@ -9,6 +9,8 @@
 #include <cuda_runtime.h>
 #include <type_traits>
 
+#include <Eigen/Dense>
+
 #include "cuda/type_traits.h"
 
 template <typename Kernel_spec_2In_1Out>

@@ -1,0 +1,352 @@
+// Copyright (c) 2025 Alessandro Baretta
+// All rights reserved.
+
+// source path: include/cuda/kernels/matrix/vector_cumsum_parallel.h
+
+#pragma once
+#include <cuda_runtime.h>
+#include <cooperative_groups.h>
+
+#include "cuda/kernel_api.h"
+#include "cuda/type_traits.h"
+
+constexpr static unsigned int MAX_BLOCK_SIZE = 1024;
+constexpr static unsigned int WARP_SIZE = 32;
+constexpr static unsigned int MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
+constexpr static unsigned int LAST_LANE = WARP_SIZE - 1;
+
+template <CUDA_floating_point CUDA_FLOAT, unsigned int MAX_RECURSION_DEPTH=3>
+__device__ void vector_cumsum_parallel(
+    const CUDA_FLOAT* A,
+    CUDA_FLOAT* C,
+    const unsigned int n,  // size of vector
+    const unsigned int n_blocks
+) {
+    __shared__ CUDA_FLOAT shm[MAX_N_WARPS]; // for writing, index this using `wid_block` (warp id)
+    // tid_xxx represent the index of the thread within grid, block, and warp
+    const unsigned int bid_grid = blockIdx.x;
+    const unsigned short tid_block = threadIdx.x;
+    const unsigned int tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+
+    CUDA_FLOAT value = 0;
+
+    if (bid_grid < n_blocks) {
+        // bid_grid (block ID relative to the whole grid) can be >= n_blocks when we call ourselves
+        // recursively on a reduced dataset. In this case, we can skip directliy to the synchronization,
+        const unsigned short tid_warp = threadIdx.x % WARP_SIZE;
+        const unsigned short wid_block = threadIdx.x / WARP_SIZE;
+        const unsigned short n_warps_per_block = blockDim.x / WARP_SIZE;
+
+        // the size of shm must be the number of warps in the block
+
+        // Load data, only if index is within bounds
+        if (tid_grid < n) {
+            value = A[tid_grid];
+        }
+
+        // Scan warp using warp-shuffle
+        // Each warp produces a scan of 2*WARP_SIZE values
+        // (stored in the `value` register of each of the threads of the warp)
+        // Initialize: offset = 1, scanned_size = 1, subtree_index = tid_warp (lane)
+        // At each step:
+        //   shufl_up by offset
+        //   if (subtree_id % 2 == 1): add shuffled value to local value, offset*=2
+        //   all threads: double scanned_size, halve subtree_id
+        // e.g.
+        // 1  2  3  4   5  6  7   8  9  10 11 12 13 14   15  16
+        //   \|    \|     \|     \|    \|    \|    \|      \|
+        // 1  3  3  7   5 11  7  15  9  19 11 23 13 27   15  31
+        //     \-\-\|      \--\--\|      \-\-\|      \---\--\|
+        // 1  3  6 10   5 11  18 26  9  19 30 42 13 27   42  58
+        //           \--\--\--\--\|            \--\--\---\--\|
+        // 1  3  6 10   15 21 28 36  9  19 30 42 55 69   84  100
+        //                        \-\---\--\--\--\--\----\--\|
+        // 1  3  6 10   15 21 28 36 45  55 66 78 91 105  120 136
+
+
+        unsigned int offset = 1, subtree_id = tid_warp;
+        for (unsigned int scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
+            const CUDA_FLOAT received_value = __shfl_down_sync(0xFFFFFFFF, value, offset);
+            if (subtree_id % 2 == 1) {
+                value += received_value;
+                offset *= 2;
+            }
+        }
+
+        if (n_warps_per_block == 1) {
+            // Only one warp. We have already compute the result. We just need to copy it to C
+            C[tid_grid] = value;
+        } else {
+            // n_warps_per_block > 1
+            // We need to do a warp-shuffle scan across the warps. We will use shared memory
+            // to allow each warp within a block to send it terminal value to the master warp
+            // which will then perform the scan.
+
+            // Now each warp's values contain the cumsums for the warp. The last lane of the warp contains the warp total.
+            if (tid_warp == LAST_LANE) {
+                shm[wid_block] = value;
+            }
+
+            __syncthreads();
+
+            // Now the warp totals live in shm. We need to scan shm to compute
+            // We use the same algorithm as above, but we execute with only one warp,
+            // as the shared memory size is equal to warpSize (1024/32 == 32)
+            static_assert(MAX_N_WARPS == WARP_SIZE, "MAX_N_WARPS != WARP_SIZE (at compile time)");
+            CUDA_FLOAT shm_value = 0;
+            if (wid_block == 0) {
+                // We pick warp 0 to perform the warp-shuffle scan on shared memory.
+                int offset = 1, subtree_id = tid_warp;
+                shm_value = shm[tid_warp];
+                for (unsigned int scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
+                    const CUDA_FLOAT received_value = __shfl_down_sync(0xFFFFFFFF, value, offset);
+                    if (subtree_id % 2 == 1) {
+                        shm_value += received_value;
+                        offset *= 2;
+                    }
+                }
+                shm[tid_warp] = shm_value;
+            }
+
+            // We need to read shm into all the warps, and let each lane update itself based on the
+            // difference between the value written by the warp to shm and the value read back in.
+            if (tid_warp == LAST_LANE) {
+                const CUDA_FLOAT updated_value = shm[wid_block];
+                const CUDA_FLOAT warp_delta_value = updated_value - value;
+                value = updated_value; // only for the last lane!
+                __shfl_sync(0xFFFFFFFF, warp_delta_value, 0);
+            } else {
+                // All the other lanes
+                value += __shfl_sync(0xFFFFFFFF, 0, LAST_LANE);
+            }
+
+            if (n_blocks > 1) {
+                if (
+                    // Only the last lane of the last warp of the block writes to the global buffer
+                    tid_block == blockDim.x - 1
+                ) {
+                    // Now shm_value contains the last (topmost) value of the whole block.
+                    // Let's communicate it to the whole grid. We use the first `n_blocks` words of C
+                    // as a slow, grid-wide shared buffer. But we have reduced the amount of data
+                    // to 1 word per block, so memory bandwidth is not a concern.
+                    C[bid_grid] = shm_value;
+                    // We have copied
+                }
+            } else {
+                // Now the `value` variables contain the the scanned values: we need to write them back to C
+                C[tid_grid] = value;
+            }
+        }
+    }
+    // If there is only 1 block we are done; otherwise, we need to call ourselves recursively on the
+    // temporary buffer we have set up in C, then update each block's thread's value variables, then
+    // write the values to C.
+    if (n_blocks > 1) {
+        // Now that we have copied each block's final value to global memory, we need to synchronize.
+        // This is a grid level synchronization: it requires cooperative groups.
+        // The kernel must be launched with cudaLaunchCooperativeKernel.
+        // __threadfence(); // Not necessary because we are callling grid.sync()
+        auto grid = cooperative_groups::this_grid();
+        grid.sync();
+
+        // Now the first n_block words of C contain the terminal values of each of n_blocks.
+        // We must scan C now. We will replicate the above algorithm.
+
+        // location of scanned results: we know there is enough space in the C buffer for this
+        // because C must be able to accomodate all the data in A, and so far we have placed
+        // in C only one word per block, or 1 word for every 1024 words in A.
+        auto C_prime = C + n_blocks;
+
+        // We must use call ourselves recursively
+        if constexpr (MAX_RECURSION_DEPTH > 0) {
+            // vector_cumsum_parallel<CUDA_FLOAT, MAX_RECURSION_DEPTH - 1>(C, C_prime, n_blocks, n_blocks/blockDim.x);
+            vector_cumsum_parallel<CUDA_FLOAT, MAX_RECURSION_DEPTH - 1>(C, C_prime, n_blocks, (n_blocks + blockDim.x - 1) / blockDim.x);
+        }
+        // By the magical powers of recursion, C_prime is now the scanned result of the temporary data we stored in C
+        // We must read C_prime back into the last threads of each block, which will then use shared memory
+        // to broadcast the update to all the threads.
+        if (
+            // Only the last lane of the last warp of the block writes to the global buffer
+            tid_block == blockDim.x - 1
+        ) {
+            const CUDA_FLOAT updated_value = C[bid_grid];
+            const CUDA_FLOAT block_delta_value = updated_value - value;
+            shm[0] = block_delta_value;
+            value = updated_value;
+            __syncthreads();
+        } else {
+            // All the other threads execute here
+            __syncthreads();
+            value += shm[0];
+        }
+        // Now each block is fully updated. We just need to write back to C
+        C[tid_grid] = value;
+    }
+}
+
+template <CUDA_floating_point CUDA_FLOAT>
+__global__ void vector_cumsum_parallel_kernel(
+    const CUDA_FLOAT* A,
+    CUDA_FLOAT* C,
+    const unsigned int n  // size of vector
+) {
+    const unsigned int n_blocks = gridDim.x;
+    vector_cumsum_parallel<CUDA_FLOAT, 3>(A, C, n, n_blocks);
+}
+
+
+struct Vector_cumsum_parallel_spec {
+    const cudaDeviceProp device_prop_;
+
+    const std::string type_;
+
+    const unsigned int m_;    // unused for vector cumsum
+    const unsigned int n_;    // size of vector
+    const unsigned int k_;    // unused for vector cumsum
+
+    const unsigned int n_rows_A_;
+    const unsigned int n_cols_A_;
+
+    const unsigned int n_rows_C_;
+    const unsigned int n_cols_C_;
+
+    const dim3 block_dim_;
+    const dim3 grid_dim_;
+    const size_t dynamic_shared_mem_words_ = 0;
+
+    constexpr static int DEFAULT_M = 0;    // unused
+    constexpr static int DEFAULT_N = 3000; // size of vector
+    constexpr static int DEFAULT_K = 0;    // unused
+    constexpr static int DEFAULT_BLOCK_DIM_X = 32;
+
+    inline static void add_kernel_spec_options(cxxopts::Options& options) {
+        options.add_options()
+            ("n", "Size of vector", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
+            ("block_dim,x", "Number of threads in the x dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
+        ;
+    }
+
+    inline static Vector_cumsum_parallel_spec make(
+        const cxxopts::ParseResult& options_parsed
+    ) {
+        // Validate the type option
+        const auto& type = options_parsed["type"].as<std::string>();
+        if (type != "half" && type != "single" && type != "float" && type != "double") {
+            std::cerr << "[ERROR] --type must be one of: half, single/float, double" << std::endl;
+            throw cxxopts::exceptions::exception("Invalid --type: " + type);
+        }
+        return Vector_cumsum_parallel_spec(
+            type,
+            options_parsed["n"].as<int>()
+        );
+    }
+
+    inline Vector_cumsum_parallel_spec(
+        const std::string& type,
+        const unsigned int n
+    ) : device_prop_(get_default_device_prop()),
+        type_(type),
+        m_(0),  // unused
+        n_(n),
+        k_(0),  // unused
+        n_rows_A_(1),
+        n_cols_A_(n),
+        n_rows_C_(1),
+        n_cols_C_(n),
+
+        // Since parallel scan requires sharing data between blocks,
+        // which in turn requires reading and writing to global memory,
+        // we'll use the biggest block size possible.
+        block_dim_(device_prop_.maxThreadsPerBlock),
+
+        grid_dim_((n + block_dim_.x - 1) / block_dim_.x)
+    {}
+};
+
+static_assert(Check_kernel_spec_1In_1Out<Vector_cumsum_parallel_spec>::check_passed, "Vector_cumsum_parallel_spec is not a valid kernel spec");
+
+
+template <CUDA_floating_point Number_>
+class Vector_cumsum_parallel_kernel {
+    public:
+    using Number = Number_;
+    using Kernel_spec = Vector_cumsum_parallel_spec;
+
+    const Kernel_spec spec_;
+    int max_block_size = 0;
+    int opt_grid_size = 0;
+    int max_active_blocks_per_multiprocessor = 0;
+    dim3 block_dim_;
+    dim3 grid_dim_;
+
+    Vector_cumsum_parallel_kernel(
+        const Kernel_spec spec
+    ) : spec_(spec) {
+        cudaOccupancyMaxPotentialBlockSize(
+            &max_block_size,
+            &opt_grid_size,
+            vector_cumsum_parallel_kernel<Number>,
+            0,
+            0
+        );
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+            &max_active_blocks_per_multiprocessor,
+            vector_cumsum_parallel_kernel<Number>,
+            max_block_size,
+            0
+        );
+        block_dim_ = dim3(max_block_size);
+        grid_dim_ = dim3(opt_grid_size);
+    }
+
+    void run_device_kernel(
+        const Number* const gpu_data_A,
+        Number* const gpu_data_C,
+        cudaStream_t stream
+    ) {
+        std::cout << "[INFO] max_active_blocks_per_multiprocessor: " << max_active_blocks_per_multiprocessor << std::endl;
+        std::cout << "[INFO] max_block_size: " << max_block_size << std::endl;
+        std::cout << "[INFO] opt_grid_size: " << opt_grid_size << std::endl;
+        std::cout << "[INFO] cudaLaunchCooperativeKernel:"
+            // << " grid_dim_ = (" << spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << ")"
+            // << " block_dim_ = (" << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << ")"
+            << " opt_grid_size = " << opt_grid_size << " max_block_size = " << max_block_size
+            << std::endl;
+        // vector_cumsum_parallel_kernel<<<opt_grid_size, max_block_size, 0, stream>>>(
+        //     gpu_data_A,
+        //     gpu_data_C,
+        //     spec_.n_
+        // );
+
+        void* kernel_args[] = {
+            const_cast<Number**>(&gpu_data_A),
+            const_cast<Number**>(&gpu_data_C),
+            const_cast<unsigned int*>(&spec_.n_)
+        };
+        cudaLaunchCooperativeKernel(
+            vector_cumsum_parallel_kernel<Number>,
+            grid_dim_,
+            block_dim_,
+            kernel_args,
+            // spec_.dynamic_shared_mem_words_ * sizeof(Number),
+            0,
+            stream
+        );
+
+    }
+
+    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A
+    ) {
+        // Compute cumulative sum for a vector (treat matrix as a flattened vector)
+        Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> result(A.rows(), A.cols());
+        Number sum = 0;
+        for (int i = 0; i < A.size(); ++i) {
+            sum += A(i);
+            result(i) = sum;
+        }
+        return result;
+    }
+};
+static_assert(Check_kernel_1In_1Out_template<Vector_cumsum_parallel_kernel>::check_passed, "Vector_cumsum_parallel is not a valid kernel template");
