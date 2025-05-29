@@ -1,0 +1,2 @@
+set cuda break_on_launch all
+set cuda api_failures stop

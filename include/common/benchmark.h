@@ -39,6 +39,7 @@ class Benchmark_2In_1Out {
     const int seed;
     const int gpu_mem;
     const bool verbose;
+    const std::string init_method;
 
     Kernel_2In_1Out kernel;
 
@@ -50,6 +51,7 @@ class Benchmark_2In_1Out {
         seed(options_parsed["seed"].as<int>()),
         gpu_mem(options_parsed["gpumem"].as<int>()),
         verbose(options_parsed["verbose"].as<bool>()),
+        init_method(options_parsed["init-method"].as<std::string>()),
         kernel(spec)
     {
         // Handle help option first
@@ -72,6 +74,16 @@ class Benchmark_2In_1Out {
         const float input_size_gb = input_size_bytes / GB;
         const float output_size_gb = output_size_bytes / GB;
         const float mem_gb = input_size_gb + output_size_gb;
+        const bool is_random = [&](){
+            if (init_method == "random") {
+                return true;
+            } else if (init_method == "sequential") {
+                return false;
+            } else {
+                std::cerr << "[ERROR] Invalid initialization method" << std::endl;
+                exit(1);
+            }
+        }();
         std::cout
             << "Input matrices dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << " * " << spec.n_rows_B_ << "x" << spec.n_cols_B_ << "\n"
             << "Input size                  : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
@@ -88,16 +100,21 @@ class Benchmark_2In_1Out {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        std::vector<Number> vec_A(size_A, 0.0f);
-        std::vector<Number> vec_B(size_B, 0.0f);
-        std::vector<Number> vec_C(size_C, 0.0f);
+        std::vector<Number> vec_A(size_A, 0);
+        std::vector<Number> vec_B(size_B, 0);
+        std::vector<Number> vec_C(size_C, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Initializing matrices: ";
-        randomize_vector(vec_A, seed);
-        randomize_vector(vec_B, seed+1);
+        if (is_random) {
+            std::cout << "  - Randomizing matrices: ";
+            randomize_vector(vec_A, seed);
+            randomize_vector(vec_B, seed+1);
+        } else {
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
+            for (size_t i = 0; i < size_B; ++i) vec_B[i] = Number(i);
+        }
         const auto setup_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_step_dt2 = setup_tp2 - setup_tp1;
         std::chrono::duration<double, std::milli> setup_total_dt2 = setup_tp2 - setup_tp0;
@@ -279,7 +296,7 @@ class Benchmark_1In_1Out {
     const int seed;
     const int gpu_mem;
     const bool verbose;
-
+    const std::string init_method;
     Kernel_1In_1Out kernel;
 
     Benchmark_1In_1Out(
@@ -290,6 +307,7 @@ class Benchmark_1In_1Out {
         seed(options_parsed["seed"].as<int>()),
         gpu_mem(options_parsed["gpumem"].as<int>()),
         verbose(options_parsed["verbose"].as<bool>()),
+        init_method(options_parsed["init-method"].as<std::string>()),
         kernel(spec)
     {
         // Handle help option first
@@ -310,6 +328,16 @@ class Benchmark_1In_1Out {
         const float input_size_gb = input_size_bytes / GB;
         const float output_size_gb = output_size_bytes / GB;
         const float mem_gb = input_size_gb + output_size_gb;
+        const bool is_random = [&](){
+            if (init_method == "random") {
+                return true;
+            } else if (init_method == "sequential") {
+                return false;
+            } else {
+                std::cerr << "[ERROR] Invalid initialization method" << std::endl;
+                exit(1);
+            }
+        }();
         std::cout
             << "Input matrix dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << "\n"
             << "Output matrix dimensions  : " << spec.n_rows_C_ << "x" << spec.n_cols_C_ << "\n"
@@ -334,7 +362,11 @@ class Benchmark_1In_1Out {
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
         std::cout << "  - Initializing matrices: ";
-        randomize_vector(vec_A, seed);
+        if (is_random) {
+            randomize_vector(vec_A, seed);
+        } else {
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
+        }
         const auto setup_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_step_dt2 = setup_tp2 - setup_tp1;
         std::chrono::duration<double, std::milli> setup_total_dt2 = setup_tp2 - setup_tp0;
