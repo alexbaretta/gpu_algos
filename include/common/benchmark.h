@@ -511,7 +511,6 @@ class Benchmark_1In_1Out {
         std::chrono::duration<double, std::milli> cpu_total_dt4 = cpu_tp4 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
 
-        std::cout << "Max error: " << E_max << " (" << E_max_pct << " % )" << std::endl;
 
         if (verbose) {
             const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
@@ -524,6 +523,7 @@ class Benchmark_1In_1Out {
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
+        std::cout << "Max error     : " << E_max << " (" << E_max_pct << " % )" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
         return 0;

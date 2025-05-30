@@ -15,11 +15,55 @@ constexpr static unsigned int WARP_SIZE = 32;
 constexpr static unsigned int MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
 constexpr static unsigned int LAST_LANE = WARP_SIZE - 1;
 
+
+template <CUDA_floating_point CUDA_FLOAT>
+__global__ void vector_cumsum_write_back_parallel(
+    CUDA_FLOAT* prev_result,
+    const unsigned int prev_n_elems,  // size of vector
+    CUDA_FLOAT* curr_result,
+    const unsigned int curr_n_elems,  // size of vector
+    const unsigned int stride_A
+) {
+    __shared__ CUDA_FLOAT shm[1]; // for writing, index this using `wid_block` (warp id)
+
+    // We have to update our block of prev_result with the delta
+    // determined by comparing the last elem of the block with the
+    // corresponding value of curr_result.
+
+    // tid_xxx represent the index of the thread within grid, block, and warp
+    const unsigned int bid_grid = blockIdx.x;
+    const unsigned short tid_block = threadIdx.x;
+    const unsigned int tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+    // printf("tid_grid: %d, n: %d, blockDim.x: %d, gridDim.x: %d\n", tid_grid, n, blockDim.x, gridDim.x);
+
+    const CUDA_FLOAT prev_value = prev_result[tid_grid];
+
+    if (tid_block == blockDim.x - 1) {
+        // This is the last thread in the block.
+        // We need to read the element from curr_result that corresponds to this block,
+        // then compute the delta for this block, and broadcast it via shared memory
+        // to all the threads in the block.
+        CUDA_FLOAT curr_value = curr_result[bid_grid];
+        CUDA_FLOAT delta = curr_value - prev_value;
+        shm[0] = delta;
+    }
+
+    __syncthreads();
+
+    const CUDA_FLOAT updated_value = prev_value + shm[0];
+    if (tid_grid < prev_n_elems) {
+        prev_result[tid_grid] = updated_value;
+    }
+}
+
+
+
 template <CUDA_floating_point CUDA_FLOAT>
 __global__ void vector_cumsum_by_blocks_parallel(
     const CUDA_FLOAT* A,
     CUDA_FLOAT* C,
-    const unsigned int n  // size of vector
+    const int n,  // size of vector
+    const int stride_A
 ) {
     __shared__ CUDA_FLOAT shm[MAX_N_WARPS]; // for writing, index this using `wid_block` (warp id)
 
@@ -43,7 +87,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
 
     // Load data, only if index is within bounds
     if (tid_grid < n) {
-        value = A[tid_grid];
+        value = A[(tid_grid + 1) * stride_A - 1];
     }
 
     // Scan warp using warp-shuffle
@@ -142,7 +186,9 @@ __global__ void vector_cumsum_by_blocks_parallel(
         }
 
         // Now the `value` variables contain the the scanned values: we need to write them back to C
-        C[tid_grid] = value;
+        if (tid_grid < n) {
+            C[tid_grid] = value;
+        }
     }
 }
 
@@ -197,7 +243,20 @@ struct Vector_cumsum_parallel_spec {
         );
     }
 
-    inline Vector_cumsum_parallel_spec(
+    int compute_size_of_C(const int n_elems, const int block_size) {
+        assert(block_size > 1);
+        int size_C = 1;
+        for(int n_elems_remaining = n_elems;
+            n_elems_remaining > 1;
+            n_elems_remaining = (n_elems_remaining + block_size - 1) / block_size
+            ) {
+            size_C += n_elems_remaining;
+        }
+        const int n_blocks = (size_C + block_size - 1) / block_size;
+        return n_blocks * block_size;
+    }
+
+    Vector_cumsum_parallel_spec(
         const std::string& type,
         const unsigned int n,
         const unsigned int block_size
@@ -209,7 +268,11 @@ struct Vector_cumsum_parallel_spec {
         n_rows_A_(1),
         n_cols_A_(n),
         n_rows_C_(1),
-        n_cols_C_(n),
+
+        // We to allocate more space in C than the size of A because we will
+        // use the trailing part as temporary storage for the block-level scans.
+        // The trailing part is equal to the number of
+        n_cols_C_(compute_size_of_C(n, block_size)),
         block_dim_(block_size),
         grid_dim_((n + block_size - 1) / block_size)
     {}
@@ -231,6 +294,39 @@ class Vector_cumsum_parallel_kernel {
     Vector_cumsum_parallel_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {}
+
+
+    void strided_pass(
+        Number* prev_result,
+        const int prev_n_elems,
+        cudaStream_t stream
+    ) {
+        if (prev_n_elems > spec_.block_dim_.x) {
+            const int prev_n_blocks = (prev_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
+            const int curr_n_elems = prev_n_blocks;
+            const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
+            const auto curr_result = prev_result + prev_n_elems;
+            vector_cumsum_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, 0, stream>>>(
+                prev_result,
+                curr_result,
+                curr_n_elems,
+                spec_.block_dim_.x
+            );
+            strided_pass(curr_result, curr_n_elems, stream);
+            // By the powers of recursion, curr_result is fully scanned
+            // Now we have to compute the deltas between curr_result and the final elements
+            // of each stride of prev_result, and apply those delta retroactively to the strides
+            // of prev_result
+
+            vector_cumsum_write_back_parallel<<<prev_n_blocks, spec_.block_dim_, 0, stream>>>(
+                prev_result,
+                prev_n_elems,
+                curr_result,
+                curr_n_elems,
+                spec_.block_dim_.x
+            );
+        }
+    }
 
     void run_device_kernel(
         const Number* const gpu_data_A,
@@ -262,11 +358,21 @@ class Vector_cumsum_parallel_kernel {
         std::cout << "[INFO] opt_grid_size: " << opt_grid_size << std::endl;
         std::cout << "[INFO] grid_dim_: " << spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << std::endl;
         std::cout << "[INFO] block_dim_: " << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << std::endl;
+
+        // In our downard iteration we start by processing A block-wise.
+        // The produces in C an array of block-wise cumsums that we can further process with a stride = block_size.
+        // This downward iteration ends when the number of blocks is 1, which means that the result is the
+        // global cumsum.
         vector_cumsum_by_blocks_parallel<<<spec_.grid_dim_, spec_.block_dim_, 0, stream>>>(
             gpu_data_A,
             gpu_data_C,
-            spec_.n_
+            spec_.n_,
+            1
         );
+
+        auto prev_result = gpu_data_C;
+        auto prev_n_elems = spec_.n_;
+        strided_pass(prev_result, prev_n_elems, stream);
     }
 
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
