@@ -10,29 +10,29 @@
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
-constexpr static unsigned int MAX_BLOCK_SIZE = 1024;
-constexpr static unsigned int WARP_SIZE = 32;
-constexpr static unsigned int MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
-constexpr static unsigned int LAST_LANE = WARP_SIZE - 1;
+constexpr static long MAX_BLOCK_SIZE = 1024;
+constexpr static long WARP_SIZE = 32;
+constexpr static long MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
+constexpr static long LAST_LANE = WARP_SIZE - 1;
 
-template <CUDA_floating_point CUDA_FLOAT, unsigned int MAX_RECURSION_DEPTH=3>
+template <CUDA_scalar CUDA_Number, long MAX_RECURSION_DEPTH=3>
 __device__ void vector_cumsum_cooperative(
-    const CUDA_FLOAT* A,
-    CUDA_FLOAT* C,
-    const unsigned int n,  // size of vector
-    const unsigned int n_blocks
+    const CUDA_Number* A,
+    CUDA_Number* C,
+    const long n,  // size of vector
+    const long n_blocks
 ) {
-    __shared__ CUDA_FLOAT shm[MAX_N_WARPS]; // for writing, index this using `wid_block` (warp id)
+    __shared__ CUDA_Number shm[MAX_N_WARPS]; // for writing, index this using `wid_block` (warp id)
 
     auto grid = cooperative_groups::this_grid();
     grid.sync();
 
     // tid_xxx represent the index of the thread within grid, block, and warp
-    const unsigned int bid_grid = blockIdx.x;
+    const long bid_grid = blockIdx.x;
     const unsigned short tid_block = threadIdx.x;
-    const unsigned int tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+    const long tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
 
-    CUDA_FLOAT value = 0;
+    CUDA_Number value = 0;
 
     if (bid_grid < n_blocks) {
         // bid_grid (block ID relative to the whole grid) can be >= n_blocks when we call ourselves
@@ -68,9 +68,9 @@ __device__ void vector_cumsum_cooperative(
         // 1  3  6 10   15 21 28 36 45  55 66 78 91 105  120 136
 
 
-        unsigned int offset = 1, subtree_id = tid_warp;
-        for (unsigned int scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
-            const CUDA_FLOAT received_value = __shfl_down_sync(0xFFFFFFFF, value, offset);
+        long offset = 1, subtree_id = tid_warp;
+        for (long scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
+            const CUDA_Number received_value = __shfl_down_sync(0xFFFFFFFF, value, offset);
             if (subtree_id % 2 == 1) {
                 value += received_value;
                 offset *= 2;
@@ -97,13 +97,13 @@ __device__ void vector_cumsum_cooperative(
             // We use the same algorithm as above, but we execute with only one warp,
             // as the shared memory size is equal to warpSize (1024/32 == 32)
             static_assert(MAX_N_WARPS == WARP_SIZE, "MAX_N_WARPS != WARP_SIZE (at compile time)");
-            CUDA_FLOAT shm_value = 0;
+            CUDA_Number shm_value = 0;
             if (wid_block == 0) {
                 // We pick warp 0 to perform the warp-shuffle scan on shared memory.
                 int offset = 1, subtree_id = tid_warp;
                 shm_value = shm[tid_warp];
-                for (unsigned int scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
-                    const CUDA_FLOAT received_value = __shfl_down_sync(0xFFFFFFFF, value, offset);
+                for (long scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
+                    const CUDA_Number received_value = __shfl_down_sync(0xFFFFFFFF, value, offset);
                     if (subtree_id % 2 == 1) {
                         shm_value += received_value;
                         offset *= 2;
@@ -115,8 +115,8 @@ __device__ void vector_cumsum_cooperative(
             // We need to read shm into all the warps, and let each lane update itself based on the
             // difference between the value written by the warp to shm and the value read back in.
             if (tid_warp == LAST_LANE) {
-                const CUDA_FLOAT updated_value = shm[wid_block];
-                const CUDA_FLOAT warp_delta_value = updated_value - value;
+                const CUDA_Number updated_value = shm[wid_block];
+                const CUDA_Number warp_delta_value = updated_value - value;
                 value = updated_value; // only for the last lane!
                 __shfl_sync(0xFFFFFFFF, warp_delta_value, 0);
             } else {
@@ -162,8 +162,8 @@ __device__ void vector_cumsum_cooperative(
 
         // We must call ourselves recursively
         if constexpr (MAX_RECURSION_DEPTH > 0) {
-            // vector_cumsum_cooperative<CUDA_FLOAT, MAX_RECURSION_DEPTH - 1>(C, C_prime, n_blocks, n_blocks/blockDim.x);
-            vector_cumsum_cooperative<CUDA_FLOAT, MAX_RECURSION_DEPTH - 1>(C, C_prime, n_blocks, (n_blocks + blockDim.x - 1) / blockDim.x);
+            // vector_cumsum_cooperative<CUDA_Number, MAX_RECURSION_DEPTH - 1>(C, C_prime, n_blocks, n_blocks/blockDim.x);
+            vector_cumsum_cooperative<CUDA_Number, MAX_RECURSION_DEPTH - 1>(C, C_prime, n_blocks, (n_blocks + blockDim.x - 1) / blockDim.x);
         }
         // By the magical powers of recursion, C_prime is now the scanned result of the temporary data we stored in C
         // We must read C_prime back into the last threads of each block, which will then use shared memory
@@ -172,8 +172,8 @@ __device__ void vector_cumsum_cooperative(
             // Only the last lane of the last warp of the block writes to the global buffer
             tid_block == blockDim.x - 1
         ) {
-            const CUDA_FLOAT updated_value = C[bid_grid];
-            const CUDA_FLOAT block_delta_value = updated_value - value;
+            const CUDA_Number updated_value = C[bid_grid];
+            const CUDA_Number block_delta_value = updated_value - value;
             shm[0] = block_delta_value;
             value = updated_value;
         }
@@ -190,17 +190,17 @@ __device__ void vector_cumsum_cooperative(
     }
 }
 
-template <CUDA_floating_point CUDA_FLOAT>
+template <CUDA_scalar CUDA_Number>
 __global__ void vector_cumsum_cooperative_kernel(
-    const CUDA_FLOAT* A,
-    CUDA_FLOAT* C,
-    const unsigned int n  // size of vector
+    const CUDA_Number* A,
+    CUDA_Number* C,
+    const long n  // size of vector
 ) {
     auto grid = cooperative_groups::this_grid();
     grid.sync();
 
-    // const unsigned int n_blocks = gridDim.x;
-    // vector_cumsum_cooperative<CUDA_FLOAT, 3>(A, C, n, n_blocks);
+    // const long n_blocks = gridDim.x;
+    // vector_cumsum_cooperative<CUDA_Number, 3>(A, C, n, n_blocks);
 }
 
 
@@ -209,15 +209,15 @@ struct Vector_cumsum_cooperative_spec {
 
     const std::string type_;
 
-    const unsigned int m_;    // unused for vector cumsum
-    const unsigned int n_;    // size of vector
-    const unsigned int k_;    // unused for vector cumsum
+    const long m_;    // unused for vector cumsum
+    const long n_;    // size of vector
+    const long k_;    // unused for vector cumsum
 
-    const unsigned int n_rows_A_;
-    const unsigned int n_cols_A_;
+    const long n_rows_A_;
+    const long n_cols_A_;
 
-    const unsigned int n_rows_C_;
-    const unsigned int n_cols_C_;
+    const long n_rows_C_;
+    const long n_cols_C_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -230,8 +230,8 @@ struct Vector_cumsum_cooperative_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("n", "Size of vector", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
-            ("block_dim,x", "Number of threads in the x dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("n", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("block_dim,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -247,13 +247,13 @@ struct Vector_cumsum_cooperative_spec {
         }
         return Vector_cumsum_cooperative_spec(
             type,
-            options_parsed["n"].as<int>()
+            options_parsed["n"].as<long>()
         );
     }
 
     inline Vector_cumsum_cooperative_spec(
         const std::string& type,
-        const unsigned int n
+        const long n
     ) : device_prop_(get_default_device_prop()),
         type_(type),
         m_(0),  // unused
@@ -276,7 +276,7 @@ struct Vector_cumsum_cooperative_spec {
 static_assert(Check_kernel_spec_1In_1Out<Vector_cumsum_cooperative_spec>::check_passed, "Vector_cumsum_cooperative_spec is not a valid kernel spec");
 
 
-template <CUDA_floating_point Number_>
+template <CUDA_scalar Number_>
 class Vector_cumsum_cooperative_kernel {
     public:
     using Number = Number_;
@@ -330,7 +330,7 @@ class Vector_cumsum_cooperative_kernel {
         void* kernel_args[] = {
             const_cast<Number**>(&gpu_data_A),
             const_cast<Number**>(&gpu_data_C),
-            const_cast<unsigned int*>(&spec_.n_)
+            const_cast<long*>(&spec_.n_)
         };
         cudaLaunchCooperativeKernel(
             vector_cumsum_cooperative_kernel<Number>,

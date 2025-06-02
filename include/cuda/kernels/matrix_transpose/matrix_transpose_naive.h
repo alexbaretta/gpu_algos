@@ -9,27 +9,27 @@
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
-template <CUDA_floating_point CUDA_FLOAT>
+template <CUDA_scalar CUDA_Number>
 __global__ void matrix_transpose_naive(
-    const CUDA_FLOAT* A,
-    CUDA_FLOAT* C,
-    const unsigned int m, // rows of A, cols of C
-    const unsigned int n  // cols of A, rows of C
+    const CUDA_Number* A,
+    CUDA_Number* C,
+    const long m, // rows of A, cols of C
+    const long n  // cols of A, rows of C
 ) {
     // for readability
-    // const unsigned int nrows_A = m;
-    const unsigned int ncols_A = n;
-    // const unsigned int nrows_C = n;
-    const unsigned int ncols_C = m;
+    // const long nrows_A = m;
+    const long ncols_A = n;
+    // const long nrows_C = n;
+    const long ncols_C = m;
 
     int i = blockIdx.x * blockDim.x + threadIdx.x; // col of A, row of B
     int j = blockIdx.y * blockDim.y + threadIdx.y; // row of A, col of B
 
     // for readability
-    const unsigned int col_A = i;
-    const unsigned int row_A = j;
-    const unsigned int col_C = j;
-    const unsigned int row_C = i;
+    const long col_A = i;
+    const long row_A = j;
+    const long col_C = j;
+    const long row_C = i;
 
     if (!(col_A < n && row_A < m)) return;
     C[col_C + ncols_C * row_C] = A[col_A + ncols_A * row_A];
@@ -38,15 +38,15 @@ __global__ void matrix_transpose_naive(
 struct Matrix_transpose_naive_spec {
     const std::string type_;
 
-    const unsigned int m_;    // Rows of input matrix, cols of output matrix
-    const unsigned int n_;    // Columns of input matrix, rows of output matrix
-    constexpr static unsigned int k_ = 0;  // unused
+    const long m_;    // Rows of input matrix, cols of output matrix
+    const long n_;    // Columns of input matrix, rows of output matrix
+    constexpr static long k_ = 0;  // unused
 
-    const unsigned int n_rows_A_;
-    const unsigned int n_cols_A_;
+    const long n_rows_A_;
+    const long n_cols_A_;
 
-    const unsigned int n_rows_C_;
-    const unsigned int n_cols_C_;
+    const long n_rows_C_;
+    const long n_cols_C_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -60,11 +60,11 @@ struct Matrix_transpose_naive_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("m", "Number of rows in input matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
-            ("n", "Number of columns in input matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
-            ("k", "Unused", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_K)))
-            ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("m", "Number of rows in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
+            ("n", "Number of columns in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("k", "Unused", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -80,19 +80,19 @@ struct Matrix_transpose_naive_spec {
         }
         return Matrix_transpose_naive_spec(
             type,
-            options_parsed["m"].as<int>(),
-            options_parsed["n"].as<int>(),
-            options_parsed["block_dim_x"].as<int>(),
-            options_parsed["block_dim_y"].as<int>()
+            options_parsed["m"].as<long>(),
+            options_parsed["n"].as<long>(),
+            options_parsed["block_dim_x"].as<long>(),
+            options_parsed["block_dim_y"].as<long>()
         );
     }
 
     inline Matrix_transpose_naive_spec(
         const std::string& type,
-        const unsigned int m,
-        const unsigned int n,
-        const unsigned int block_dim_x,
-        const unsigned int block_dim_y
+        const long m,
+        const long n,
+        const long block_dim_x,
+        const long block_dim_y
     ) : type_(type),
         m_(m),
         n_(n),
@@ -111,7 +111,7 @@ struct Matrix_transpose_naive_spec {
 static_assert(Check_kernel_spec_1In_1Out<Matrix_transpose_naive_spec>::check_passed, "Matrix_transpose_naive_spec is not a valid kernel spec");
 
 
-template <CUDA_floating_point Number_>
+template <CUDA_scalar Number_>
 class Matrix_transpose_naive_kernel {
     public:
     using Number = Number_;

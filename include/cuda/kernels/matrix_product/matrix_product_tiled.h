@@ -9,20 +9,20 @@
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
-constexpr unsigned int TILE_SIZE = 16;
+constexpr long TILE_SIZE = 16;
 
-template <CUDA_floating_point CUDA_FLOAT>
+template <CUDA_scalar CUDA_Number>
 __global__ void matrix_product_tiled(
-    const CUDA_FLOAT* A,
-    const CUDA_FLOAT* B,
-    CUDA_FLOAT* C,
-    const unsigned int m,
-    const unsigned int n,
-    const unsigned int k
+    const CUDA_Number* A,
+    const CUDA_Number* B,
+    CUDA_Number* C,
+    const long m,
+    const long n,
+    const long k
 ) {
     // Shared memory for caching tiles of A and B
-    __shared__ CUDA_FLOAT tile_A[TILE_SIZE][TILE_SIZE];
-    __shared__ CUDA_FLOAT tile_B[TILE_SIZE][TILE_SIZE];
+    __shared__ CUDA_Number tile_A[TILE_SIZE][TILE_SIZE];
+    __shared__ CUDA_Number tile_B[TILE_SIZE][TILE_SIZE];
 
     // Thread indices within the block
     const int tx = threadIdx.x;
@@ -34,7 +34,7 @@ __global__ void matrix_product_tiled(
     const int global_col = blockIdx.x * blockDim.x + threadIdx.x;
     const int global_row = blockIdx.y * blockDim.y + threadIdx.y;
 
-    CUDA_FLOAT accumulator = 0.0f;
+    CUDA_Number accumulator = 0.0f;
 
     // TILING STRATEGY EXPLANATION:
     //
@@ -109,18 +109,18 @@ __global__ void matrix_product_tiled(
 struct Matrix_product_tiled_spec {
     const std::string type_;
 
-    const unsigned int m_;    // Rows of first matrix
-    const unsigned int n_;    // Columns of first matrix and rows of second matrix
-    const unsigned int k_;    // Columns of second matrix
+    const long m_;    // Rows of first matrix
+    const long n_;    // Columns of first matrix and rows of second matrix
+    const long k_;    // Columns of second matrix
 
-    const unsigned int n_rows_A_;
-    const unsigned int n_cols_A_;
+    const long n_rows_A_;
+    const long n_cols_A_;
 
-    const unsigned int n_rows_B_;
-    const unsigned int n_cols_B_;
+    const long n_rows_B_;
+    const long n_cols_B_;
 
-    const unsigned int n_rows_C_;
-    const unsigned int n_cols_C_;
+    const long n_rows_C_;
+    const long n_cols_C_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -131,9 +131,9 @@ struct Matrix_product_tiled_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("m", "Number of rows in first matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
-            ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
-            ("k", "Number of columns in the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_K)))
+            ("m", "Number of rows in first matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
+            ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("k", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -149,17 +149,17 @@ struct Matrix_product_tiled_spec {
         }
         return Matrix_product_tiled_spec(
             type,
-            options_parsed["m"].as<int>(),
-            options_parsed["n"].as<int>(),
-            options_parsed["k"].as<int>()
+            options_parsed["m"].as<long>(),
+            options_parsed["n"].as<long>(),
+            options_parsed["k"].as<long>()
         );
     }
 
     inline Matrix_product_tiled_spec(
         const std::string& type,
-        const unsigned int m,
-        const unsigned int n,
-        const unsigned int k
+        const long m,
+        const long n,
+        const long k
     ) : type_(type),
         m_(m),
         n_(n),
@@ -181,7 +181,7 @@ struct Matrix_product_tiled_spec {
 static_assert(Check_kernel_spec_2In_1Out<Matrix_product_tiled_spec>::check_passed, "Matrix_product_tiled_spec is not a valid kernel spec");
 
 
-template <CUDA_floating_point Number_>
+template <CUDA_scalar Number_>
 class Matrix_product_tiled_kernel {
     public:
     using Number = Number_;

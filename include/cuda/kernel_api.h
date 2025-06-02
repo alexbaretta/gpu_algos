@@ -15,18 +15,18 @@
 
 template <typename Kernel_spec_2In_1Out>
 concept KERNEL_SPEC_2IN_1OUT = requires (Kernel_spec_2In_1Out spec) {
-    { spec.m_ } -> std::same_as<const unsigned int&>;
-    { spec.n_ } -> std::same_as<const unsigned int&>;
-    { spec.k_ } -> std::same_as<const unsigned int&>;
+    { spec.m_ } -> std::same_as<const long&>;
+    { spec.n_ } -> std::same_as<const long&>;
+    { spec.k_ } -> std::same_as<const long&>;
 
-    { spec.n_rows_A_ } -> std::same_as<const unsigned int&>;
-    { spec.n_cols_A_ } -> std::same_as<const unsigned int&>;
+    { spec.n_rows_A_ } -> std::same_as<const long&>;
+    { spec.n_cols_A_ } -> std::same_as<const long&>;
 
-    { spec.n_rows_B_ } -> std::same_as<const unsigned int&>;
-    { spec.n_cols_B_ } -> std::same_as<const unsigned int&>;
+    { spec.n_rows_B_ } -> std::same_as<const long&>;
+    { spec.n_cols_B_ } -> std::same_as<const long&>;
 
-    { spec.n_rows_C_ } -> std::same_as<const unsigned int&>;
-    { spec.n_cols_C_ } -> std::same_as<const unsigned int&>;
+    { spec.n_rows_C_ } -> std::same_as<const long&>;
+    { spec.n_cols_C_ } -> std::same_as<const long&>;
 
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
@@ -37,18 +37,18 @@ concept KERNEL_SPEC_2IN_1OUT = requires (Kernel_spec_2In_1Out spec) {
 
 template <typename Kernel_spec_2In_1Out>
 struct Check_kernel_spec_2In_1Out {
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().m_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().k_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().m_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().k_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_rows_A_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_cols_A_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_rows_A_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_cols_A_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_rows_B_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_cols_B_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_rows_B_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_cols_B_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_rows_C_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_cols_C_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_rows_C_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_cols_C_), const long>);
 
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().grid_dim_), const dim3>);
@@ -66,7 +66,7 @@ concept KERNEL_2IN_1OUT = requires (Kernel_2In_1Out kernel) {
     // Concepts evaluate what you actually get when expressions run (references to members)...
     typename Kernel_2In_1Out::Number;
     typename Kernel_2In_1Out::Kernel_spec;
-    // requires CUDA_floating_point<typename Kernel_2In_1Out::FLOAT>;
+    // requires CUDA_scalar<typename Kernel_2In_1Out::FLOAT>;
 
     { kernel.spec_ } -> std::same_as<const typename Kernel_2In_1Out::Kernel_spec&>;
     { kernel.run_device_kernel(
@@ -105,7 +105,7 @@ struct Check_kernel_2In_1Out {
     constexpr static bool check_passed = true;
 };
 
-template <template <CUDA_floating_point CUDA_FLOAT> class Kernel_2In_1Out>
+template <template <CUDA_scalar CUDA_Number> class Kernel_2In_1Out>
 struct Check_kernel_2In_1Out_template {
     static_assert(Check_kernel_2In_1Out<Kernel_2In_1Out<__half>>::check_passed);
     static_assert(Check_kernel_2In_1Out<Kernel_2In_1Out<float>>::check_passed);
@@ -121,15 +121,15 @@ struct Check_kernel_2In_1Out_template {
 
 template <typename Kernel_spec_1In_1Out>
 concept KERNEL_SPEC_1IN_1OUT = requires (Kernel_spec_1In_1Out spec) {
-    { spec.m_ } -> std::same_as<const unsigned int&>;
-    { spec.n_ } -> std::same_as<const unsigned int&>;
-    { spec.k_ } -> std::same_as<const unsigned int&>;
+    { spec.m_ } -> std::same_as<const long&>;
+    { spec.n_ } -> std::same_as<const long&>;
+    { spec.k_ } -> std::same_as<const long&>;
 
-    { spec.n_rows_A_ } -> std::same_as<const unsigned int&>;
-    { spec.n_cols_A_ } -> std::same_as<const unsigned int&>;
+    { spec.n_rows_A_ } -> std::same_as<const long&>;
+    { spec.n_cols_A_ } -> std::same_as<const long&>;
 
-    { spec.n_rows_C_ } -> std::same_as<const unsigned int&>;
-    { spec.n_cols_C_ } -> std::same_as<const unsigned int&>;
+    { spec.n_rows_C_ } -> std::same_as<const long&>;
+    { spec.n_cols_C_ } -> std::same_as<const long&>;
 
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
@@ -140,15 +140,15 @@ concept KERNEL_SPEC_1IN_1OUT = requires (Kernel_spec_1In_1Out spec) {
 
 template <typename Kernel_spec_1In_1Out>
 struct Check_kernel_spec_1In_1Out {
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().m_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().k_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().m_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().k_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_rows_A_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_cols_A_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_rows_A_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_cols_A_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_rows_C_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_cols_C_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_rows_C_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_cols_C_), const long>);
 
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().grid_dim_), const dim3>);
@@ -166,7 +166,7 @@ concept KERNEL_1IN_1OUT = requires (Kernel_1In_1Out kernel) {
     // Concepts evaluate what you actually get when expressions run (references to members)...
     typename Kernel_1In_1Out::Number;
     typename Kernel_1In_1Out::Kernel_spec;
-    // requires CUDA_floating_point<typename Kernel_1In_1Out::FLOAT>;
+    // requires CUDA_scalar<typename Kernel_1In_1Out::FLOAT>;
 
     { kernel.spec_ } -> std::same_as<const typename Kernel_1In_1Out::Kernel_spec&>;
     { kernel.run_device_kernel(
@@ -201,7 +201,7 @@ struct Check_kernel_1In_1Out {
     constexpr static bool check_passed = true;
 };
 
-template <template <CUDA_floating_point CUDA_FLOAT> class Kernel_1In_1Out>
+template <template <CUDA_scalar CUDA_Number> class Kernel_1In_1Out>
 struct Check_kernel_1In_1Out_template {
     static_assert(Check_kernel_1In_1Out<Kernel_1In_1Out<__half>>::check_passed);
     static_assert(Check_kernel_1In_1Out<Kernel_1In_1Out<float>>::check_passed);
@@ -220,11 +220,11 @@ struct Check_kernel_1In_1Out_template {
 
 template <typename Kernel_spec_1InOut>
 concept KERNEL_SPEC_1INOUT = requires (Kernel_spec_1InOut spec) {
-    { spec.m_ } -> std::same_as<const unsigned int&>;
-    { spec.n_ } -> std::same_as<const unsigned int&>;
+    { spec.m_ } -> std::same_as<const long&>;
+    { spec.n_ } -> std::same_as<const long&>;
 
-    { spec.n_rows_C_ } -> std::same_as<const unsigned int&>;
-    { spec.n_cols_C_ } -> std::same_as<const unsigned int&>;
+    { spec.n_rows_C_ } -> std::same_as<const long&>;
+    { spec.n_cols_C_ } -> std::same_as<const long&>;
 
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
@@ -235,11 +235,11 @@ concept KERNEL_SPEC_1INOUT = requires (Kernel_spec_1InOut spec) {
 
 template <typename Kernel_spec_1InOut>
 struct Check_kernel_spec_1InOut {
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().m_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().n_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().m_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().n_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().n_rows_C_), const unsigned int>);
-    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().n_cols_C_), const unsigned int>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().n_rows_C_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().n_cols_C_), const long>);
 
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().grid_dim_), const dim3>);
@@ -257,7 +257,7 @@ concept KERNEL_1INOUT = requires (Kernel_1InOut kernel) {
     // Concepts evaluate what you actually get when expressions run (references to members)...
     typename Kernel_1InOut::Number;
     typename Kernel_1InOut::Kernel_spec;
-    // requires CUDA_floating_point<typename Kernel_1InOut::FLOAT>;
+    // requires CUDA_scalar<typename Kernel_1InOut::FLOAT>;
 
     { kernel.spec_ } -> std::same_as<const typename Kernel_1InOut::Kernel_spec&>;
     { kernel.run_device_kernel(
@@ -290,7 +290,7 @@ struct Check_kernel_1InOut {
     constexpr static bool check_passed = true;
 };
 
-template <template <CUDA_floating_point CUDA_FLOAT> class Kernel_1InOut>
+template <template <CUDA_scalar CUDA_Number> class Kernel_1InOut>
 struct Check_kernel_1InOut_template {
     static_assert(Check_kernel_1InOut<Kernel_1InOut<__half>>::check_passed);
     static_assert(Check_kernel_1InOut<Kernel_1InOut<float>>::check_passed);

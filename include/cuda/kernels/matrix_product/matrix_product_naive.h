@@ -9,20 +9,20 @@
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
-template <CUDA_floating_point CUDA_FLOAT>
+template <CUDA_scalar CUDA_Number>
 __global__ void matrix_product_naive(
-    const CUDA_FLOAT* A,
-    const CUDA_FLOAT* B,
-    CUDA_FLOAT* C,
-    const unsigned int m,
-    const unsigned int n,
-    const unsigned int k
+    const CUDA_Number* A,
+    const CUDA_Number* B,
+    CUDA_Number* C,
+    const long m,
+    const long n,
+    const long k
 ) {
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     int row = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (row < m && col < k) {
-        CUDA_FLOAT sum = 0.0f;
+        CUDA_Number sum = 0.0f;
         for (int i = 0; i < n; ++i) {
             sum += A[row * n + i] * B[i * k + col];
         }
@@ -33,18 +33,18 @@ __global__ void matrix_product_naive(
 struct Matrix_product_naive_spec {
     const std::string type_;
 
-    const unsigned int m_;    // Rows of first matrix
-    const unsigned int n_;    // Columns of first matrix and rows of second matrix
-    const unsigned int k_;    // Columns of second matrix
+    const long m_;    // Rows of first matrix
+    const long n_;    // Columns of first matrix and rows of second matrix
+    const long k_;    // Columns of second matrix
 
-    const unsigned int n_rows_A_;
-    const unsigned int n_cols_A_;
+    const long n_rows_A_;
+    const long n_cols_A_;
 
-    const unsigned int n_rows_B_;
-    const unsigned int n_cols_B_;
+    const long n_rows_B_;
+    const long n_cols_B_;
 
-    const unsigned int n_rows_C_;
-    const unsigned int n_cols_C_;
+    const long n_rows_C_;
+    const long n_cols_C_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -58,11 +58,11 @@ struct Matrix_product_naive_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("m", "Number of rows in first matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
-            ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
-            ("k", "Number of columns in the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_K)))
-            ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("m", "Number of rows in first matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
+            ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("k", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -78,21 +78,21 @@ struct Matrix_product_naive_spec {
         }
         return Matrix_product_naive_spec(
             type,
-            options_parsed["m"].as<int>(),
-            options_parsed["n"].as<int>(),
-            options_parsed["k"].as<int>(),
-            options_parsed["block_dim_x"].as<int>(),
-            options_parsed["block_dim_y"].as<int>()
+            options_parsed["m"].as<long>(),
+            options_parsed["n"].as<long>(),
+            options_parsed["k"].as<long>(),
+            options_parsed["block_dim_x"].as<long>(),
+            options_parsed["block_dim_y"].as<long>()
         );
     }
 
     inline Matrix_product_naive_spec(
         const std::string& type,
-        const unsigned int m,
-        const unsigned int n,
-        const unsigned int k,
-        const unsigned int block_dim_x,
-        const unsigned int block_dim_y
+        const long m,
+        const long n,
+        const long k,
+        const long block_dim_x,
+        const long block_dim_y
     ) : type_(type),
         m_(m),
         n_(n),
@@ -114,7 +114,7 @@ struct Matrix_product_naive_spec {
 static_assert(Check_kernel_spec_2In_1Out<Matrix_product_naive_spec>::check_passed, "Matrix_product_naive_spec is not a valid kernel spec");
 
 
-template <CUDA_floating_point Number_>
+template <CUDA_scalar Number_>
 class Matrix_product_naive_kernel {
     public:
     using Number = Number_;

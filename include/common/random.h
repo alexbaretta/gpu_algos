@@ -35,3 +35,16 @@ inline void randomize_vector(
 
     for (auto& value : data) value = distribution(generator);
 }
+
+template <std::integral T, T default_min = 0, T default_max = 100>
+void randomize_vector(
+    std::vector<T>& data,
+    int seed,
+    const T min = default_min,
+    const T max = default_max
+) {
+    std::mt19937 generator(seed);
+    std::uniform_int_distribution<T> distribution(min, max);
+
+    for (auto& value : data) value = distribution(generator);
+}

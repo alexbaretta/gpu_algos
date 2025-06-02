@@ -10,14 +10,14 @@
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
-constexpr unsigned int STRIPE_WIDTH = 32;
+constexpr long STRIPE_WIDTH = 32;
 
-template <CUDA_floating_point CUDA_FLOAT>
+template <CUDA_scalar CUDA_Number>
 __global__ void matrix_transpose_striped(
-    const CUDA_FLOAT* A,
-    CUDA_FLOAT* C,
-    const unsigned int m, // rows of A, cols of C
-    const unsigned int n  // cols of A, rows of C
+    const CUDA_Number* A,
+    CUDA_Number* C,
+    const long m, // rows of A, cols of C
+    const long n  // cols of A, rows of C
 ) {
     /*
         CUDA doesn't immediately 'support' dynamically-allocated shared memory arrays in templated functions, as it (apparently)
@@ -28,32 +28,32 @@ __global__ void matrix_transpose_striped(
 
         As a consequence we need to use a statically-allocated shared memory array with a maximum size of STRIPE_WIDTH * STRIPE_WIDTH.
     */
-    __shared__ CUDA_FLOAT shared_mem[(STRIPE_WIDTH + 1) * STRIPE_WIDTH]; // row-major matrix of shape (blockDim.x, blockDim.y)
+    __shared__ CUDA_Number shared_mem[(STRIPE_WIDTH + 1) * STRIPE_WIDTH]; // row-major matrix of shape (blockDim.x, blockDim.y)
 
     // for readability
-    const unsigned int nrows_A = m;
-    const unsigned int ncols_A = n;
-    const unsigned int nrows_C = n;
-    const unsigned int ncols_C = m;
+    const long nrows_A = m;
+    const long ncols_A = n;
+    const long nrows_C = n;
+    const long ncols_C = m;
 
-    // const unsigned int n_elems = nrows_A * ncols_A;
+    // const long n_elems = nrows_A * ncols_A;
 
-    const unsigned int col_A = threadIdx.x + blockIdx.x * blockDim.x;
+    const long col_A = threadIdx.x + blockIdx.x * blockDim.x;
 
-    const unsigned int stripe_idx = threadIdx.x;
-    const unsigned int stripe_col_A = stripe_idx;
-    const unsigned int stripe_row_C = stripe_idx;
+    const long stripe_idx = threadIdx.x;
+    const long stripe_col_A = stripe_idx;
+    const long stripe_row_C = stripe_idx;
 
     // Iterate over the rows to cooperatively load a tile from A
-    const unsigned int start_row_A = blockIdx.y * STRIPE_WIDTH;
+    const long start_row_A = blockIdx.y * STRIPE_WIDTH;
 
     if (col_A < ncols_A) {
         for (int tile_row_A = 0; tile_row_A < STRIPE_WIDTH; tile_row_A++) {
-            const unsigned int row_A = start_row_A + tile_row_A;
+            const long row_A = start_row_A + tile_row_A;
             if (row_A >= nrows_A) {
                 break;
             }
-            const unsigned int A_idx = col_A + row_A * ncols_A;
+            const long A_idx = col_A + row_A * ncols_A;
             const unsigned shm_idx = tile_row_A * (STRIPE_WIDTH + 1) + stripe_col_A;
             const auto value = A[A_idx];
             // printf("A_idx:%u col_A:%u row_A:%u tile_row_A=%d stripe_col_A=%d shared_mem[%u]=%f\n",
@@ -68,11 +68,11 @@ __global__ void matrix_transpose_striped(
     const int row_C = col_A;
     if (row_C < nrows_C) {
         for (int tile_col_C = 0; tile_col_C < STRIPE_WIDTH; tile_col_C++) {
-            const unsigned int col_C = start_col_C + tile_col_C;
+            const long col_C = start_col_C + tile_col_C;
             if (col_C >= ncols_C) {
                 break;
             }
-            const unsigned int C_idx = col_C + row_C * ncols_C;
+            const long C_idx = col_C + row_C * ncols_C;
             const unsigned shm_idx = tile_col_C * (STRIPE_WIDTH + 1) + stripe_row_C;
             const auto value = shared_mem[shm_idx];
             // printf("C_idx:%u col_C:%d row_C:%d tile_col_C=%d stripe_row_C=%d shared_mem[%u]=%f\n",
@@ -85,15 +85,15 @@ __global__ void matrix_transpose_striped(
 struct Matrix_transpose_striped_spec {
     const std::string type_;
 
-    const unsigned int m_;    // Rows of input matrix, cols of output matrix
-    const unsigned int n_;    // Columns of input matrix, rows of output matrix
-    constexpr static unsigned int k_ = 0;  // unused
+    const long m_;    // Rows of input matrix, cols of output matrix
+    const long n_;    // Columns of input matrix, rows of output matrix
+    constexpr static long k_ = 0;  // unused
 
-    const unsigned int n_rows_A_;
-    const unsigned int n_cols_A_;
+    const long n_rows_A_;
+    const long n_cols_A_;
 
-    const unsigned int n_rows_C_;
-    const unsigned int n_cols_C_;
+    const long n_rows_C_;
+    const long n_cols_C_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -106,10 +106,10 @@ struct Matrix_transpose_striped_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("m", "Number of rows in input matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
-            ("n", "Number of columns in input matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
-            ("k", "Unused", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_K)))
-            ("block_dim,x", "Number of threads per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("m", "Number of rows in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
+            ("n", "Number of columns in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("k", "Unused", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("block_dim,x", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -125,17 +125,17 @@ struct Matrix_transpose_striped_spec {
         }
         return Matrix_transpose_striped_spec(
             type,
-            options_parsed["m"].as<int>(),
-            options_parsed["n"].as<int>(),
-            options_parsed["block_dim"].as<int>()
+            options_parsed["m"].as<long>(),
+            options_parsed["n"].as<long>(),
+            options_parsed["block_dim"].as<long>()
         );
     }
 
     inline Matrix_transpose_striped_spec(
         const std::string& type,
-        const unsigned int m,
-        const unsigned int n,
-        const unsigned int block_dim
+        const long m,
+        const long n,
+        const long block_dim
     ) : type_(type),
         m_(m),
         n_(n),
@@ -166,7 +166,7 @@ struct Matrix_transpose_striped_spec {
 static_assert(Check_kernel_spec_1In_1Out<Matrix_transpose_striped_spec>::check_passed, "Matrix_transpose_striped_spec is not a valid kernel spec");
 
 
-template <CUDA_floating_point Number_>
+template <CUDA_scalar Number_>
 class Matrix_transpose_striped_kernel {
     public:
     using Number = Number_;

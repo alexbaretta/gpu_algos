@@ -48,8 +48,8 @@ class Benchmark_2In_1Out {
         const cxxopts::Options& options,
         const cxxopts::ParseResult& options_parsed
     ) : spec(spec),
-        seed(options_parsed["seed"].as<int>()),
-        gpu_mem(options_parsed["gpumem"].as<int>()),
+        seed(options_parsed["seed"].as<long>()),
+        gpu_mem(options_parsed["gpumem"].as<long>()),
         verbose(options_parsed["verbose"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
         kernel(spec)
@@ -249,21 +249,20 @@ class Benchmark_2In_1Out {
 
         const auto cpu_step_3 = "Compute error matrix";
         const auto E = (C_gpu - C_cpu).eval();
+        const auto E_pct = E.cwiseAbs().template cast<double>().array() / C_cpu.cwiseAbs().template cast<double>().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_3 << ": " << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
 
         const auto cpu_step_4 = "Compute max error";
-        const double E_max = E.cwiseAbs().maxCoeff();
-        const double C_cpu_max = C_cpu.cwiseAbs().maxCoeff();
-        const auto E_max_pct = (E_max / C_cpu_max) * 100.0f;
+        size_t E_max_row, E_max_col, E_pct_max_row, E_pct_max_col;
+        const double E_max = E.cwiseAbs().maxCoeff(&E_max_row, &E_max_col);
+        const auto E_max_pct = E_pct.maxCoeff(&E_pct_max_row, &E_pct_max_col);
         const auto cpu_tp4 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt4 = cpu_tp4 - cpu_tp3;
         std::chrono::duration<double, std::milli> cpu_total_dt4 = cpu_tp4 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
-
-        std::cout << "Max error: " << E_max << " (" << E_max_pct << " % )" << std::endl;
 
         if (verbose) {
             const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
@@ -277,6 +276,8 @@ class Benchmark_2In_1Out {
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
+        std::cout << "Max error: " << E_max << " at (" << E_max_row << ", " << E_max_col << ")" << std::endl;
+        std::cout << "Max error percentage: " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
         return 0;
@@ -304,8 +305,8 @@ class Benchmark_1In_1Out {
         const cxxopts::Options& options,
         const cxxopts::ParseResult& options_parsed
     ) : spec(spec),
-        seed(options_parsed["seed"].as<int>()),
-        gpu_mem(options_parsed["gpumem"].as<int>()),
+        seed(options_parsed["seed"].as<long>()),
+        gpu_mem(options_parsed["gpumem"].as<long>()),
         verbose(options_parsed["verbose"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
         kernel(spec)
@@ -497,15 +498,16 @@ class Benchmark_1In_1Out {
 
         const auto cpu_step_3 = "Compute error matrix";
         const auto E = (C_gpu - C_cpu).eval();
+        const auto E_pct = E.cwiseAbs().template cast<double>().array() / C_cpu.cwiseAbs().template cast<double>().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_3 << ": " << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
 
         const auto cpu_step_4 = "Compute max error";
-        const double E_max = E.cwiseAbs().maxCoeff();
-        const double C_cpu_max = C_cpu.cwiseAbs().maxCoeff();
-        const auto E_max_pct = (E_max / C_cpu_max) * 100.0f;
+        size_t E_max_row, E_max_col, E_pct_max_row, E_pct_max_col;
+        const double E_max = E.cwiseAbs().maxCoeff(&E_max_row, &E_max_col);
+        const auto E_max_pct = E_pct.maxCoeff(&E_pct_max_row, &E_pct_max_col);
         const auto cpu_tp4 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt4 = cpu_tp4 - cpu_tp3;
         std::chrono::duration<double, std::milli> cpu_total_dt4 = cpu_tp4 - cpu_tp0;
@@ -523,7 +525,8 @@ class Benchmark_1In_1Out {
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
-        std::cout << "Max error     : " << E_max << " (" << E_max_pct << " % )" << std::endl;
+        std::cout << "Max error     : " << E_max << " at (" << E_max_row << ", " << E_max_col << ")" << std::endl;
+        std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
         return 0;

@@ -10,47 +10,47 @@
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
-constexpr static unsigned int MAX_BLOCK_SIZE = 1024;
-constexpr static unsigned int WARP_SIZE = 32;
-constexpr static unsigned int MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
-constexpr static unsigned int LAST_LANE = WARP_SIZE - 1;
+constexpr static long MAX_BLOCK_SIZE = 1024;
+constexpr static long WARP_SIZE = 32;
+constexpr static long MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
+constexpr static long LAST_LANE = WARP_SIZE - 1;
 
 
-template <CUDA_floating_point CUDA_FLOAT>
+template <CUDA_scalar Number>
 __global__ void vector_cumsum_write_back_parallel(
-    CUDA_FLOAT* prev_result,
-    const unsigned int prev_n_elems,  // size of vector
-    CUDA_FLOAT* curr_result,
-    const unsigned int curr_n_elems,  // size of vector
-    const unsigned int stride_A
+    Number* prev_result,
+    const long prev_n_elems,  // size of vector
+    Number* curr_result,
+    const long curr_n_elems,  // size of vector
+    const long stride_A
 ) {
-    __shared__ CUDA_FLOAT shm[1]; // for writing, index this using `wid_block` (warp id)
+    __shared__ Number shm[1]; // for writing, index this using `wid_block` (warp id)
 
     // We have to update our block of prev_result with the delta
     // determined by comparing the last elem of the block with the
     // corresponding value of curr_result.
 
     // tid_xxx represent the index of the thread within grid, block, and warp
-    const unsigned int bid_grid = blockIdx.x;
+    const long bid_grid = blockIdx.x;
     const unsigned short tid_block = threadIdx.x;
-    const unsigned int tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+    const long tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
     // printf("tid_grid: %d, n: %d, blockDim.x: %d, gridDim.x: %d\n", tid_grid, n, blockDim.x, gridDim.x);
 
-    const CUDA_FLOAT prev_value = prev_result[tid_grid];
+    const Number prev_value = prev_result[tid_grid];
 
     if (tid_block == blockDim.x - 1) {
         // This is the last thread in the block.
         // We need to read the element from curr_result that corresponds to this block,
         // then compute the delta for this block, and broadcast it via shared memory
         // to all the threads in the block.
-        CUDA_FLOAT curr_value = curr_result[bid_grid];
-        CUDA_FLOAT delta = curr_value - prev_value;
+        Number curr_value = curr_result[bid_grid];
+        Number delta = curr_value - prev_value;
         shm[0] = delta;
     }
 
     __syncthreads();
 
-    const CUDA_FLOAT updated_value = prev_value + shm[0];
+    const Number updated_value = prev_value + shm[0];
     if (tid_grid < prev_n_elems) {
         prev_result[tid_grid] = updated_value;
     }
@@ -58,24 +58,24 @@ __global__ void vector_cumsum_write_back_parallel(
 
 
 
-template <CUDA_floating_point CUDA_FLOAT>
+template <CUDA_scalar Number>
 __global__ void vector_cumsum_by_blocks_parallel(
-    const CUDA_FLOAT* A,
-    CUDA_FLOAT* C,
+    const Number* A,
+    Number* C,
     const int n,  // size of vector
     const int stride_A
 ) {
-    __shared__ CUDA_FLOAT shm[MAX_N_WARPS]; // for writing, index this using `wid_block` (warp id)
+    __shared__ Number shm[MAX_N_WARPS]; // for writing, index this using `wid_block` (warp id)
 
-    // const unsigned int n_blocks = gridDim.x;
+    // const long n_blocks = gridDim.x;
 
     // tid_xxx represent the index of the thread within grid, block, and warp
-    // const unsigned int bid_grid = blockIdx.x;
+    // const long bid_grid = blockIdx.x;
     // const unsigned short tid_block = threadIdx.x;
-    const unsigned int tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+    const long tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
     // printf("tid_grid: %d, n: %d, blockDim.x: %d, gridDim.x: %d\n", tid_grid, n, blockDim.x, gridDim.x);
 
-    CUDA_FLOAT value = 0;
+    Number value = 0;
 
     // bid_grid (block ID relative to the whole grid) can be >= n_blocks when we call ourselves
     // recursively on a reduced dataset. In this case, we can skip directliy to the synchronization,
@@ -125,7 +125,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
             subtree_size < WARP_SIZE;
             subtree_size <<= 1, subtree_id /= 2) {
         const int from_lane = max(0, subtree_id * subtree_size - 1);
-        const CUDA_FLOAT received_value = __shfl_sync(0xFFFFFFFF, value, from_lane);
+        const Number received_value = __shfl_sync(0xFFFFFFFF, value, from_lane);
         if (subtree_id % 2 == 1) {
             value += received_value;
         }
@@ -151,7 +151,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
         // We use the same algorithm as above, but we execute with only one warp,
         // as the shared memory size is equal to warpSize (1024/32 == 32)
         static_assert(MAX_N_WARPS == WARP_SIZE, "MAX_N_WARPS != WARP_SIZE (at compile time)");
-        CUDA_FLOAT shm_value = 0;
+        Number shm_value = 0;
         if (wid_block == 0) {
             // We pick warp 0 to perform the warp-shuffle scan on shared memory.
             if (tid_warp < n_warps_per_block) {
@@ -161,7 +161,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
                 subtree_size < WARP_SIZE;
                 subtree_size <<= 1, subtree_id /= 2) {
                 const int from_lane = max(0, subtree_id * subtree_size - 1);
-                const CUDA_FLOAT received_value = __shfl_sync(0xFFFFFFFF, shm_value, from_lane);
+                const Number received_value = __shfl_sync(0xFFFFFFFF, shm_value, from_lane);
                 if (subtree_id % 2 == 1) {
                     shm_value += received_value;
                 }
@@ -173,9 +173,9 @@ __global__ void vector_cumsum_by_blocks_parallel(
 
         // We need to read shm into all the warps, and let each lane update itself based on the
         // difference between the value written by the warp to shm and the value read back in.
-        CUDA_FLOAT warp_delta_value = 0;
+        Number warp_delta_value = 0;
         if (tid_warp == LAST_LANE) {
-            const CUDA_FLOAT updated_value = shm[wid_block];
+            const Number updated_value = shm[wid_block];
             warp_delta_value = updated_value - value;
             value = updated_value; // only for the last lane!
         }
@@ -197,15 +197,15 @@ struct Vector_cumsum_parallel_spec {
 
     const std::string type_;
 
-    const unsigned int m_;    // unused for vector cumsum
-    const unsigned int n_;    // size of vector
-    const unsigned int k_;    // unused for vector cumsum
+    const long m_;    // unused for vector cumsum
+    const long n_;    // size of vector
+    const long k_;    // unused for vector cumsum
 
-    const unsigned int n_rows_A_;
-    const unsigned int n_cols_A_;
+    const long n_rows_A_;
+    const long n_cols_A_;
 
-    const unsigned int n_rows_C_;
-    const unsigned int n_cols_C_;
+    const long n_rows_C_;
+    const long n_cols_C_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -218,9 +218,9 @@ struct Vector_cumsum_parallel_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("n", "Size of vector", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
-            ("block_dim,x", "Number of threads in the x dimension per block", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
+            ("n", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("block_dim,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
 
@@ -229,12 +229,12 @@ struct Vector_cumsum_parallel_spec {
     ) {
         // Validate the type option
         const auto& type = options_parsed["type"].as<std::string>();
-        if (type != "half" && type != "single" && type != "float" && type != "double") {
-            std::cerr << "[ERROR] --type must be one of: half, single/float, double" << std::endl;
+        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "int16" && type != "int32" && type != "int64" && type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64") {
+            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        const auto n = options_parsed["n"].as<int>();
-        const auto block_dim_option = options_parsed["block_dim"].as<int>();
+        const auto n = options_parsed["n"].as<long>();
+        const auto block_dim_option = options_parsed["block_dim"].as<long>();
         const auto block_size = (std::min(n, block_dim_option)  + WARP_SIZE - 1) / WARP_SIZE * WARP_SIZE;
         return Vector_cumsum_parallel_spec(
             type,
@@ -258,8 +258,8 @@ struct Vector_cumsum_parallel_spec {
 
     Vector_cumsum_parallel_spec(
         const std::string& type,
-        const unsigned int n,
-        const unsigned int block_size
+        const long n,
+        const long block_size
     ) : device_prop_(get_default_device_prop()),
         type_(type),
         m_(0),  // unused
@@ -281,7 +281,7 @@ struct Vector_cumsum_parallel_spec {
 static_assert(Check_kernel_spec_1In_1Out<Vector_cumsum_parallel_spec>::check_passed, "Vector_cumsum_parallel_spec is not a valid kernel spec");
 
 
-template <CUDA_floating_point Number_>
+template <CUDA_scalar Number_>
 class Vector_cumsum_parallel_kernel {
     public:
     using Number = Number_;

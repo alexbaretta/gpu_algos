@@ -35,29 +35,29 @@ struct Matrix_product_warp_spec {
 
     const std::string type_;
 
-    const unsigned int m_;    // Rows of first matrix
-    const unsigned int n_;    // Columns of first matrix and rows of second matrix
-    const unsigned int k_;    // Columns of second matrix
+    const long m_;    // Rows of first matrix
+    const long n_;    // Columns of first matrix and rows of second matrix
+    const long k_;    // Columns of second matrix
 
-    const unsigned int n_rows_A_;
-    const unsigned int n_cols_A_;
+    const long n_rows_A_;
+    const long n_cols_A_;
 
-    const unsigned int n_rows_B_;
-    const unsigned int n_cols_B_;
+    const long n_rows_B_;
+    const long n_cols_B_;
 
-    const unsigned int n_rows_C_;
-    const unsigned int n_cols_C_;
+    const long n_rows_C_;
+    const long n_cols_C_;
 
-    const unsigned int warp_size_;
+    const long warp_size_;
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("m", "Number of rows in first matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_M)))
-            ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
-            ("k", "Number of columns in the second matrix", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_K)))
+            ("m", "Number of rows in first matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
+            ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("k", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -73,17 +73,17 @@ struct Matrix_product_warp_spec {
         }
         return Matrix_product_warp_spec(
             type,
-            options_parsed["m"].as<int>(),
-            options_parsed["n"].as<int>(),
-            options_parsed["k"].as<int>()
+            options_parsed["m"].as<long>(),
+            options_parsed["n"].as<long>(),
+            options_parsed["k"].as<long>()
         );
     }
 
     inline Matrix_product_warp_spec(
         const std::string& type,
-        const unsigned int m,
-        const unsigned int n,
-        const unsigned int k
+        const long m,
+        const long n,
+        const long k
     ) : type_(type),
         m_(m),
         n_(n),
@@ -102,14 +102,14 @@ struct Matrix_product_warp_spec {
 
 static_assert(Check_kernel_spec_2In_1Out<Matrix_product_warp_spec>::check_passed, "Matrix_product_warp_spec is not a valid kernel spec");
 
-template <CUDA_floating_point CUDA_FLOAT>
+template <CUDA_scalar CUDA_Number>
 __global__ void matrix_product_warp(
-    const CUDA_FLOAT* A,
-    const CUDA_FLOAT* B,
-    CUDA_FLOAT* C,
-    const unsigned int m,
-    const unsigned int n, // shared dimension
-    const unsigned int k
+    const CUDA_Number* A,
+    const CUDA_Number* B,
+    CUDA_Number* C,
+    const long m,
+    const long n, // shared dimension
+    const long k
 ) {
     // thread id is (x + y Dx + z Dx Dy, see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#thread-hierarchy
     // int thread_id = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
@@ -119,7 +119,7 @@ __global__ void matrix_product_warp(
     int col = threadIdx.y + blockIdx.y * blockDim.y;
     int row = threadIdx.z + blockIdx.z * blockDim.z;
 
-    CUDA_FLOAT sum = 0.0f;
+    CUDA_Number sum = 0.0f;
 
     // Compute the partial sum for the current thread
     for (int i = lane; i < n; i += warpSize) {
@@ -137,7 +137,7 @@ __global__ void matrix_product_warp(
     }
 }
 
-template <CUDA_floating_point Number_>
+template <CUDA_scalar Number_>
 class Matrix_product_warp_kernel {
     public:
     using Number = Number_;

@@ -9,14 +9,14 @@
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
-template <CUDA_floating_point CUDA_FLOAT>
+template <CUDA_scalar CUDA_Number>
 __global__ void vector_cumsum_serial(
-    const CUDA_FLOAT* A,
-    CUDA_FLOAT* C,
-    const unsigned int n  // size of vector
+    const CUDA_Number* A,
+    CUDA_Number* C,
+    const long n  // size of vector
 ) {
 
-    CUDA_FLOAT sum = 0.0f;
+    CUDA_Number sum = 0.0f;
     for (int i = 0; i < n; ++i) {
         sum += A[i];
         C[i] = sum;
@@ -26,15 +26,15 @@ __global__ void vector_cumsum_serial(
 struct Vector_cumsum_serial_spec {
     const std::string type_;
 
-    const unsigned int m_;    // unused for vector cumsum
-    const unsigned int n_;    // size of vector
-    const unsigned int k_;    // unused for vector cumsum
+    const long m_;    // unused for vector cumsum
+    const long n_;    // size of vector
+    const long k_;    // unused for vector cumsum
 
-    const unsigned int n_rows_A_;
-    const unsigned int n_cols_A_;
+    const long n_rows_A_;
+    const long n_cols_A_;
 
-    const unsigned int n_rows_C_;
-    const unsigned int n_cols_C_;
+    const long n_rows_C_;
+    const long n_cols_C_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -47,7 +47,7 @@ struct Vector_cumsum_serial_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("n", "Size of vector", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N)))
+            ("n", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -63,13 +63,13 @@ struct Vector_cumsum_serial_spec {
         }
         return Vector_cumsum_serial_spec(
             type,
-            options_parsed["n"].as<int>()
+            options_parsed["n"].as<long>()
         );
     }
 
     inline Vector_cumsum_serial_spec(
         const std::string& type,
-        const unsigned int n
+        const long n
     ) : type_(type),
         m_(0),  // unused
         n_(n),
@@ -86,7 +86,7 @@ struct Vector_cumsum_serial_spec {
 static_assert(Check_kernel_spec_1In_1Out<Vector_cumsum_serial_spec>::check_passed, "Vector_cumsum_serial_spec is not a valid kernel spec");
 
 
-template <CUDA_floating_point Number_>
+template <CUDA_scalar Number_>
 class Vector_cumsum_serial_kernel {
     public:
     using Number = Number_;
