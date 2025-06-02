@@ -1,0 +1,7 @@
+# Copyright (c) 2025 Alessandro Baretta
+# All rights reserved.
+
+# source path: src/tools/vector_cummax/CMakeLists.txt
+
+# Matrix product executables
+add_gpu_executable(vector_cummax_parallel vector_cummax_parallel.cu)
