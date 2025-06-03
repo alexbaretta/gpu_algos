@@ -40,6 +40,7 @@ class Benchmark_2In_1Out {
     const int gpu_mem;
     const bool verbose;
     const bool errors;
+    const bool force;
     const std::string init_method;
 
     Kernel_2In_1Out kernel;
@@ -55,6 +56,7 @@ class Benchmark_2In_1Out {
         gpu_mem(options_parsed["gpumem"].as<long>()),
         verbose(options_parsed["verbose"].as<bool>()),
         errors(options_parsed["errors"].as<bool>()),
+        force(options_parsed["force"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
         kernel(spec, args...)
     {
@@ -62,6 +64,15 @@ class Benchmark_2In_1Out {
         if (options_parsed.count("help")) {
             std::cout << options.help() << std::endl;
             exit(0);
+        }
+        if (verbose && (spec.n_rows_A_ > 100000 || spec.n_cols_A_ > 100000)) {
+            std::cerr << "WARNING: verbose mode is enabled and the input matrix is large."
+            << "This will print the entire matrix to the console." << std::endl;
+            if (!force) {
+                std::cerr << "Use --force to override." << std::endl
+                          << "[ERROR] matrix too big for verbose mode" << std::endl;
+                exit(1);
+            }
         }
     }
 
@@ -357,6 +368,7 @@ class Benchmark_1In_1Out {
     const int gpu_mem;
     const bool verbose;
     const bool errors;
+    const bool force;
     const std::string init_method;
     Kernel_1In_1Out kernel;
 
@@ -371,6 +383,7 @@ class Benchmark_1In_1Out {
         gpu_mem(options_parsed["gpumem"].as<long>()),
         verbose(options_parsed["verbose"].as<bool>()),
         errors(options_parsed["errors"].as<bool>()),
+        force(options_parsed["force"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
         kernel(spec, args...)
     {
@@ -378,6 +391,15 @@ class Benchmark_1In_1Out {
         if (options_parsed.count("help")) {
             std::cout << options.help() << std::endl;
             exit(0);
+        }
+        if (verbose && (spec.n_rows_A_ > 100000 || spec.n_cols_A_ > 100000)) {
+            std::cerr << "WARNING: verbose mode is enabled and the input matrix is large."
+            << "This will print the entire matrix to the console." << std::endl;
+            if (!force) {
+                std::cerr << "Use --force to override." << std::endl
+                          << "[ERROR] matrix too big for verbose mode" << std::endl;
+                exit(1);
+            }
         }
     }
 

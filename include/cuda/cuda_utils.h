@@ -45,6 +45,20 @@ __host__ __device__ Number cuda_prod(Number a, Number b) {
     return a * b;
 }
 
+template <CUDA_scalar Number>
+__host__ __device__ Number device_nan() {
+    static_assert(std::is_floating_point_v<Number>, "device_nan only supports floating point types");
+    if constexpr (std::is_same_v<Number, float>) {
+        return nanf(nullptr);
+    } else if constexpr (std::is_same_v<Number, double>) {
+        return nan(nullptr);
+    }
+    // __half specialization is defined in cuda_utils.cu
+}
+
+// Template specialization declaration (defined in cuda_utils.cu)
+template <>
+__host__ __device__ __half device_nan<__half>();
 
 void report_completion_time_callback(cudaStream_t stream, cudaError_t status, void* userData);
 
@@ -55,6 +69,14 @@ struct cuda_max_op {
     __host__ __device__ static Number apply(Number a, Number b) {
         return max(a, b);
     }
+
+    __host__ __device__ static Number identity() {
+        if constexpr (std::is_floating_point_v<Number>) {
+            return -INFINITY;
+        } else {
+            return Number(1) << (sizeof(Number) * 8 - 1);
+        }
+    }
 };
 
 template <>
@@ -62,6 +84,10 @@ struct cuda_max_op<__half> {
     using Number = __half;
     __host__ __device__ static __half apply(__half a, __half b) {
         return __hmax(a, b);
+    }
+
+    __host__ __device__ static __half identity() {
+        return __hmax(__hneg(0x7c00), __hneg(0x7c00));
     }
 };
 
@@ -71,6 +97,14 @@ struct cuda_min_op {
     __host__ __device__ static Number apply(Number a, Number b) {
         return min(a, b);
     }
+
+    __host__ __device__ static Number identity() {
+        if constexpr (std::is_floating_point_v<Number>) {
+            return INFINITY;
+        } else {
+            return ~(Number(1) << (sizeof(Number) * 8 - 1));
+        }
+    }
 };
 
 template <>
@@ -78,6 +112,10 @@ struct cuda_min_op<__half> {
     using Number = __half;
     __host__ __device__ static __half apply(__half a, __half b) {
         return __hmin(a, b);
+    }
+
+    __host__ __device__ static __half identity() {
+        return __hmin(__hneg(0x7c00), __hneg(0x7c00));
     }
 };
 
@@ -87,6 +125,10 @@ struct cuda_sum_op {
     __host__ __device__ static Number apply(Number a, Number b) {
         return a + b;
     }
+
+    __host__ __device__ static Number identity() {
+        return Number(0);
+    }
 };
 
 template <typename Number_>
@@ -94,6 +136,10 @@ struct cuda_prod_op {
     using Number = Number_;
     __host__ __device__ static Number apply(Number a, Number b) {
         return a * b;
+    }
+
+    __host__ __device__ static Number identity() {
+        return Number(1);
     }
 };
 

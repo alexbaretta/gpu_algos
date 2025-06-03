@@ -33,3 +33,8 @@ template <>
 __host__ __device__ __half cuda_min<__half>(__half a, __half b) {
     return __hmin(a, b);
 }
+
+template <>
+__host__ __device__ __half device_nan<__half>() {
+    return __ushort_as_half(0x7e00);
+}

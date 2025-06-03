@@ -4,6 +4,7 @@
 // source path: include/cuda/kernels/matrix/vector_cummax_parallel.h
 
 #pragma once
+#include <cmath>
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cooperative_groups.h>
@@ -73,7 +74,12 @@ __global__ void vector_cummax_by_blocks_parallel(
     const long tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
     // printf("tid_grid: %d, n: %d, blockDim.x: %d, gridDim.x: %d\n", tid_grid, n, blockDim.x, gridDim.x);
 
-    Number value = 0;
+    Number value;
+    if constexpr (std::is_floating_point_v<Number>) {
+        value = device_nan<Number>();
+    } else {
+        value = Number(0);
+    }
 
     // bid_grid (block ID relative to the whole grid) can be >= n_blocks when we call ourselves
     // recursively on a reduced dataset. In this case, we can skip directliy to the synchronization,
@@ -157,8 +163,11 @@ __global__ void vector_cummax_by_blocks_parallel(
         // We need to read the final value of wid into wid+1 and update all the values in the warp
         // We use a shared memory broadcast to do this: each thread within a warp reads the same
         // shared memory location: shm[wid_block-1]
-        const Number wid_minus_1_value = (wid_block > 0) ? shm[wid_block-1] : Number(0);
-        value = cuda_max(value, wid_minus_1_value);
+        if (wid_block > 0) {
+            Number wid_minus_1_value = shm[wid_block-1];
+            value = cuda_max(value, wid_minus_1_value);
+        }
+        // For wid_block == 0 (first warp), value is already correct - no combination needed
 
         // Now the `value` variables contain the the scanned values: we need to write them back to C
         if (tid_grid < n) {
