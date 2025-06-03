@@ -47,7 +47,7 @@ struct Matrix_product_tensor_spec {
             ("k", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
-            ("type", "Numeric type (half*, int8*, single/float, double, int16, int32, int64, uint8, uint16) (* = tensor cores)", cxxopts::value<std::string>()->default_value("float"));
+            ("type", "Numeric type (half*, int8*, single/float, double, int16, int32, int64, uint8, uint16, uint32, uint64) (* = tensor cores)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
 
@@ -58,8 +58,8 @@ struct Matrix_product_tensor_spec {
         const auto& type = options_parsed["type"].as<std::string>();
         if (type != "half" && type != "single" && type != "float" && type != "double" &&
             type != "int8" && type != "int16" && type != "int32" && type != "int64" &&
-            type != "uint8" && type != "uint16") {
-            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int8, int16, int32, int64, uint8, uint16" << std::endl;
+            type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64") {
+            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int8, int16, int32, int64, uint8, uint16, uint32, uint64" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
         return Matrix_product_tensor_spec(

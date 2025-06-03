@@ -238,7 +238,7 @@ struct Vector_cumsum_cooperative_spec {
         options.add_options()
             ("n", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("block_dim,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
+            ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
 
@@ -247,8 +247,8 @@ struct Vector_cumsum_cooperative_spec {
     ) {
         // Validate the type option
         const auto& type = options_parsed["type"].as<std::string>();
-        if (type != "half" && type != "single" && type != "float" && type != "double") {
-            std::cerr << "[ERROR] --type must be one of: half, single/float, double" << std::endl;
+        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "int16" && type != "int32" && type != "int64" && type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64") {
+            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
         return Vector_cumsum_cooperative_spec(

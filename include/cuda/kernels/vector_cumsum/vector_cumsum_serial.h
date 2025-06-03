@@ -55,7 +55,7 @@ struct Vector_cumsum_serial_spec {
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
             ("n", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
+            ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
 
@@ -64,8 +64,8 @@ struct Vector_cumsum_serial_spec {
     ) {
         // Validate the type option
         const auto& type = options_parsed["type"].as<std::string>();
-        if (type != "half" && type != "single" && type != "float" && type != "double") {
-            std::cerr << "[ERROR] --type must be one of: half, single/float, double" << std::endl;
+        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "int16" && type != "int32" && type != "int64" && type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64") {
+            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
         return Vector_cumsum_serial_spec(

@@ -37,6 +37,10 @@ int main(int argc, char** argv) {
             return Benchmark_2In_1Out<Matrix_product_tensor_kernel<std::uint8_t>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "uint16") {
             return Benchmark_2In_1Out<Matrix_product_tensor_kernel<std::uint16_t>>(spec, options, options_parsed).run();
+        } else if (spec.type_ == "uint32") {
+            return Benchmark_2In_1Out<Matrix_product_tensor_kernel<std::uint32_t>>(spec, options, options_parsed).run();
+        } else if (spec.type_ == "uint64") {
+            return Benchmark_2In_1Out<Matrix_product_tensor_kernel<std::uint64_t>>(spec, options, options_parsed).run();
         } else {
             throw cxxopts::exceptions::exception("Invalid type: " + spec.type_);
         }
