@@ -60,4 +60,4 @@ include_directories(
 )
 
 # Include all tools
-add_subdirectory(src/tools)
+add_subdirectory(src/benchmarks)

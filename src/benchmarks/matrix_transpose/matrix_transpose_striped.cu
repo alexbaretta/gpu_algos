@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: src/tools/matrix_transpose/matrix_transpose_striped.cu
+// source path: src/benchmarks/matrix_transpose/matrix_transpose_striped.cu
 
 #include <cxxopts.hpp>
 

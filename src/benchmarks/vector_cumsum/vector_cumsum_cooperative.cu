@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: src/tools/vector_cumsum/vector_cumsum_cooperative.cu
+// source path: src/benchmarks/vector_cumsum/vector_cumsum_cooperative.cu
 
 #include <cxxopts.hpp>
 

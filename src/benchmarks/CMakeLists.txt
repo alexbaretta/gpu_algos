@@ -1,7 +1,7 @@
 # Copyright (c) 2025 Alessandro Baretta
 # All rights reserved.
 
-# source path: src/tools/CMakeLists.txt
+# source path: src/benchmarks/CMakeLists.txt
 
 # Function to create a GPU executable with common settings
 function(add_gpu_executable target_name source_file)

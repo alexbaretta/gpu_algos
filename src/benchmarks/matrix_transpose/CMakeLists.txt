@@ -1,7 +1,7 @@
 # Copyright (c) 2025 Alessandro Baretta
 # All rights reserved.
 
-# source path: src/tools/matrix_transpose/CMakeLists.txt
+# source path: src/benchmarks/matrix_transpose/CMakeLists.txt
 
 # Matrix product executables
 add_gpu_executable(matrix_transpose_naive matrix_transpose_naive.cu)

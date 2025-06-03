@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: src/tools/vector_cummax/vector_cummax_parallel.cu
+// source path: src/benchmarks/vector_cummax/vector_cummax_parallel.cu
 
 #include <cxxopts.hpp>
 
