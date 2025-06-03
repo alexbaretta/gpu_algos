@@ -73,7 +73,8 @@ __global__ void vector_cummax_by_blocks_parallel(
     const Number* A,
     Number* C,
     const int n,  // size of vector
-    const int stride_A
+    const int stride_A,
+    const int source_array_size = -1  // size of source array for bounds checking
 ) {
     __shared__ Number shm[MAX_N_WARPS+1]; // for writing, index this using `wid_block` (warp id)
 
@@ -97,7 +98,10 @@ __global__ void vector_cummax_by_blocks_parallel(
 
     // Load data, only if index is within bounds
     if (tid_grid < n) {
-        value = A[(tid_grid + 1) * stride_A - 1];
+        const long index = (tid_grid + 1) * stride_A - 1;
+        const long actual_index = (source_array_size > 0) ?
+            min(index, (long)(source_array_size - 1)) : index;
+        value = A[actual_index];
     }
 
     // Scan warp using warp-shuffle
@@ -110,7 +114,7 @@ __global__ void vector_cummax_by_blocks_parallel(
     //   all threads: double scanned_size, halve subtree_id
 
 
-
+    // Scan warp using warp-shuffle
     for (int subtree_size = 1, subtree_id = tid_warp;
             subtree_size < WARP_SIZE;
             subtree_size <<= 1, subtree_id /= 2) {
@@ -286,27 +290,29 @@ class Vector_cummax_parallel_kernel {
     ) : spec_(spec) {}
 
 
-    void strided_pass(
-        Number* const buffer,
-        Number* const prev_result,
+    void block_strided_pass(
+        Number* const input_buffer,
+        const int prev_result_index,
         const int prev_n_elems,
+        Number* const output_buffer,
         const int curr_result_index,
         cudaStream_t stream
     ) {
+        Number* const prev_result = input_buffer + prev_result_index;
         const int prev_n_blocks = (prev_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
+        Number* const curr_result = output_buffer + curr_result_index;
         const int curr_n_elems = prev_n_blocks;
         const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
-        Number* const curr_result = buffer + curr_result_index;
         vector_cummax_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, 0, stream>>>(
             prev_result,
             curr_result,
             curr_n_elems,
-            spec_.block_dim_.x
+            spec_.block_dim_.x,
+            prev_n_elems
         );
         if (prev_n_elems > spec_.block_dim_.x) {
-            const auto curr_result = buffer + curr_result_index;
             const auto next_result_index = curr_result_index + curr_n_elems;
-            strided_pass(buffer, curr_result, curr_n_elems, next_result_index, stream);
+            block_strided_pass(output_buffer, curr_result_index, curr_n_elems, output_buffer, next_result_index, stream);
             // By the powers of recursion, curr_result is fully scanned
             // Now we have to compute the deltas between curr_result and the final elements
             // of each stride of prev_result, and apply those delta retroactively to the strides
@@ -369,7 +375,7 @@ class Vector_cummax_parallel_kernel {
         auto curr_result = gpu_data_temp;
         auto prev_n_elems = spec_.n_;
         if (prev_n_elems > spec_.block_dim_.x) {
-            strided_pass(gpu_data_temp, prev_result, prev_n_elems, 0, stream);
+            block_strided_pass(gpu_data_C, 0, spec_.n_, gpu_data_temp, 0, stream);
         }
     }
 
