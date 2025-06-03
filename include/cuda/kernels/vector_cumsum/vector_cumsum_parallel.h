@@ -38,8 +38,6 @@ __global__ void vector_cumsum_write_back_parallel(
     const long tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
     // printf("tid_grid: %d, n: %d, blockDim.x: %d, gridDim.x: %d\n", tid_grid, n, blockDim.x, gridDim.x);
 
-    const Number prev_value = prev_result[tid_grid];
-
     if (tid_block == 0) {
         // This is the first thread in the block.
         // We need to read the element from curr_result that corresponds to this block,
@@ -49,8 +47,9 @@ __global__ void vector_cumsum_write_back_parallel(
 
     __syncthreads();
 
-    const Number updated_value = prev_value + shm[0];
     if (tid_grid < prev_n_elems) {
+        const Number prev_value = prev_result[tid_grid];
+        const Number updated_value = prev_value + shm[0];
         prev_result[tid_grid] = updated_value;
     }
 }
@@ -136,7 +135,9 @@ __global__ void vector_cumsum_by_blocks_parallel(
 
     if (n_warps_per_block == 1) {
         // Only one warp. We have already compute the result. We just need to copy it to C
-        C[tid_grid] = value;
+        if (tid_grid < n) {
+            C[tid_grid] = value;
+        }
     } else {
         // n_warps_per_block > 1
         // We need to do a warp-shuffle scan across the warps. We will use shared memory

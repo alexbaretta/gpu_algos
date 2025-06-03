@@ -1,13 +1,14 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/vector_cummax_parallel.h
+// source path: include/cuda/kernels/matrix/vector_scan_parallel.h
 
 #pragma once
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cooperative_groups.h>
 
+#include <cuda_runtime.h>
 #include "cxxopts.hpp"
 #include "cuda/cuda_utils.h"
 #include "cuda/kernel_api.h"
@@ -18,9 +19,19 @@ constexpr static long WARP_SIZE = 32;
 constexpr static long MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
 constexpr static long LAST_LANE = WARP_SIZE - 1;
 
+template <typename Number>
+Number sum(Number a, Number b) {
+    return a + b;
+}
 
-template <CUDA_scalar Number>
-__global__ void vector_cummax_write_back_parallel(
+template <typename Operation>
+concept OPERATION = requires(typename Operation::Number a, typename Operation::Number b) {
+    { Operation::apply(a, b) } -> std::same_as<typename Operation::Number>;
+    requires std::is_empty_v<Operation>;
+};
+
+template <CUDA_scalar Number, OPERATION Op>
+__global__ void vector_scan_write_back_parallel(
     Number* prev_result,
     const long prev_n_elems,  // size of vector
     Number* curr_result,
@@ -48,15 +59,15 @@ __global__ void vector_cummax_write_back_parallel(
 
     if (tid_grid < prev_n_elems) {
         const Number prev_value = prev_result[tid_grid];
-        const Number updated_value = cuda_max(prev_value, shm[0]);
+        const Number updated_value = Op::apply(prev_value, shm[0]);
         prev_result[tid_grid] = updated_value;
     }
 }
 
 
 
-template <CUDA_scalar Number>
-__global__ void vector_cummax_by_blocks_parallel(
+template <CUDA_scalar Number, OPERATION Operation>
+__global__ void vector_scan_by_blocks_parallel(
     const Number* A,
     Number* C,
     const int n,  // size of vector
@@ -108,7 +119,7 @@ __global__ void vector_cummax_by_blocks_parallel(
         const int from_lane = max(0, subtree_id * subtree_size - 1);
         const Number received_value = __shfl_sync(0xFFFFFFFF, value, from_lane);
         if (subtree_id % 2 == 1) {
-            value = cuda_max(value, received_value);
+            value = Operation::apply(value, received_value);
         }
     }
 
@@ -123,7 +134,7 @@ __global__ void vector_cummax_by_blocks_parallel(
         // to allow each warp within a block to send it terminal value to the master warp
         // which will then perform the scan.
 
-        // Now each warp's values contain the cummaxs for the warp. The last lane of the warp contains the warp total.
+        // Now each warp's values contain the scans for the warp. The last lane of the warp contains the warp total.
         if (tid_warp == LAST_LANE) {
             shm[wid_block] = value;
         }
@@ -146,7 +157,7 @@ __global__ void vector_cummax_by_blocks_parallel(
                 const int from_lane = max(0, subtree_id * subtree_size - 1);
                 const Number received_value = __shfl_sync(0xFFFFFFFF, shm_value, from_lane);
                 if (subtree_id % 2 == 1) {
-                    shm_value = cuda_max(shm_value, received_value);
+                    shm_value = Operation::apply(shm_value, received_value);
                 }
             }
             shm[tid_warp] = shm_value;
@@ -158,7 +169,7 @@ __global__ void vector_cummax_by_blocks_parallel(
         // We use a shared memory broadcast to do this: each thread within a warp reads the same
         // shared memory location: shm[wid_block-1]
         const Number wid_minus_1_value = (wid_block > 0) ? shm[wid_block-1] : Number(0);
-        value = cuda_max(value, wid_minus_1_value);
+        value = Operation::apply(value, wid_minus_1_value);
 
         // Now the `value` variables contain the the scanned values: we need to write them back to C
         if (tid_grid < n) {
@@ -167,14 +178,15 @@ __global__ void vector_cummax_by_blocks_parallel(
     }
 }
 
-struct Vector_cummax_parallel_spec {
+struct Vector_scan_parallel_spec {
     const cudaDeviceProp device_prop_;
 
     const std::string type_;
+    const std::string operation_;
 
-    const long m_;    // unused for vector cummax
+    const long m_;    // unused for vector scan
     const long n_;    // size of vector
-    const long k_;    // unused for vector cummax
+    const long k_;    // unused for vector scan
 
     const long n_rows_A_;
     const long n_cols_A_;
@@ -196,13 +208,14 @@ struct Vector_cummax_parallel_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
+            ("operation,op", "Operation to perform (max, min, sum, prod)", cxxopts::value<std::string>()->default_value("sum"))
             ("n", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("block_dim,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
 
-    inline static Vector_cummax_parallel_spec make(
+    inline static Vector_scan_parallel_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
         // Validate the type option
@@ -211,11 +224,17 @@ struct Vector_cummax_parallel_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
+        const auto& operation = options_parsed["operation"].as<std::string>();
+        if (operation != "max" && operation != "min" && operation != "sum" && operation != "prod") {
+            std::cerr << "[ERROR] --operation must be one of: max, min, sum, prod" << std::endl;
+            throw cxxopts::exceptions::exception("Invalid --operation: " + operation);
+        }
         const auto n = options_parsed["n"].as<long>();
         const auto block_dim_option = options_parsed["block_dim"].as<long>();
         const auto block_size = (std::min(n, block_dim_option)  + WARP_SIZE - 1) / WARP_SIZE * WARP_SIZE;
-        return Vector_cummax_parallel_spec(
+        return Vector_scan_parallel_spec(
             type,
+            operation,
             n,
             block_size
         );
@@ -237,12 +256,14 @@ struct Vector_cummax_parallel_spec {
         return n_blocks * block_size;
     }
 
-    Vector_cummax_parallel_spec(
+    Vector_scan_parallel_spec(
         const std::string& type,
+        const std::string& operation,
         const long n,
         const long block_size
     ) : device_prop_(get_default_device_prop()),
         type_(type),
+        operation_(operation),  // Store the actual operation string
         m_(0),  // unused
         n_(n),
         k_(0),  // unused
@@ -261,20 +282,21 @@ struct Vector_cummax_parallel_spec {
     {}
 };
 
-static_assert(Check_kernel_spec_1In_1Out<Vector_cummax_parallel_spec>::check_passed, "Vector_cummax_parallel_spec is not a valid kernel spec");
+static_assert(Check_kernel_spec_1In_1Out<Vector_scan_parallel_spec>::check_passed, "Vector_scan_parallel_spec is not a valid kernel spec");
 
 
-template <CUDA_scalar Number_>
-class Vector_cummax_parallel_kernel {
+template <CUDA_scalar Number_, typename Operation_>
+class Vector_scan_parallel_kernel {
     public:
     using Number = Number_;
-    using Kernel_spec = Vector_cummax_parallel_spec;
+    using Operation = Operation_;
+    using Kernel_spec = Vector_scan_parallel_spec;
 
     const Kernel_spec spec_;
     dim3 block_dim_;
     dim3 grid_dim_;
 
-    Vector_cummax_parallel_kernel(
+    Vector_scan_parallel_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {}
 
@@ -292,7 +314,7 @@ class Vector_cummax_parallel_kernel {
         Number* const curr_result = output_buffer + curr_result_index;
         const int curr_n_elems = prev_n_blocks;
         const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
-        vector_cummax_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, 0, stream>>>(
+        vector_scan_by_blocks_parallel<Number, Operation><<<curr_n_blocks, spec_.block_dim_, 0, stream>>>(
             prev_result,
             curr_result,
             curr_n_elems,
@@ -307,7 +329,7 @@ class Vector_cummax_parallel_kernel {
             // of each stride of prev_result, and apply those delta retroactively to the strides
             // of prev_result
 
-            vector_cummax_write_back_parallel<<<prev_n_blocks, spec_.block_dim_, 0, stream>>>(
+            vector_scan_write_back_parallel<Number, Operation><<<prev_n_blocks, spec_.block_dim_, 0, stream>>>(
                 prev_result,
                 prev_n_elems,
                 curr_result,
@@ -329,13 +351,13 @@ class Vector_cummax_parallel_kernel {
         cudaOccupancyMaxPotentialBlockSize(
             &max_block_size,
             &opt_grid_size,
-            vector_cummax_by_blocks_parallel<Number>,
+            vector_scan_by_blocks_parallel<Number, Operation>,
             0,
             0
         );
         cudaOccupancyMaxActiveBlocksPerMultiprocessor(
             &max_active_blocks_per_multiprocessor,
-            vector_cummax_by_blocks_parallel<Number>,
+            vector_scan_by_blocks_parallel<Number, Operation>,
             max_block_size,
             0
         );
@@ -350,10 +372,10 @@ class Vector_cummax_parallel_kernel {
         std::cout << "[INFO] block_dim_: " << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << std::endl;
 
         // In our downard iteration we start by processing A block-wise.
-        // The produces in C an array of block-wise cummaxs that we can further process with a stride = block_size.
+        // The produces in C an array of block-wise scans that we can further process with a stride = block_size.
         // This downward iteration ends when the number of blocks is 1, which means that the result is the
-        // global cummax.
-        vector_cummax_by_blocks_parallel<<<spec_.grid_dim_, spec_.block_dim_, 0, stream>>>(
+        // global scan.
+        vector_scan_by_blocks_parallel<Number, Operation><<<spec_.grid_dim_, spec_.block_dim_, 0, stream>>>(
             gpu_data_A,
             gpu_data_C,
             spec_.n_,
@@ -375,10 +397,9 @@ class Vector_cummax_parallel_kernel {
         Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> result(A.rows(), A.cols());
         Number accu = 0;
         for (int i = 0; i < A.size(); ++i) {
-            accu = std::max(accu, A(i));
+            accu = Operation::apply(accu, A(i));
             result(i) = accu;
         }
         return result;
     }
 };
-static_assert(Check_kernel_1In_1Out_template<Vector_cummax_parallel_kernel>::check_passed, "Vector_cummax_parallel is not a valid kernel template");

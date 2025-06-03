@@ -43,16 +43,18 @@ class Benchmark_2In_1Out {
 
     Kernel_2In_1Out kernel;
 
+    template <typename... Args>
     Benchmark_2In_1Out(
         const Kernel_spec spec,
         const cxxopts::Options& options,
-        const cxxopts::ParseResult& options_parsed
+        const cxxopts::ParseResult& options_parsed,
+        Args&... args
     ) : spec(spec),
         seed(options_parsed["seed"].as<long>()),
         gpu_mem(options_parsed["gpumem"].as<long>()),
         verbose(options_parsed["verbose"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
-        kernel(spec)
+        kernel(spec, args...)
     {
         // Handle help option first
         if (options_parsed.count("help")) {
@@ -344,16 +346,18 @@ class Benchmark_1In_1Out {
     const std::string init_method;
     Kernel_1In_1Out kernel;
 
+    template <typename... Args>
     Benchmark_1In_1Out(
         const Kernel_spec spec,
         const cxxopts::Options& options,
-        const cxxopts::ParseResult& options_parsed
+        const cxxopts::ParseResult& options_parsed,
+        Args&... args
     ) : spec(spec),
         seed(options_parsed["seed"].as<long>()),
         gpu_mem(options_parsed["gpumem"].as<long>()),
         verbose(options_parsed["verbose"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
-        kernel(spec)
+        kernel(spec, args...)
     {
         // Handle help option first
         if (options_parsed.count("help")) {

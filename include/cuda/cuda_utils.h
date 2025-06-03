@@ -48,5 +48,54 @@ __host__ __device__ Number cuda_prod(Number a, Number b) {
 
 void report_completion_time_callback(cudaStream_t stream, cudaError_t status, void* userData);
 
+// Function objects for CUDA operations - these work reliably in device code
+template <typename Number_>
+struct cuda_max_op {
+    using Number = Number_;
+    __host__ __device__ static Number apply(Number a, Number b) {
+        return max(a, b);
+    }
+};
+
+template <>
+struct cuda_max_op<__half> {
+    using Number = __half;
+    __host__ __device__ static __half apply(__half a, __half b) {
+        return __hmax(a, b);
+    }
+};
+
+template <typename Number_>
+struct cuda_min_op {
+    using Number = Number_;
+    __host__ __device__ static Number apply(Number a, Number b) {
+        return min(a, b);
+    }
+};
+
+template <>
+struct cuda_min_op<__half> {
+    using Number = __half;
+    __host__ __device__ static __half apply(__half a, __half b) {
+        return __hmin(a, b);
+    }
+};
+
+template <typename Number_>
+struct cuda_sum_op {
+    using Number = Number_;
+    __host__ __device__ static Number apply(Number a, Number b) {
+        return a + b;
+    }
+};
+
+template <typename Number_>
+struct cuda_prod_op {
+    using Number = Number_;
+    __host__ __device__ static Number apply(Number a, Number b) {
+        return a * b;
+    }
+};
+
 cudaDeviceProp get_device_prop(const int device_id);
 cudaDeviceProp get_default_device_prop();
