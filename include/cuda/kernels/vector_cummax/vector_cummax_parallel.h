@@ -8,7 +8,6 @@
 #include <cuda_runtime.h>
 #include <cooperative_groups.h>
 
-#include <cuda_runtime.h>
 #include "cxxopts.hpp"
 #include "cuda/cuda_utils.h"
 #include "cuda/kernel_api.h"
@@ -18,17 +17,6 @@ constexpr static long MAX_BLOCK_SIZE = 1024;
 constexpr static long WARP_SIZE = 32;
 constexpr static long MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
 constexpr static long LAST_LANE = WARP_SIZE - 1;
-
-template <typename Number>
-__device__ Number cuda_max(Number a, Number b) {
-    return max(a, b);
-}
-
-template <>
-__device__ __half cuda_max<__half>(__half a, __half b) {
-    return __hmax(a, b);
-}
-
 
 
 template <CUDA_scalar Number>

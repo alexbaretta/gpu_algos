@@ -5,7 +5,6 @@
 
 #pragma once
 #include <iostream>
-#include <cuda_runtime.h>
 #include <cooperative_groups.h>
 
 #include <cuda_runtime.h>
@@ -63,7 +62,8 @@ __global__ void vector_cumsum_by_blocks_parallel(
     const Number* A,
     Number* C,
     const int n,  // size of vector
-    const int stride_A
+    const int stride_A,
+    const int source_array_size = -1  // size of source array for bounds checking
 ) {
     __shared__ Number shm[MAX_N_WARPS+1]; // for writing, index this using `wid_block` (warp id)
 
@@ -87,7 +87,10 @@ __global__ void vector_cumsum_by_blocks_parallel(
 
     // Load data, only if index is within bounds
     if (tid_grid < n) {
-        value = A[(tid_grid + 1) * stride_A - 1];
+        const long index = (tid_grid + 1) * stride_A - 1;
+        const long actual_index = (source_array_size > 0) ?
+            min(index, (long)(source_array_size - 1)) : index;
+        value = A[actual_index];
     }
 
     // Scan warp using warp-shuffle
@@ -311,7 +314,8 @@ class Vector_cumsum_parallel_kernel {
             prev_result,
             curr_result,
             curr_n_elems,
-            spec_.block_dim_.x
+            spec_.block_dim_.x,
+            prev_n_elems
         );
         if (prev_n_elems > spec_.block_dim_.x) {
             const auto curr_result = buffer + curr_result_index;
