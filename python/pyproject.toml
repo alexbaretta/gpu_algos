@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpu-algo-test"
+version = "1.0.0"
+description = "GPU Algorithm Testing Framework for CUDA executables"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "All rights reserved"}
+authors = [
+    {name = "Alessandro Baretta", email = "alessandro@example.com"}
+]
+maintainers = [
+    {name = "Alessandro Baretta", email = "alessandro@example.com"}
+]
+keywords = ["gpu", "cuda", "testing", "benchmarking", "algorithms"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Hardware",
+    "Topic :: Scientific/Engineering",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: POSIX :: Linux",
+]
+dependencies = [
+    # No external dependencies - uses only standard library
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov",
+    "black",
+    "isort",
+    "flake8",
+    "mypy",
+]
+
+[project.scripts]
+gpu-algo-test = "gpu_algo_test.gpu_algo_test:main"
+
+[project.urls]
+Homepage = "https://github.com/alessandrobaretta/gpu-algos"
+Repository = "https://github.com/alessandrobaretta/gpu-algos"
+Documentation = "https://github.com/alessandrobaretta/gpu-algos/blob/main/python/README.md"
+Issues = "https://github.com/alessandrobaretta/gpu-algos/issues"
+
+[tool.setuptools.packages.find]
+include = ["gpu_algo_test*"]
+exclude = ["tests*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
