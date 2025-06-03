@@ -395,8 +395,9 @@ class Vector_scan_parallel_kernel {
     ) {
         // Compute cumulative max for a vector (treat matrix as a flattened vector)
         Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> result(A.rows(), A.cols());
-        Number accu = 0;
-        for (int i = 0; i < A.size(); ++i) {
+        Number accu = A(0);
+        result(0) = accu;
+        for (int i = 1; i < A.size(); ++i) {
             accu = Operation::apply(accu, A(i));
             result(i) = accu;
         }

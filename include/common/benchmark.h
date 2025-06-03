@@ -39,6 +39,7 @@ class Benchmark_2In_1Out {
     const int seed;
     const int gpu_mem;
     const bool verbose;
+    const bool errors;
     const std::string init_method;
 
     Kernel_2In_1Out kernel;
@@ -53,6 +54,7 @@ class Benchmark_2In_1Out {
         seed(options_parsed["seed"].as<long>()),
         gpu_mem(options_parsed["gpumem"].as<long>()),
         verbose(options_parsed["verbose"].as<bool>()),
+        errors(options_parsed["errors"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
         kernel(spec, args...)
     {
@@ -290,7 +292,7 @@ class Benchmark_2In_1Out {
         std::chrono::duration<double, std::milli> cpu_total_dt4 = cpu_tp4 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
 
-        if (verbose) {
+        if (errors) {
             std::cout << "Non-zero error elements:\n";
             bool found_errors = false;
             for (int i = 0; i < E.rows(); ++i) {
@@ -309,12 +311,23 @@ class Benchmark_2In_1Out {
             if (!found_errors) {
                 std::cout << "No non-zero error elements found.\n";
             }
+        }
+
+        if (verbose) {
+            const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
+            std::cout << "A      :\n";
+            std::cout << A.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            std::cout << "B      :\n";
+            std::cout << B.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            std::cout << "C_gpu  :\n";
+            std::cout << C_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            std::cout << "C_cpu  :\n";
+            std::cout << C_cpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
             if (spec.n_cols_temp_ > 0) {
                 const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> tmp_gpu{
                     vec_temp.data(), spec.n_rows_temp_, spec.n_cols_temp_
                 };
                 std::cout << "tmp    :\n";
-                const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
                 std::cout << tmp_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
             }
         }
@@ -343,6 +356,7 @@ class Benchmark_1In_1Out {
     const int seed;
     const int gpu_mem;
     const bool verbose;
+    const bool errors;
     const std::string init_method;
     Kernel_1In_1Out kernel;
 
@@ -356,6 +370,7 @@ class Benchmark_1In_1Out {
         seed(options_parsed["seed"].as<long>()),
         gpu_mem(options_parsed["gpumem"].as<long>()),
         verbose(options_parsed["verbose"].as<bool>()),
+        errors(options_parsed["errors"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
         kernel(spec, args...)
     {
@@ -586,7 +601,7 @@ class Benchmark_1In_1Out {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
 
 
-        if (verbose) {
+        if (errors) {
             std::cout << "Non-zero error elements:\n";
             bool found_errors = false;
             for (int i = 0; i < E.rows(); ++i) {
@@ -604,12 +619,21 @@ class Benchmark_1In_1Out {
             if (!found_errors) {
                 std::cout << "No non-zero error elements found.\n";
             }
+        }
+
+        if (verbose) {
+            const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
+            std::cout << "A      :\n";
+            std::cout << A.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            std::cout << "C_gpu  :\n";
+            std::cout << C_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            std::cout << "C_cpu  :\n";
+            std::cout << C_cpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
             if (spec.n_cols_temp_ > 0) {
                 const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> tmp_gpu{
                     vec_temp.data(), spec.n_rows_temp_, spec.n_cols_temp_
                 };
                 std::cout << "tmp    :\n";
-                const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
                 std::cout << tmp_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
             }
         }

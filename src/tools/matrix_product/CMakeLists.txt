@@ -7,6 +7,7 @@
 add_gpu_executable(matrix_product_naive matrix_product_naive.cu)
 add_gpu_executable(matrix_product_tiled matrix_product_tiled.cu)
 add_gpu_executable(matrix_product_warp matrix_product_warp.cu)
+add_gpu_executable(matrix_product_tensor matrix_product_tensor.cu)
 
 add_gpu_executable(matrix_product_cublas matrix_product_cublas.cu)
 
