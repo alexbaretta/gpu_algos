@@ -73,16 +73,19 @@ class Benchmark_2In_1Out {
         const size_t input_size_bytes = size_A_bytes + size_B_bytes;
         const size_t output_size_bytes = size_C_bytes;
         const size_t temp_size_bytes = size_temp_bytes;
+        const size_t mem_size_bytes = input_size_bytes + output_size_bytes + temp_size_bytes;
         constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
         const float input_size_gb = input_size_bytes / GB;
         const float output_size_gb = output_size_bytes / GB;
         const float temp_size_gb = temp_size_bytes / GB;
-        const float mem_gb = input_size_gb + output_size_gb + temp_size_gb;
-        const bool is_random = [&](){
+        const float mem_gb = mem_size_bytes / GB;
+        const auto [is_random, is_increasing, is_decreasing] = [&](){
             if (init_method == "random") {
-                return true;
-            } else if (init_method == "sequential") {
-                return false;
+                return std::tuple{true, false, false};
+            } else if (init_method == "increasing") {
+                return std::tuple{false, true, false};
+            } else if (init_method == "decreasing") {
+                return std::tuple{false, false, true};
             } else {
                 std::cerr << "[ERROR] Invalid initialization method" << std::endl;
                 exit(1);
@@ -92,7 +95,8 @@ class Benchmark_2In_1Out {
             << "Input matrices dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << " * " << spec.n_rows_B_ << "x" << spec.n_cols_B_ << "\n"
             << "Input size                  : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
             << "Output size                 : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
-            << "Required memory             : " << mem_gb << " GB (" << (input_size_bytes + output_size_bytes) << " bytes)\n"
+            << "Temp size                   : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
+            << "Required memory             : " << mem_gb << " GB (" << mem_size_bytes << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
             std::cerr << "[ERROR] GPU memory size is less than the matrix size" << std::endl;
@@ -116,9 +120,15 @@ class Benchmark_2In_1Out {
             std::cout << "  - Randomizing matrices: ";
             randomize_vector(vec_A, seed);
             randomize_vector(vec_B, seed+1);
-        } else {
+        } else if (is_increasing) {
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
             for (size_t i = 0; i < size_B; ++i) vec_B[i] = Number(i);
+        } else if (is_decreasing) {
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
+            for (size_t i = 0; i < size_B; ++i) vec_B[i] = Number(size_B - i);
+        } else {
+            std::cerr << "[ERROR] Invalid initialization method" << std::endl;
+            exit(1);
         }
         const auto setup_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_step_dt2 = setup_tp2 - setup_tp1;
@@ -279,12 +289,32 @@ class Benchmark_2In_1Out {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
 
         if (verbose) {
-            const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A :\n" << A.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
-            std::cout << "B :\n" << B.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
-            std::cout << "C_gpu :\n" << C_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
-            std::cout << "C_cpu :\n" << C_cpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
-            std::cout << "E :\n" << E.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            std::cout << "Non-zero error elements:\n";
+            bool found_errors = false;
+            for (int i = 0; i < E.rows(); ++i) {
+                for (int j = 0; j < E.cols(); ++j) {
+                    if (E(i, j) != Number(0)) {
+                        found_errors = true;
+                        std::cout << "(" << i << ", " << j << "): "
+                                  << "A=" << static_cast<Printable_Number>(A(i, j)) << ", "
+                                  << "B=" << static_cast<Printable_Number>(B(i, j)) << ", "
+                                  << "C_gpu=" << static_cast<Printable_Number>(C_gpu(i, j)) << ", "
+                                  << "C_cpu=" << static_cast<Printable_Number>(C_cpu(i, j)) << ", "
+                                  << "E=" << static_cast<Printable_Number>(E(i, j)) << "\n";
+                    }
+                }
+            }
+            if (!found_errors) {
+                std::cout << "No non-zero error elements found.\n";
+            }
+            if (spec.n_cols_temp_ > 0) {
+                const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> tmp_gpu{
+                    vec_temp.data(), spec.n_rows_temp_, spec.n_cols_temp_
+                };
+                std::cout << "tmp    :\n";
+                const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
+                std::cout << tmp_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            }
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
@@ -342,16 +372,19 @@ class Benchmark_1In_1Out {
         const size_t input_size_bytes = size_A_bytes;
         const size_t output_size_bytes = size_C_bytes;
         const size_t temp_size_bytes = size_temp_bytes;
+        const size_t mem_size_bytes = input_size_bytes + output_size_bytes + temp_size_bytes;
         constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
         const float input_size_gb = input_size_bytes / GB;
         const float output_size_gb = output_size_bytes / GB;
         const float temp_size_gb = temp_size_bytes / GB;
-        const float mem_gb = input_size_gb + output_size_gb + temp_size_gb;
-        const bool is_random = [&](){
+        const float mem_gb = mem_size_bytes / GB;
+        const auto [is_random, is_increasing, is_decreasing] = [&](){
             if (init_method == "random") {
-                return true;
-            } else if (init_method == "sequential") {
-                return false;
+                return std::tuple{true, false, false};
+            } else if (init_method == "increasing") {
+                return std::tuple{false, true, false};
+            } else if (init_method == "decreasing") {
+                return std::tuple{false, false, true};
             } else {
                 std::cerr << "[ERROR] Invalid initialization method" << std::endl;
                 exit(1);
@@ -360,8 +393,10 @@ class Benchmark_1In_1Out {
         std::cout
             << "Input matrix dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << "\n"
             << "Output matrix dimensions  : " << spec.n_rows_C_ << "x" << spec.n_cols_C_ << "\n"
+            << "Temp matrix dimensions     : " << spec.n_rows_temp_ << "x" << spec.n_cols_temp_ << "\n"
             << "Input size                : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
             << "Output size               : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
+            << "Temp size                 : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
             << "Required memory           : " << mem_gb << " GB (" << (input_size_bytes + output_size_bytes) << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
@@ -384,8 +419,13 @@ class Benchmark_1In_1Out {
         std::cout << "  - Initializing matrices: ";
         if (is_random) {
             randomize_vector(vec_A, seed);
-        } else {
+        } else if (is_increasing) {
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
+        } else if (is_decreasing) {
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
+        } else {
+            std::cerr << "[ERROR] Invalid initialization method" << std::endl;
+            exit(1);
         }
         const auto setup_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_step_dt2 = setup_tp2 - setup_tp1;
@@ -543,16 +583,30 @@ class Benchmark_1In_1Out {
 
 
         if (verbose) {
-            const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A     :\n" << A.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
-            std::cout << "C_gpu :\n" << C_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
-            std::cout << "C_cpu :\n" << C_cpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
-            std::cout << "E      :\n" << E.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            std::cout << "Non-zero error elements:\n";
+            bool found_errors = false;
+            for (int i = 0; i < E.rows(); ++i) {
+                for (int j = 0; j < E.cols(); ++j) {
+                    if (E(i, j) != Number(0)) {
+                        found_errors = true;
+                        std::cout << "(" << i << ", " << j << "): "
+                                  << "A=" << static_cast<Printable_Number>(A(i, j)) << ", "
+                                  << "C_gpu=" << static_cast<Printable_Number>(C_gpu(i, j)) << ", "
+                                  << "C_cpu=" << static_cast<Printable_Number>(C_cpu(i, j)) << ", "
+                                  << "E=" << static_cast<Printable_Number>(E(i, j)) << "\n";
+                    }
+                }
+            }
+            if (!found_errors) {
+                std::cout << "No non-zero error elements found.\n";
+            }
             if (spec.n_cols_temp_ > 0) {
                 const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> tmp_gpu{
                     vec_temp.data(), spec.n_rows_temp_, spec.n_cols_temp_
                 };
-                std::cout << "tmp    :\n" << tmp_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+                std::cout << "tmp    :\n";
+                const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
+                std::cout << tmp_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
             }
         }
 
