@@ -22,3 +22,14 @@ cudaDeviceProp get_default_device_prop() {
     cudaGetDevice(&device_id);
     return get_device_prop(device_id);
 }
+
+// Template specializations for __half type
+template <>
+__host__ __device__ __half cuda_max<__half>(__half a, __half b) {
+    return __hmax(a, b);
+}
+
+template <>
+__host__ __device__ __half cuda_min<__half>(__half a, __half b) {
+    return __hmin(a, b);
+}

@@ -12,18 +12,37 @@
 #include <functional>
 #include <chrono>
 #include "check_errors.h"
+#include "type_traits.h"
 
 constexpr size_t NULL_FLAGS = 0;
 
 
-template <typename Number>
-__device__ inline Number cuda_max(Number a, Number b) {
+template <CUDA_scalar Number>
+__host__ __device__ Number cuda_max(Number a, Number b) {
     return max(a, b);
 }
 
+// Template specialization declarations (defined in cuda_utils.cu)
 template <>
-__device__ inline __half cuda_max<__half>(__half a, __half b) {
-    return __hmax(a, b);
+__host__ __device__ __half cuda_max<__half>(__half a, __half b);
+
+template <CUDA_scalar Number>
+__host__ __device__ Number cuda_min(Number a, Number b) {
+    return min(a, b);
+}
+
+// Template specialization declarations (defined in cuda_utils.cu)
+template <>
+__host__ __device__ __half cuda_min<__half>(__half a, __half b);
+
+template <CUDA_scalar Number>
+__host__ __device__ Number cuda_sum(Number a, Number b) {
+    return a + b;
+}
+
+template <CUDA_scalar Number>
+__host__ __device__ Number cuda_prod(Number a, Number b) {
+    return a * b;
 }
 
 
