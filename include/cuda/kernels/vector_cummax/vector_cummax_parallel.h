@@ -96,7 +96,7 @@ __global__ void vector_cummax_by_blocks_parallel(
     // the size of shm must be at least the number of warps in the block
 
     // Load data, only if index is within bounds
-    if (tid_grid < n-1) {
+    if (tid_grid < n) {
         value = A[(tid_grid + 1) * stride_A - 1];
     }
 
@@ -306,20 +306,20 @@ class Vector_cummax_parallel_kernel {
         if (prev_n_elems > spec_.block_dim_.x) {
             const auto curr_result = buffer + curr_result_index;
             const auto next_result_index = curr_result_index + curr_n_elems;
-            strided_pass(buffer, curr_result, next_result_index, curr_n_elems, stream);
+            strided_pass(buffer, curr_result, curr_n_elems, next_result_index, stream);
             // By the powers of recursion, curr_result is fully scanned
             // Now we have to compute the deltas between curr_result and the final elements
             // of each stride of prev_result, and apply those delta retroactively to the strides
             // of prev_result
 
+            vector_cummax_write_back_parallel<<<prev_n_blocks, spec_.block_dim_, 0, stream>>>(
+                prev_result,
+                prev_n_elems,
+                curr_result,
+                curr_n_elems,
+                spec_.block_dim_.x
+            );
         }
-        vector_cummax_write_back_parallel<<<prev_n_blocks, spec_.block_dim_, 0, stream>>>(
-            prev_result,
-            prev_n_elems,
-            curr_result,
-            curr_n_elems,
-            spec_.block_dim_.x
-        );
     }
 
     void run_device_kernel(
@@ -368,7 +368,9 @@ class Vector_cummax_parallel_kernel {
         auto prev_result = gpu_data_C;
         auto curr_result = gpu_data_temp;
         auto prev_n_elems = spec_.n_;
-        strided_pass(gpu_data_temp, prev_result, prev_n_elems, 0, stream);
+        if (prev_n_elems > spec_.block_dim_.x) {
+            strided_pass(gpu_data_temp, prev_result, prev_n_elems, 0, stream);
+        }
     }
 
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
