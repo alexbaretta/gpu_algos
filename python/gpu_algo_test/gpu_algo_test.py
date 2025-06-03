@@ -20,12 +20,17 @@ with various problem sizes:
 - Several blocks ending with a partial block (1025, 1500, 2500 elements)
 
 For each problem size, it tests all supported data types.
-
-Copyright (c) 2025 Alessandro Baretta
-All rights reserved.
 """
 
+COPYRIGHT = (
+    "Copyright (c) 2025 Alessandro Baretta\n"
+    "All rights reserved."
+)
+
+
+
 import argparse
+import fnmatch
 import json
 import logging
 import os
@@ -34,6 +39,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
+from datetime import datetime
 
 # Constants for GPU architecture
 WARP_SIZE = 32
@@ -218,7 +224,7 @@ def expand_special_sizes(size_specs: List[str]) -> Set[int]:
                 expanded_sizes.add(int(spec))
             except ValueError:
                 raise ValueError(
-                    f"Invalid size specification: '{spec}'. "
+                    f"Invalid size specification: '{spec}'.\n"
                     f"Must be a number or one of: {list(PROBLEM_SIZES.keys())}"
                 )
 
@@ -253,7 +259,7 @@ def expand_special_types(type_specs: List[str]) -> Set[str]:
             expanded_types.add(spec)
         else:
             raise ValueError(
-                f"Invalid data type specification: '{spec}'. "
+                f"Invalid data type specification: '{spec}'.\n"
                 f"Must be one of {DATA_TYPES} or one of {list(SPECIAL_DATA_TYPES.keys())}"
             )
 
@@ -263,31 +269,44 @@ def expand_special_types(type_specs: List[str]) -> Set[str]:
 class GPUAlgoTest:
     """Main class for testing GPU algorithms."""
 
-    def __init__(
-        self,
-        bin_dir: str,
-        verbose: bool = False,
-        selected_executables: Optional[Set[str]] = None,
-        selected_sizes: Optional[Set[int]] = None,
-        selected_types: Optional[Set[str]] = None,
-        dry_run: bool = False,
-    ):
-        """Initialize the test runner.
+    def __init__(self, bin_dir: Path, cmake_root: Optional[Path] = None, preset: str = "debug",
+                 verbose: bool = False, selected_executables: Optional[Set[str]] = None,
+                 selected_sizes: Optional[Set[int]] = None, selected_types: Optional[Set[str]] = None,
+                 dry_run: bool = False, float_tol: Optional[float] = None, float_rtol: float = 1e-6,
+                 int_tol: float = 0.0, int_rtol: float = 1e-6):
+        """Initialize the GPU algorithm tester.
 
         Args:
-            bin_dir: Path to the binary directory containing executables
-            verbose: Enable verbose output
+            bin_dir: Directory containing executable files
+            cmake_root: CMake project root directory (optional)
+            preset: CMake preset name (default: debug)
+            verbose: Enable verbose logging
             selected_executables: Set of executable names to test (None for all)
             selected_sizes: Set of problem sizes to test (None for all)
             selected_types: Set of data types to test (None for all)
-            dry_run: Only check for executable existence, don't run tests
+            dry_run: Only check executable existence, don't run tests
+            float_tol: Absolute tolerance for floating point types (None for no default)
+            float_rtol: Relative tolerance for floating point types
+            int_tol: Absolute tolerance for integer types
+            int_rtol: Relative tolerance for integer types
         """
-        self.bin_dir = Path(bin_dir).resolve()
+        self.bin_dir = Path(bin_dir)
+        self.cmake_root = cmake_root
+        self.preset = preset
         self.verbose = verbose
         self.selected_executables = selected_executables
         self.selected_sizes = selected_sizes
         self.selected_types = selected_types or set(DATA_TYPES)
         self.dry_run = dry_run
+
+        # Tolerance values
+        self.float_tol = float_tol
+        self.float_rtol = float_rtol
+        self.int_tol = int_tol
+        self.int_rtol = int_rtol
+
+        if not self.bin_dir.exists():
+            raise FileNotFoundError(f"Binary directory not found: {self.bin_dir}")
 
         # Setup logging
         level = logging.DEBUG if verbose else logging.INFO
@@ -295,10 +314,6 @@ class GPUAlgoTest:
             level=level, format="%(asctime)s - %(levelname)s - %(message)s"
         )
         self.logger = logging.getLogger(__name__)
-
-        # Validate directories
-        if not self.bin_dir.exists():
-            raise FileNotFoundError(f"Binary directory not found: {self.bin_dir}")
 
         # Discover executables
         self.executables = self._discover_executables()
@@ -324,11 +339,14 @@ class GPUAlgoTest:
         for file_path in self.bin_dir.iterdir():
             if file_path.is_file() and os.access(file_path, os.X_OK):
                 # Filter by selected executables if specified
-                if (
-                    self.selected_executables is None
-                    or file_path.name in self.selected_executables
-                ):
+                if self.selected_executables is None:
                     executables.append(file_path)
+                else:
+                    # Check if filename matches any of the patterns (exact match or glob)
+                    for pattern in self.selected_executables:
+                        if file_path.name == pattern or fnmatch.fnmatch(file_path.name, pattern):
+                            executables.append(file_path)
+                            break  # Found a match, no need to check other patterns
         return sorted(executables)
 
     def _get_filtered_problem_sizes(self) -> Dict[str, List[int]]:
@@ -421,6 +439,7 @@ class GPUAlgoTest:
         # Look for timing information
         timing_patterns = [
             (r"Max error\s*:\s*([\d.e-]+)", "max_error"),
+            (r"Max error pct\s*:\s*([\d.e-]+)", "max_error_pct"),
             (r"Gross speedup\s*:\s*([\d.e-]+)", "gross_speedup"),
             (r"Net speedup\s*:\s*([\d.e-]+)", "net_speedup"),
             (r"Compute kernel:\s*([\d.]+)\s*ms", "kernel_time_ms"),
@@ -437,58 +456,127 @@ class GPUAlgoTest:
 
         return metrics
 
+    def _is_integer_type(self, data_type: str) -> bool:
+        """Check if a data type is an integer type."""
+        return data_type in ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]
+
+    def _is_floating_type(self, data_type: str) -> bool:
+        """Check if a data type is a floating point type."""
+        return data_type in ["half", "float", "double"]
+
+    def _check_correctness(self, metrics: Dict[str, float], data_type: str) -> bool:
+        """Check if results are correct based on error thresholds.
+
+        Args:
+            metrics: Dictionary containing max_error and optionally max_error_pct
+            data_type: The data type being tested
+
+        Returns:
+            True if results are correct (errors below thresholds), False otherwise
+        """
+        max_error = metrics.get("max_error", float("inf"))
+        max_error_pct = metrics.get("max_error_pct", float("inf"))
+
+        # Error of 0 always satisfies correctness check
+        if max_error == 0.0:
+            return True
+
+        # Determine appropriate tolerances based on data type
+        if self._is_integer_type(data_type):
+            tol = self.int_tol
+            rtol = self.int_rtol
+        elif self._is_floating_type(data_type):
+            tol = self.float_tol
+            rtol = self.float_rtol
+        else:
+            # Unknown type, use floating point tolerances as default
+            tol = self.float_tol
+            rtol = self.float_rtol
+
+        # Check absolute tolerance (if specified)
+        if tol is not None and max_error > tol:
+            return False
+
+        # Check relative tolerance
+        if rtol is not None and max_error_pct > rtol:
+            return False
+
+        return True
+
     def test_executable(self, executable: Path, data_type: str, size: int) -> Dict:
         """Test a single executable with specific parameters.
 
+        Args:
+            executable: Path to the executable file
+            data_type: Data type to test (e.g., "float", "int32")
+            size: Problem size to test
+
         Returns:
-            Dictionary with test results
+            Dictionary containing test results and performance metrics
         """
-        result = {
+        test_info = {
             "executable": executable.name,
             "data_type": data_type,
             "size": size,
-            "success": False,
-            "metrics": {},
-            "error": None,
-            "absolute_path": str(executable.resolve()),
+            "timestamp": datetime.now().isoformat(),
         }
 
-        # In dry run mode, just check if executable exists
-        if self.dry_run:
-            abs_path = executable.resolve()
-            result["success"] = (
-                abs_path.exists()
-                and abs_path.is_file()
-                and os.access(abs_path, os.X_OK)
+        try:
+            # Build command
+            cmd = [str(executable), data_type, str(size)]
+            self.logger.debug(f"Running: {' '.join(cmd)}")
+
+            # Execute the command
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=30, cwd=self.bin_dir
             )
-            if not result["success"]:
-                result["error"] = f"Executable not found or not executable: {abs_path}"
-            return result
 
-        # Check if executable supports the data type
-        if not self._supports_data_type(executable, data_type):
-            result["error"] = "Data type not supported"
-            return result
+            # Extract performance metrics
+            metrics = self._extract_performance_metrics(result.stdout)
 
-        # Determine size option
-        size_option = self._get_size_option(executable)
-        if not size_option:
-            result["error"] = "No size option found"
-            return result
+            # Determine run success
+            run_success = result.returncode == 0
 
-        # Build arguments
-        args = ["--type", data_type, size_option, str(size)]
+            # Check correctness (only if run was successful and we have metrics)
+            correct = False
+            if run_success and metrics:
+                correct = self._check_correctness(metrics, data_type)
 
-        # Run the executable
-        success, stdout, stderr = self._run_executable(executable, args)
+            # Combine all results
+            test_result = {
+                **test_info,
+                "run_success": run_success,
+                "correct": correct,
+                "return_code": result.returncode,
+                "metrics": metrics,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
 
-        result["success"] = success
-        if success:
-            result["metrics"] = self._extract_performance_metrics(stdout)
-        else:
-            result["error"] = stderr or "Unknown error"
+            return test_result
 
-        return result
+        except subprocess.TimeoutExpired:
+            return {
+                **test_info,
+                "run_success": False,
+                "correct": False,
+                "return_code": -1,
+                "error": "Timeout after 30 seconds",
+                "metrics": {},
+                "stdout": "",
+                "stderr": "",
+            }
+        except Exception as e:
+            return {
+                **test_info,
+                "run_success": False,
+                "correct": False,
+                "return_code": -1,
+                "error": str(e),
+                "metrics": {},
+                "stdout": "",
+                "stderr": "",
+            }
 
     def test_all_sizes_and_types(self, executable: Path) -> List[Dict]:
         """Test an executable with all problem sizes and data types."""
@@ -510,7 +598,7 @@ class GPUAlgoTest:
                     result["category"] = category
                     results.append(result)
 
-                    if not result["success"] and (self.verbose or self.dry_run):
+                    if not result["run_success"] and (self.verbose or self.dry_run):
                         self.logger.warning(f"    Failed: {result['error']}")
 
         return results
@@ -547,7 +635,7 @@ class GPUAlgoTest:
             report.append(f"\n{exe_name}:")
             report.append("-" * (len(exe_name) + 1))
 
-            passed = sum(1 for r in exe_results if r.get("success", False))
+            passed = sum(1 for r in exe_results if r.get("run_success", False))
             failed = len(exe_results) - passed
 
             report.append(
@@ -560,7 +648,7 @@ class GPUAlgoTest:
             # Group failures by error type
             errors = {}
             for result in exe_results:
-                if not result.get("success", False):
+                if not result.get("run_success", False):
                     error = result.get("error", "Unknown error")
                     errors[error] = errors.get(error, 0) + 1
 
@@ -581,10 +669,10 @@ class GPUAlgoTest:
 def main():
     """Main function for command line usage."""
     parser = argparse.ArgumentParser(
-        description="Test GPU algorithm executables with various problem sizes and data types. "
-        "Use --bin-path for direct binary directory, or --cmake-root/--preset for CMake preset logic.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
+        description="Test GPU algorithm executables with various problem sizes and data types.\n"
+        "Use --bin-path for direct binary directory, or --cmake-root/--preset for CMake preset logic."
+        f"\n{COPYRIGHT}",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     parser.add_argument(
@@ -610,20 +698,23 @@ def main():
 
     parser.add_argument(
         "--executables",
-        help="Comma-separated list of executable names to test (default: all)",
+        help="Comma-separated list of executable names or glob patterns to test (default: all).\n"
+        "Supports shell-style wildcards: * matches any number of characters, ? matches a single character.\n"
+        "Examples: 'vector_*' matches all executables starting with 'vector_',\n"
+        "'*_sort' matches all executables ending with '_sort'",
     )
 
     parser.add_argument(
         "--sizes",
-        help="Comma-separated list of problem sizes to test (default: all). "
-        "Can include numbers or special size categories: "
+        help="Comma-separated list of problem sizes to test (default: all).\n"
+        "Can include numbers or special size categories:\n"
         + ", ".join(PROBLEM_SIZES.keys()),
     )
 
     parser.add_argument(
         "--types",
-        help="Comma-separated list of data types to test (default: all). "
-        "Can include specific types or special groups: floating, signed, unsigned, integer. "
+        help="Comma-separated list of data types to test (default: all).\n"
+        "Can include specific types or special groups: floating, signed, unsigned, integer.\n"
         f"Available types: {', '.join(DATA_TYPES)}",
     )
 
@@ -631,6 +722,33 @@ def main():
         "--dryrun",
         action="store_true",
         help="Only check for executable existence, don't run tests",
+    )
+
+    parser.add_argument(
+        "--tol",
+        type=float,
+        help="Absolute tolerance for floating point types (no default)",
+    )
+
+    parser.add_argument(
+        "--rtol",
+        type=float,
+        default=1e-6,
+        help="Relative tolerance for floating point types (default: 1e-6)",
+    )
+
+    parser.add_argument(
+        "--int-tol",
+        type=float,
+        default=0.0,
+        help="Absolute tolerance for integer types (default: 0.0)",
+    )
+
+    parser.add_argument(
+        "--int-rtol",
+        type=float,
+        default=1e-6,
+        help="Relative tolerance for integer types (default: 1e-6)",
     )
 
     args = parser.parse_args()
@@ -674,12 +792,18 @@ def main():
 
         # Create test runner
         tester = GPUAlgoTest(
-            str(bin_dir),
+            bin_dir,
+            args.cmake_root,
+            args.preset,
             args.verbose,
             selected_executables,
             selected_sizes,
             selected_types,
             args.dryrun,
+            args.tol,
+            args.rtol,
+            args.int_tol,
+            args.int_rtol,
         )
 
         # Run all tests
@@ -702,25 +826,50 @@ def main():
 
         # Return exit code based on results
         total_tests = sum(len(exe_results) for exe_results in results.values())
-        total_passed = sum(
-            sum(1 for r in exe_results if r.get("success", False))
+        total_execution_passed = sum(
+            sum(1 for r in exe_results if r.get("run_success", False))
+            for exe_results in results.values()
+        )
+        total_correctness_passed = sum(
+            sum(1 for r in exe_results if r.get("correct", False))
             for exe_results in results.values()
         )
 
-        if total_passed == total_tests:
-            if args.dryrun:
+        # Calculate failures
+        execution_failures = total_tests - total_execution_passed
+        correctness_failures = total_tests - total_correctness_passed
+
+        # Print summary statistics
+        print(f"\n{'=' * 80}")
+        print("BENCHMARK SUMMARY")
+        print(f"{'=' * 80}")
+        print(f"Total benchmarks: {total_tests}")
+        print(f"Execution failures: {execution_failures}")
+        print(f"Correctness failures: {correctness_failures}")
+        print(f"Successful executions: {total_execution_passed}")
+        print(f"Correct results: {total_correctness_passed}")
+
+        if args.dryrun:
+            if execution_failures == 0:
                 print("\nAll executables found!")
+                return 0
             else:
-                print("\nAll tests passed!")
-            return 0
+                print(f"\n{execution_failures} executables not found or not executable.")
+                return 1
         else:
-            if args.dryrun:
-                print(
-                    f"\n{total_tests - total_passed} executables not found or not executable."
-                )
-            else:
-                print(f"\n{total_tests - total_passed} tests failed.")
-            return 1
+            if execution_failures == 0 and correctness_failures == 0:
+                print("\nAll benchmarks passed execution and correctness checks!")
+                return 0
+            elif execution_failures > 0 and correctness_failures > 0:
+                print(f"\n{execution_failures} benchmarks failed to execute, {correctness_failures} had incorrect results.")
+                # Prioritize execution failures (exit code 1) over correctness failures (exit code 2)
+                return 1
+            elif execution_failures > 0:
+                print(f"\n{execution_failures} benchmarks failed to execute.")
+                return 1
+            else:  # correctness_failures > 0
+                print(f"\n{correctness_failures} benchmarks had incorrect results.")
+                return 2
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
