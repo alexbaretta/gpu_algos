@@ -116,6 +116,9 @@ __global__ void matrix_product_tensor_wmma(
     const int WMMA_N = 16;
     const int WMMA_K = 16;
 
+    // Shared memory for int8 conversion
+    __shared__ int shared_temp[WMMA_M * WMMA_N];
+
     // Calculate which 16x16 tile this block handles
     const int block_row = blockIdx.y;
     const int block_col = blockIdx.x;
@@ -200,16 +203,18 @@ __global__ void matrix_product_tensor_wmma(
             if (row_base < m && col_base < k &&
                 row_base + WMMA_M <= m && col_base + WMMA_N <= k) {
 
-                // Temporary buffer for INT32 results
-                int temp_result[WMMA_M * WMMA_N];
-                store_matrix_sync(temp_result, c_frag, WMMA_N, mem_row_major);
+                // Store to shared memory instead of local memory
+                store_matrix_sync(shared_temp, c_frag, WMMA_N, mem_row_major);
+
+                // Synchronize threads within the block
+                __syncthreads();
 
                 // Convert and store as INT8
                 for (int i = 0; i < WMMA_M; ++i) {
                     for (int j = 0; j < WMMA_N; ++j) {
                         if (row_base + i < m && col_base + j < k) {
                             // Clamp to INT8 range
-                            int val = temp_result[i * WMMA_N + j];
+                            int val = shared_temp[i * WMMA_N + j];
                             val = max(-128, min(127, val));
                             C[(row_base + i) * k + (col_base + j)] = static_cast<Number>(val);
                         }
