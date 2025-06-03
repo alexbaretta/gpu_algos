@@ -8,6 +8,7 @@
 #include <cuda_runtime.h>
 #include <cooperative_groups.h>
 
+#include <cuda_runtime.h>
 #include "cxxopts.hpp"
 #include "cuda/cuda_utils.h"
 #include "cuda/kernel_api.h"
@@ -17,6 +18,7 @@ constexpr static long MAX_BLOCK_SIZE = 1024;
 constexpr static long WARP_SIZE = 32;
 constexpr static long MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
 constexpr static long LAST_LANE = WARP_SIZE - 1;
+
 
 
 template <CUDA_scalar Number>
@@ -63,7 +65,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
     const int n,  // size of vector
     const int stride_A
 ) {
-    __shared__ Number shm[MAX_N_WARPS]; // for writing, index this using `wid_block` (warp id)
+    __shared__ Number shm[MAX_N_WARPS+1]; // for writing, index this using `wid_block` (warp id)
 
     // const long n_blocks = gridDim.x;
 
@@ -145,13 +147,13 @@ __global__ void vector_cumsum_by_blocks_parallel(
 
         __syncthreads(); // Now shm contains input data for the block-level warp-shuffle scan
 
-        // Now the warp totals live in shm. We need to scan shm to compute
+        // Now the warp totals live in shm. We need to scan shm to compute the block-level scan.
         // We use the same algorithm as above, but we execute with only one warp,
         // as the shared memory size is equal to warpSize (1024/32 == 32)
         static_assert(MAX_N_WARPS == WARP_SIZE, "MAX_N_WARPS != WARP_SIZE (at compile time)");
-        Number shm_value = 0;
         if (wid_block == 0) {
             // We pick warp 0 to perform the warp-shuffle scan on shared memory.
+            Number shm_value = 0;
             if (tid_warp < n_warps_per_block) {
                 shm_value = shm[tid_warp];
             }
@@ -170,10 +172,10 @@ __global__ void vector_cumsum_by_blocks_parallel(
         __syncthreads(); // Now shm contains output data from the block-level warp-shuffle scan
 
         // We need to read the final value of wid into wid+1 and update all the values in the warp
-        if (tid_warp == LAST_LANE) {
-            const Number wid_minus_1_value = (wid_block > 0) ? shm[wid_block-1] : Number(0);
-            value += wid_minus_1_value;
-        }
+        // We use a shared memory broadcast to do this: each thread within a warp reads the same
+        // shared memory location: shm[wid_block-1]
+        const Number wid_minus_1_value = (wid_block > 0) ? shm[wid_block-1] : Number(0);
+        value += wid_minus_1_value;
 
         // Now the `value` variables contain the the scanned values: we need to write them back to C
         if (tid_grid < n) {
@@ -295,23 +297,26 @@ class Vector_cumsum_parallel_kernel {
 
 
     void strided_pass(
+        Number* const buffer,
         Number* const prev_result,
-        Number* const curr_result,
         const int prev_n_elems,
+        const int curr_result_index,
         cudaStream_t stream
     ) {
+        const int prev_n_blocks = (prev_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
+        const int curr_n_elems = prev_n_blocks;
+        const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
+        Number* const curr_result = buffer + curr_result_index;
+        vector_cumsum_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, 0, stream>>>(
+            prev_result,
+            curr_result,
+            curr_n_elems,
+            spec_.block_dim_.x
+        );
         if (prev_n_elems > spec_.block_dim_.x) {
-            const int prev_n_blocks = (prev_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
-            const int curr_n_elems = prev_n_blocks;
-            const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
-            vector_cumsum_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, 0, stream>>>(
-                prev_result,
-                curr_result,
-                curr_n_elems,
-                spec_.block_dim_.x
-            );
-            const auto next_result = curr_result + curr_n_elems;
-            strided_pass(curr_result, next_result, curr_n_elems, stream);
+            const auto curr_result = buffer + curr_result_index;
+            const auto next_result_index = curr_result_index + curr_n_elems;
+            strided_pass(buffer, curr_result, curr_n_elems, next_result_index, stream);
             // By the powers of recursion, curr_result is fully scanned
             // Now we have to compute the deltas between curr_result and the final elements
             // of each stride of prev_result, and apply those delta retroactively to the strides
@@ -373,7 +378,9 @@ class Vector_cumsum_parallel_kernel {
         auto prev_result = gpu_data_C;
         auto curr_result = gpu_data_temp;
         auto prev_n_elems = spec_.n_;
-        strided_pass(prev_result, curr_result, prev_n_elems, stream);
+        if (prev_n_elems > spec_.block_dim_.x) {
+            strided_pass(gpu_data_temp, prev_result, prev_n_elems, 0, stream);
+        }
     }
 
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
@@ -381,10 +388,10 @@ class Vector_cumsum_parallel_kernel {
     ) {
         // Compute cumulative sum for a vector (treat matrix as a flattened vector)
         Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> result(A.rows(), A.cols());
-        Number sum = 0;
+        Number accu = 0;
         for (int i = 0; i < A.size(); ++i) {
-            sum += A(i);
-            result(i) = sum;
+            accu += A(i);
+            result(i) = accu;
         }
         return result;
     }
