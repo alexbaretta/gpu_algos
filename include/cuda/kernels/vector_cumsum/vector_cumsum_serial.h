@@ -4,8 +4,12 @@
 // source path: include/cuda/kernels/matrix/vector_cumsum_serial.h
 
 #pragma once
+#include <iostream>
 #include <cuda_runtime.h>
+#include <cooperative_groups.h>
 
+#include "cxxopts.hpp"
+#include "cuda/cuda_utils.h"
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
@@ -35,6 +39,9 @@ struct Vector_cumsum_serial_spec {
 
     const long n_rows_C_;
     const long n_cols_C_;
+
+    const long n_rows_temp_;
+    const long n_cols_temp_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -78,6 +85,8 @@ struct Vector_cumsum_serial_spec {
         n_cols_A_(n),
         n_rows_C_(1),
         n_cols_C_(n),
+        n_rows_temp_(0),
+        n_cols_temp_(0),
         block_dim_(1),
         grid_dim_(1)
     {}
@@ -101,6 +110,7 @@ class Vector_cumsum_serial_kernel {
     void run_device_kernel(
         const Number* const gpu_data_A,
         Number* const gpu_data_C,
+        Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
         vector_cumsum_serial<<<

@@ -4,9 +4,12 @@
 // source path: include/cuda/kernels/matrix/vector_cumsum_cooperative.h
 
 #pragma once
+#include <iostream>
 #include <cuda_runtime.h>
 #include <cooperative_groups.h>
 
+#include "cxxopts.hpp"
+#include "cuda/cuda_utils.h"
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
@@ -219,6 +222,9 @@ struct Vector_cumsum_cooperative_spec {
     const long n_rows_C_;
     const long n_cols_C_;
 
+    const long n_rows_temp_;
+    const long n_cols_temp_;
+
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
@@ -263,6 +269,8 @@ struct Vector_cumsum_cooperative_spec {
         n_cols_A_(n),
         n_rows_C_(1),
         n_cols_C_(n),
+        n_rows_temp_(0),
+        n_cols_temp_(0),
 
         // Since parallel scan requires sharing data between blocks,
         // which in turn requires reading and writing to global memory,
@@ -312,6 +320,7 @@ class Vector_cumsum_cooperative_kernel {
     void run_device_kernel(
         const Number* const gpu_data_A,
         Number* const gpu_data_C,
+        Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
         std::cout << "[INFO] max_active_blocks_per_multiprocessor: " << max_active_blocks_per_multiprocessor << std::endl;

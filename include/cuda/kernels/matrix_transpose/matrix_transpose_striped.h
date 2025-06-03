@@ -95,6 +95,9 @@ struct Matrix_transpose_striped_spec {
     const long n_rows_C_;
     const long n_cols_C_;
 
+    const long n_rows_temp_;
+    const long n_cols_temp_;
+
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_;
@@ -143,6 +146,8 @@ struct Matrix_transpose_striped_spec {
         n_cols_A_(n),
         n_rows_C_(n),
         n_cols_C_(m),
+        n_rows_temp_(0),
+        n_cols_temp_(0),
 
         // Threads per tile
         block_dim_(STRIPE_WIDTH),
@@ -181,6 +186,7 @@ class Matrix_transpose_striped_kernel {
     void run_device_kernel(
         const Number* const gpu_data_A,
         Number* const gpu_data_C,
+        Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
         const auto shared_mem_size = spec_.dynamic_shared_mem_words_ * sizeof(Number);

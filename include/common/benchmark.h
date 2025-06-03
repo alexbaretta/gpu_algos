@@ -65,15 +65,19 @@ class Benchmark_2In_1Out {
         const size_t size_A = size_t(spec.n_rows_A_) * size_t(spec.n_cols_A_);
         const size_t size_B = size_t(spec.n_rows_B_) * size_t(spec.n_cols_B_);
         const size_t size_C = size_t(spec.n_rows_C_) * size_t(spec.n_cols_C_);
+        const size_t size_temp = size_t(spec.n_rows_temp_) * size_t(spec.n_cols_temp_);
         const size_t size_A_bytes = size_A * sizeof(Number);
         const size_t size_B_bytes = size_B * sizeof(Number);
         const size_t size_C_bytes = size_C * sizeof(Number);
+        const size_t size_temp_bytes = size_temp * sizeof(Number);
         const size_t input_size_bytes = size_A_bytes + size_B_bytes;
         const size_t output_size_bytes = size_C_bytes;
+        const size_t temp_size_bytes = size_temp_bytes;
         constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
         const float input_size_gb = input_size_bytes / GB;
         const float output_size_gb = output_size_bytes / GB;
-        const float mem_gb = input_size_gb + output_size_gb;
+        const float temp_size_gb = temp_size_bytes / GB;
+        const float mem_gb = input_size_gb + output_size_gb + temp_size_gb;
         const bool is_random = [&](){
             if (init_method == "random") {
                 return true;
@@ -103,6 +107,7 @@ class Benchmark_2In_1Out {
         std::vector<Number> vec_A(size_A, 0);
         std::vector<Number> vec_B(size_B, 0);
         std::vector<Number> vec_C(size_C, 0);
+        std::vector<Number> vec_temp(size_temp, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
@@ -147,10 +152,13 @@ class Benchmark_2In_1Out {
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number *gpu_data_A = nullptr, *gpu_data_B = nullptr, *gpu_data_C = nullptr;
+        Number *gpu_data_A = nullptr, *gpu_data_B = nullptr, *gpu_data_C = nullptr, *gpu_data_temp = nullptr;
         cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaMallocAsync(&gpu_data_B, size_B_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaMallocAsync(&gpu_data_C, size_C_bytes, stream), "cudaMallocAsync");
+        if (size_temp_bytes > 0) {
+            cuda_check_error(cudaMallocAsync(&gpu_data_temp, size_temp_bytes, stream), "cudaMallocAsync");
+        }
         cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp1{};
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
@@ -163,13 +171,16 @@ class Benchmark_2In_1Out {
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
 
         const auto gpu_step_3 = "Compute kernel";
-        kernel.run_device_kernel(gpu_data_A, gpu_data_B, gpu_data_C, stream);
+        kernel.run_device_kernel(gpu_data_A, gpu_data_B, gpu_data_C, gpu_data_temp, stream);
         cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp3{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
         cuda_check_error(cudaMemcpyAsync(vec_C.data(), gpu_data_C, size_C_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        if (size_temp_bytes > 0) {
+            cuda_check_error(cudaMemcpyAsync(vec_temp.data(), gpu_data_temp, size_temp_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        }
         cuda_check_error(cudaEventRecord(e4, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp4{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp4, NULL_FLAGS), "cudaStreamAddCallback");
@@ -178,6 +189,9 @@ class Benchmark_2In_1Out {
         cuda_check_error(cudaFreeAsync(gpu_data_A, stream), "cudaFreeAsync");
         cuda_check_error(cudaFreeAsync(gpu_data_B, stream), "cudaFreeAsync");
         cuda_check_error(cudaFreeAsync(gpu_data_C, stream), "cudaFreeAsync");
+        if (size_temp_bytes > 0) {
+            cuda_check_error(cudaFreeAsync(gpu_data_temp, stream), "cudaFreeAsync");
+        }
         cuda_check_error(cudaEventRecord(e5, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp5{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp5, NULL_FLAGS), "cudaStreamAddCallback");
@@ -321,14 +335,18 @@ class Benchmark_1In_1Out {
     int run() {
         const size_t size_A = size_t(spec.n_rows_A_) * size_t(spec.n_cols_A_);
         const size_t size_C = size_t(spec.n_rows_C_) * size_t(spec.n_cols_C_);
+        const size_t size_temp = size_t(spec.n_rows_temp_) * size_t(spec.n_cols_temp_);
         const size_t size_A_bytes = size_A * sizeof(Number);
         const size_t size_C_bytes = size_C * sizeof(Number);
+        const size_t size_temp_bytes = size_temp * sizeof(Number);
         const size_t input_size_bytes = size_A_bytes;
         const size_t output_size_bytes = size_C_bytes;
+        const size_t temp_size_bytes = size_temp_bytes;
         constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
         const float input_size_gb = input_size_bytes / GB;
         const float output_size_gb = output_size_bytes / GB;
-        const float mem_gb = input_size_gb + output_size_gb;
+        const float temp_size_gb = temp_size_bytes / GB;
+        const float mem_gb = input_size_gb + output_size_gb + temp_size_gb;
         const bool is_random = [&](){
             if (init_method == "random") {
                 return true;
@@ -358,6 +376,7 @@ class Benchmark_1In_1Out {
         std::cout << "  - Allocating memory: ";
         std::vector<Number> vec_A(size_A, 0.0f);
         std::vector<Number> vec_C(size_C, 0.0f);
+        std::vector<Number> vec_temp(size_temp, 0.0f);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
@@ -400,9 +419,12 @@ class Benchmark_1In_1Out {
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number *gpu_data_A = nullptr, *gpu_data_C = nullptr;
+        Number *gpu_data_A = nullptr, *gpu_data_C = nullptr, *gpu_data_temp = nullptr;
         cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaMallocAsync(&gpu_data_C, size_C_bytes, stream), "cudaMallocAsync");
+        if (size_temp_bytes > 0) {
+            cuda_check_error(cudaMallocAsync(&gpu_data_temp, size_temp_bytes, stream), "cudaMallocAsync");
+        }
         cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp1{};
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
@@ -414,13 +436,16 @@ class Benchmark_1In_1Out {
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
 
         const auto gpu_step_3 = "Compute kernel";
-        kernel.run_device_kernel(gpu_data_A, gpu_data_C, stream);
+        kernel.run_device_kernel(gpu_data_A, gpu_data_C, gpu_data_temp, stream);
         cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp3{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
         cuda_check_error(cudaMemcpyAsync(vec_C.data(), gpu_data_C, size_C_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        if (size_temp_bytes > 0) {
+            cuda_check_error(cudaMemcpyAsync(vec_temp.data(), gpu_data_temp, size_temp_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        }
         cuda_check_error(cudaEventRecord(e4, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp4{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp4, NULL_FLAGS), "cudaStreamAddCallback");
@@ -428,6 +453,9 @@ class Benchmark_1In_1Out {
         const auto gpu_step_5 = "Free device memory";
         cuda_check_error(cudaFreeAsync(gpu_data_A, stream), "cudaFreeAsync");
         cuda_check_error(cudaFreeAsync(gpu_data_C, stream), "cudaFreeAsync");
+        if (size_temp_bytes > 0) {
+            cuda_check_error(cudaFreeAsync(gpu_data_temp, stream), "cudaFreeAsync");
+        }
         cuda_check_error(cudaEventRecord(e5, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp5{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp5, NULL_FLAGS), "cudaStreamAddCallback");
@@ -516,10 +544,16 @@ class Benchmark_1In_1Out {
 
         if (verbose) {
             const Eigen::IOFormat clean_matrix_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A :\n" << A.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            std::cout << "A     :\n" << A.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
             std::cout << "C_gpu :\n" << C_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
             std::cout << "C_cpu :\n" << C_cpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
-            std::cout << "E :\n" << E.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            std::cout << "E      :\n" << E.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            if (spec.n_cols_temp_ > 0) {
+                const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> tmp_gpu{
+                    vec_temp.data(), spec.n_rows_temp_, spec.n_cols_temp_
+                };
+                std::cout << "tmp    :\n" << tmp_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            }
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();

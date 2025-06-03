@@ -48,6 +48,9 @@ struct Matrix_product_warp_spec {
     const long n_rows_C_;
     const long n_cols_C_;
 
+    const long n_rows_temp_;
+    const long n_cols_temp_;
+
     const long warp_size_;
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -94,6 +97,8 @@ struct Matrix_product_warp_spec {
         n_cols_B_(k),
         n_rows_C_(m),
         n_cols_C_(k),
+        n_rows_temp_(0),
+        n_cols_temp_(0),
         warp_size_(WARP_SIZE),
         block_dim_(warp_size_, TILE_SIZE, TILE_SIZE),
         grid_dim_(warp_size_, (k_ + TILE_SIZE - 1) / TILE_SIZE, (m_ + TILE_SIZE - 1) / TILE_SIZE)
@@ -153,6 +158,7 @@ class Matrix_product_warp_kernel {
         const Number* const gpu_data_A,
         const Number* const gpu_data_B,
         Number* const gpu_data_C,
+        Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
         matrix_product_warp<<<

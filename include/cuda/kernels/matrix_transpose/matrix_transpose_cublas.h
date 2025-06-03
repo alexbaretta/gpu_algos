@@ -27,6 +27,9 @@ struct Matrix_transpose_cublas_spec {
     const long n_rows_C_;
     const long n_cols_C_;
 
+    const long n_rows_temp_;
+    const long n_cols_temp_;
+
     // Note: block_dim and grid_dim are not used with cuBLAS but kept for compatibility
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -80,6 +83,8 @@ struct Matrix_transpose_cublas_spec {
         n_cols_A_(n),
         n_rows_C_(n),
         n_cols_C_(m),
+        n_rows_temp_(0),
+        n_cols_temp_(0),
         block_dim_(block_dim_x, block_dim_y),
         grid_dim_(
             (n_ + block_dim_.x - 1) / block_dim_.x,
@@ -120,6 +125,7 @@ class Matrix_transpose_cublas_kernel {
     void run_device_kernel(
         const Number* const gpu_data_A,
         Number* const gpu_data_C,
+        Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
         // Set the stream for cuBLAS operations

@@ -28,6 +28,9 @@ concept KERNEL_SPEC_2IN_1OUT = requires (Kernel_spec_2In_1Out spec) {
     { spec.n_rows_C_ } -> std::same_as<const long&>;
     { spec.n_cols_C_ } -> std::same_as<const long&>;
 
+    { spec.n_rows_temp_ } -> std::same_as<const long&>;
+    { spec.n_cols_temp_ } -> std::same_as<const long&>;
+
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
 
@@ -49,6 +52,9 @@ struct Check_kernel_spec_2In_1Out {
 
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_rows_C_), const long>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_cols_C_), const long>);
+
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_rows_temp_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_cols_temp_), const long>);
 
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().grid_dim_), const dim3>);
@@ -73,6 +79,7 @@ concept KERNEL_2IN_1OUT = requires (Kernel_2In_1Out kernel) {
         std::declval<const typename Kernel_2In_1Out::Number*>(),
         std::declval<const typename Kernel_2In_1Out::Number*>(),
         std::declval<typename Kernel_2In_1Out::Number*>(),
+        std::declval<typename Kernel_2In_1Out::Number*>(),
         std::declval<cudaStream_t>()
     ) } -> std::same_as<void>;
     { kernel.run_host_kernel(
@@ -92,6 +99,7 @@ struct Check_kernel_2In_1Out {
     static_assert(std::same_as<decltype(std::declval<Kernel_2In_1Out>().run_device_kernel(
         std::declval<const typename Kernel_2In_1Out::Number*>(),
         std::declval<const typename Kernel_2In_1Out::Number*>(),
+        std::declval<typename Kernel_2In_1Out::Number*>(),
         std::declval<typename Kernel_2In_1Out::Number*>(),
         std::declval<cudaStream_t>()
     )), void>);
@@ -131,6 +139,9 @@ concept KERNEL_SPEC_1IN_1OUT = requires (Kernel_spec_1In_1Out spec) {
     { spec.n_rows_C_ } -> std::same_as<const long&>;
     { spec.n_cols_C_ } -> std::same_as<const long&>;
 
+    { spec.n_rows_temp_ } -> std::same_as<const long&>;
+    { spec.n_cols_temp_ } -> std::same_as<const long&>;
+
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
 
@@ -149,6 +160,9 @@ struct Check_kernel_spec_1In_1Out {
 
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_rows_C_), const long>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_cols_C_), const long>);
+
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_rows_temp_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_cols_temp_), const long>);
 
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().grid_dim_), const dim3>);
@@ -172,6 +186,7 @@ concept KERNEL_1IN_1OUT = requires (Kernel_1In_1Out kernel) {
     { kernel.run_device_kernel(
         std::declval<const typename Kernel_1In_1Out::Number*>(),
         std::declval<typename Kernel_1In_1Out::Number*>(),
+        std::declval<typename Kernel_1In_1Out::Number*>(),
         std::declval<cudaStream_t>()
     ) } -> std::same_as<void>;
     { kernel.run_host_kernel(
@@ -189,6 +204,7 @@ struct Check_kernel_1In_1Out {
     static_assert(std::same_as<decltype(std::declval<Kernel_1In_1Out>().spec_), const typename Kernel_1In_1Out::Kernel_spec>);
     static_assert(std::same_as<decltype(std::declval<Kernel_1In_1Out>().run_device_kernel(
         std::declval<const typename Kernel_1In_1Out::Number*>(),
+        std::declval<typename Kernel_1In_1Out::Number*>(),
         std::declval<typename Kernel_1In_1Out::Number*>(),
         std::declval<cudaStream_t>()
     )), void>);

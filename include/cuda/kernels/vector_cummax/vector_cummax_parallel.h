@@ -4,9 +4,12 @@
 // source path: include/cuda/kernels/matrix/vector_cummax_parallel.h
 
 #pragma once
+#include <iostream>
 #include <cuda_runtime.h>
 #include <cooperative_groups.h>
 
+#include "cxxopts.hpp"
+#include "cuda/cuda_utils.h"
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
@@ -185,6 +188,9 @@ struct Vector_cummax_parallel_spec {
     const long n_rows_C_;
     const long n_cols_C_;
 
+    const long n_rows_temp_;
+    const long n_cols_temp_;
+
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
@@ -221,16 +227,19 @@ struct Vector_cummax_parallel_spec {
         );
     }
 
-    int compute_size_of_C(const int n_elems, const int block_size) {
+    int compute_size_of_temp(const int n_elems, const int block_size) {
         assert(block_size > 1);
-        int size_C = 1;
-        for(int n_elems_remaining = n_elems;
+        if (n_elems <= block_size) {
+            return 0;
+        }
+        int size_temp = 1;
+        for(int n_elems_remaining = (n_elems + block_size - 1) / block_size;
             n_elems_remaining > 1;
             n_elems_remaining = (n_elems_remaining + block_size - 1) / block_size
             ) {
-            size_C += n_elems_remaining;
+            size_temp += n_elems_remaining;
         }
-        const int n_blocks = (size_C + block_size - 1) / block_size;
+        const int n_blocks = (size_temp + block_size - 1) / block_size;
         return n_blocks * block_size;
     }
 
@@ -250,7 +259,9 @@ struct Vector_cummax_parallel_spec {
         // We to allocate more space in C than the size of A because we will
         // use the trailing part as temporary storage for the block-level scans.
         // The trailing part is equal to the number of
-        n_cols_C_(compute_size_of_C(n, block_size)),
+        n_cols_C_(n),
+        n_rows_temp_(1),
+        n_cols_temp_(compute_size_of_temp(n, block_size)),
         block_dim_(block_size),
         grid_dim_((n + block_size - 1) / block_size)
     {}
@@ -275,40 +286,42 @@ class Vector_cummax_parallel_kernel {
 
 
     void strided_pass(
-        Number* prev_result,
+        Number* const prev_result,
+        Number* const curr_result,
         const int prev_n_elems,
         cudaStream_t stream
     ) {
+        const int prev_n_blocks = (prev_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
+        const int curr_n_elems = prev_n_blocks;
+        const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
+        vector_cummax_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, 0, stream>>>(
+            prev_result,
+            curr_result,
+            curr_n_elems,
+            spec_.block_dim_.x
+        );
         if (prev_n_elems > spec_.block_dim_.x) {
-            const int prev_n_blocks = (prev_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
-            const int curr_n_elems = prev_n_blocks;
-            const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
-            const auto curr_result = prev_result + prev_n_elems;
-            vector_cummax_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, 0, stream>>>(
-                prev_result,
-                curr_result,
-                curr_n_elems,
-                spec_.block_dim_.x
-            );
-            strided_pass(curr_result, curr_n_elems, stream);
+            const auto next_result = curr_result + curr_n_elems;
+            strided_pass(curr_result, next_result, curr_n_elems, stream);
             // By the powers of recursion, curr_result is fully scanned
             // Now we have to compute the deltas between curr_result and the final elements
             // of each stride of prev_result, and apply those delta retroactively to the strides
             // of prev_result
 
-            vector_cummax_write_back_parallel<<<prev_n_blocks, spec_.block_dim_, 0, stream>>>(
-                prev_result,
-                prev_n_elems,
-                curr_result,
-                curr_n_elems,
-                spec_.block_dim_.x
-            );
         }
+        vector_cummax_write_back_parallel<<<prev_n_blocks, spec_.block_dim_, 0, stream>>>(
+            prev_result,
+            prev_n_elems,
+            curr_result,
+            curr_n_elems,
+            spec_.block_dim_.x
+        );
     }
 
     void run_device_kernel(
         const Number* const gpu_data_A,
         Number* const gpu_data_C,
+        Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
         int max_block_size = 0;
@@ -349,8 +362,9 @@ class Vector_cummax_parallel_kernel {
         );
 
         auto prev_result = gpu_data_C;
+        auto curr_result = gpu_data_temp;
         auto prev_n_elems = spec_.n_;
-        strided_pass(prev_result, prev_n_elems, stream);
+        strided_pass(prev_result, curr_result, prev_n_elems, stream);
     }
 
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(

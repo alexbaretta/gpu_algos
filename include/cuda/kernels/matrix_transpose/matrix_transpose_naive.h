@@ -48,6 +48,9 @@ struct Matrix_transpose_naive_spec {
     const long n_rows_C_;
     const long n_cols_C_;
 
+    const long n_rows_temp_;
+    const long n_cols_temp_;
+
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
@@ -100,6 +103,8 @@ struct Matrix_transpose_naive_spec {
         n_cols_A_(n),
         n_rows_C_(n),
         n_cols_C_(m),
+        n_rows_temp_(0),
+        n_cols_temp_(0),
         block_dim_(block_dim_x, block_dim_y),
         grid_dim_(
             (n_ + block_dim_.x - 1) / block_dim_.x,
@@ -126,6 +131,7 @@ class Matrix_transpose_naive_kernel {
     void run_device_kernel(
         const Number* const gpu_data_A,
         Number* const gpu_data_C,
+        Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
         matrix_transpose_naive<<<

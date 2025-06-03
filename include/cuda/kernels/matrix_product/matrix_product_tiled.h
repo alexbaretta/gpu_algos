@@ -4,8 +4,12 @@
 // source path: include/cuda/kernels/matrix/matrix_product_tiled.h
 
 #pragma once
+#include <iostream>
 #include <cuda_runtime.h>
+#include <cooperative_groups.h>
 
+#include "cxxopts.hpp"
+#include "cuda/cuda_utils.h"
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
 
@@ -122,6 +126,9 @@ struct Matrix_product_tiled_spec {
     const long n_rows_C_;
     const long n_cols_C_;
 
+    const long n_rows_temp_;
+    const long n_cols_temp_;
+
     const dim3 block_dim_;
     const dim3 grid_dim_;
     constexpr static size_t dynamic_shared_mem_words_ = 0;
@@ -170,6 +177,8 @@ struct Matrix_product_tiled_spec {
         n_cols_B_(k),
         n_rows_C_(m),
         n_cols_C_(k),
+        n_rows_temp_(0),
+        n_cols_temp_(0),
         block_dim_(16, 16),
         grid_dim_(
             (k_ + block_dim_.x - 1) / block_dim_.x,
@@ -198,6 +207,7 @@ class Matrix_product_tiled_kernel {
         const Number* gpu_data_A,
         const Number* gpu_data_B,
         Number* gpu_data_C,
+        Number* gpu_data_temp,
         cudaStream_t stream
     ) const {
         matrix_product_tiled<<<
