@@ -8,6 +8,7 @@ add_gpu_executable(matrix_product_naive matrix_product_naive.cu)
 add_gpu_executable(matrix_product_tiled matrix_product_tiled.cu)
 add_gpu_executable(matrix_product_warp matrix_product_warp.cu)
 add_gpu_executable(matrix_product_tensor matrix_product_tensor.cu)
+add_gpu_executable(matrix_product_cutlass matrix_product_cutlass.cu)
 
 add_gpu_executable(matrix_product_cublas matrix_product_cublas.cu)
 
@@ -15,4 +16,10 @@ add_gpu_executable(matrix_product_cublas matrix_product_cublas.cu)
 target_link_libraries(matrix_product_cublas PRIVATE
     CUDA::cublas
     CUDA::cublasLt
+)
+
+# Additional compilation flags for CUTLASS implementation
+target_compile_options(matrix_product_cutlass PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+    $<$<COMPILE_LANGUAGE:CUDA>:-diag-suppress 20013>
 )
