@@ -14,6 +14,7 @@
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 
+#include "common/benchmark_options.h"
 #include "common/random.h"
 #include "cuda/check_errors.h"
 #include "cuda/cuda_utils.h"
@@ -25,8 +26,6 @@ static_assert(false, "OpenMP is not supported");
 
 constexpr int DEFAULT_GPU_MEM = 16; // GPU memory size in GB
 constexpr int DEFAULT_SEED = 42;
-
-void add_benchmark_options(cxxopts::Options& options);
 
 template <KERNEL_2IN_1OUT Kernel_2In_1Out>
 class Benchmark_2In_1Out {
