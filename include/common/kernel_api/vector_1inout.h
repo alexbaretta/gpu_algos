@@ -39,6 +39,7 @@ concept VECTOR_KERNEL_1INOUT = requires (Vector_kernel_1InOut kernel) {
     { kernel.spec_ } -> std::same_as<const typename Vector_kernel_1InOut::Kernel_spec&>;
     { kernel.run_device_kernel(
         std::declval<typename Vector_kernel_1InOut::Number*>(),
+        std::declval<typename Vector_kernel_1InOut::Number*>(),
         std::declval<cudaStream_t>()
     ) } -> std::same_as<void>;
     { kernel.run_host_kernel(
@@ -53,6 +54,7 @@ struct Check_vector_kernel_1InOut {
 
     static_assert(std::same_as<decltype(std::declval<Vector_kernel_1InOut>().spec_), const typename Vector_kernel_1InOut::Kernel_spec>);
     static_assert(std::same_as<decltype(std::declval<Vector_kernel_1InOut>().run_device_kernel(
+        std::declval<typename Vector_kernel_1InOut::Number*>(),
         std::declval<typename Vector_kernel_1InOut::Number*>(),
         std::declval<cudaStream_t>()
     )), void>);
