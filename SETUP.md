@@ -5,6 +5,11 @@ Copyright (c) 2025 Alessandro Baretta
 
 All rights reserved.
 
+## Initialize and update submodules
+```bash
+git submodule update --init --recursive
+```
+
 ## Use homebrew to install the necessary dependencies
 
 1. Install homebrew:
