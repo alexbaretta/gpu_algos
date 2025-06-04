@@ -1,6 +1,11 @@
 # Setup Instructions
 
-# Use homebrew to install the necessary dependencies
+## Copyright notice
+Copyright (c) 2025 Alessandro Baretta
+
+All rights reserved.
+
+## Use homebrew to install the necessary dependencies
 
 1. Install homebrew:
 ```bash
@@ -31,11 +36,16 @@
 ## CUDA Toolkit
 
 1. Download and install the CUDA Toolkit from [NVIDIA's website](https://developer.nvidia.com/cuda-downloads)
+As normal user:
 ```bash
 wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb
-sudo dpkg -i cuda-keyring_1.1-1_all.deb
-sudo apt-get update
-sudo apt-get -y install cuda-toolkit-12-9
+```
+
+As root user:
+```bash
+dpkg -i cuda-keyring_1.1-1_all.deb
+apt-get update
+apt-get -y install cuda-toolkit-12-9
 ```
 
 2. Add CUDA to your PATH, ideally in /etc/profile:
@@ -48,12 +58,91 @@ EOF
 
 ## Eigen
 
-1. Install Eigen:
-   ```bash
-   sudo apt install libeigen3-dev
-   ```
+Install Eigen:
+```bash
+sudo apt install libeigen3-dev
+```
+
+# ROCm
+
+The instructions work for Debian Stable (at the time of this writing: Debian 12 Bookworm). Confirm the
+version of the package to be installed on the AMD website
+
+(https://rocm.docs.amd.com/projects/radeon/en/latest/docs/install/native_linux/install-radeon.html)
+
+1. As normal user:
+```bash
+wget https://repo.radeon.com/amdgpu-install/6.4.1/ubuntu/jammy/amdgpu-install_6.4.60401-1_all.deb
+```
+
+2. As root user:
+```bash
+apt update
+apt install python3-setuptools python3-wheel
+apt install ./amdgpu-install_6.4.60401-1_all.deb
+```
+
+3. Optional: Add support for Devuan (a Debian clone without systemd)
+```bash
+cp /usr/bin/amdgpu-install /usr/bin/amdgpu-install.bak
+sed  -i 's/|debian/|debian|devuan/' /usr/bin/amdgpu-install
+```
+
+4. Continue installing as root:
+```bash
+amdgpu-install -y --usecase=workstation,rocm,mllib,mlsdk,dkms,graphics
+modprobe amdgpu
+```
+
+5. As root, add users to appropriate groups to have permission to use the GPU
+```bash
+usermod -a -G render,video <username>
+```
+
+6. As normal user, check installation and configuration
+```bash
+dkms status
+```
+The above command should report something like this:
+```
+amdgpu/x.x.x-xxxxxxx.xx.xx, x.x.x-xx-generic, x86_64: installed
+```
+
+```bash
+rocminfo
+```
+The above command should list the GPU:
+```
+[...]
+*******
+Agent 2
+*******
+  Name:                    gfx1201
+  Uuid:                    GPU-6952ae06c4eeebab
+  Marketing Name:          AMD Radeon RX 9070
+  Vendor Name:             AMD
+  [...]
+[...]
+```
+
+```bash
+clinfo
+```
+The above command should list the GPU:
+```
+Number of platforms:                             1
+  Platform Profile:                              FULL_PROFILE
+  Platform Version:                              OpenCL 2.1 AMD-APP (3649.0)
+  Platform Name:                                 AMD Accelerated Parallel Processing
+  Platform Vendor:                               Advanced Micro Devices, Inc.
+  Platform Extensions:                           cl_khr_icd cl_amd_event_callback
 
 
-# Copyright notice
-Copyright (c) 2025 Alessandro Baretta
-All rights reserved.
+  Platform Name:                                 AMD Accelerated Parallel Processing
+Number of devices:                               1
+  Device Type:                                   CL_DEVICE_TYPE_GPU
+  Vendor ID:                                     1002h
+  Board name:                                    AMD Radeon RX 9070
+  [...]
+[...]
+```
