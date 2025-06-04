@@ -146,3 +146,20 @@ Number of devices:                               1
   [...]
 [...]
 ```
+
+7. (Optional) Install the ROCm CMake build tools
+
+The ROCm CMake build tools are useful to build ROCm from source, not to build a project that uses ROCm.
+
+```bash
+git clone https://github.com/ROCm/rocm-cmake.git
+(
+   set -euxo pipefail
+   cd rocm-cmake
+   mkdir -p build
+   cd build
+   cmake ..
+   cmake --build .
+   sudo cmake --build . --target install
+)
+```
