@@ -21,34 +21,45 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_ARCHITECTURES "89")  # Compute capability 8.9
 
-# Set HIP specific flags
-set(CMAKE_HIP_STANDARD 20)
-set(CMAKE_HIP_STANDARD_REQUIRED ON)
-set(CMAKE_HIP_ARCHITECTURES "gfx1201")  # AMD Radeon RX 9070 (RDNA 3+)
+# Try to enable HIP if available
+enable_language(HIP OPTIONAL)
+if(CMAKE_HIP_COMPILER)
+    # Set HIP specific flags
+    set(CMAKE_HIP_STANDARD 20)
+    set(CMAKE_HIP_STANDARD_REQUIRED ON)
+    set(CMAKE_HIP_ARCHITECTURES "gfx1201")  # AMD Radeon RX 9070 (RDNA 3+)
+    message(STATUS "HIP compiler found and enabled")
+else()
+    message(STATUS "HIP compiler not found or not working, continuing without HIP support")
+endif()
 
 # Set output directory for executables
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# Configure ROCm/HIP paths
-if(NOT DEFINED ROCM_PATH)
-    if(DEFINED ENV{ROCM_PATH})
-        set(ROCM_PATH "$ENV{ROCM_PATH}" CACHE PATH "Path to ROCm installation")
-    else()
-        set(ROCM_PATH "/opt/rocm" CACHE PATH "Path to ROCm installation")
+# Configure ROCm/HIP paths (only if HIP is available)
+if(CMAKE_HIP_COMPILER)
+    if(NOT DEFINED ROCM_PATH)
+        if(DEFINED ENV{ROCM_PATH})
+            set(ROCM_PATH "$ENV{ROCM_PATH}" CACHE PATH "Path to ROCm installation")
+        else()
+            set(ROCM_PATH "/opt/rocm" CACHE PATH "Path to ROCm installation")
+        endif()
     endif()
-endif()
 
-# Add ROCm to CMAKE_PREFIX_PATH for proper package discovery
-list(APPEND CMAKE_PREFIX_PATH
-    "${ROCM_PATH}"
-    "${ROCM_PATH}/lib/cmake"
-    "${ROCM_PATH}/hip"
-    "${ROCM_PATH}/hip/lib/cmake"
-)
+    # Add ROCm to CMAKE_PREFIX_PATH for proper package discovery
+    list(APPEND CMAKE_PREFIX_PATH
+        "${ROCM_PATH}"
+        "${ROCM_PATH}/lib/cmake"
+        "${ROCM_PATH}/hip"
+        "${ROCM_PATH}/hip/lib/cmake"
+    )
+endif()
 
 # Find CUDA and ROCm
 find_package(CUDAToolkit REQUIRED)
-find_package(hip REQUIRED)
+if(CMAKE_HIP_COMPILER)
+    find_package(hip REQUIRED)
+endif()
 
 # Add OpenMP flags for CUDA (avoid duplication)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fopenmp")
@@ -60,7 +71,7 @@ endif()
 if(NOT CMAKE_CUDA_FLAGS MATCHES "--Werror")
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --Werror all-warnings -diag-suppress 20012,20015")
 endif()
-if(NOT CMAKE_HIP_FLAGS MATCHES "-Werror")
+if(CMAKE_HIP_COMPILER AND NOT CMAKE_HIP_FLAGS MATCHES "-Werror")
     set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -Werror -Wall")
 endif()
 
@@ -69,8 +80,10 @@ set(OpenMP_CXX_FLAGS "-fopenmp")
 set(OpenMP_CXX_LIB_NAMES "omp")
 set(OpenMP_CUDA_FLAGS "-Xcompiler=-fopenmp")
 set(OpenMP_CUDA_LIB_NAMES "omp")
-set(OpenMP_HIP_FLAGS "-fopenmp")
-set(OpenMP_HIP_LIB_NAMES "omp")
+if(CMAKE_HIP_COMPILER)
+    set(OpenMP_HIP_FLAGS "-fopenmp")
+    set(OpenMP_HIP_LIB_NAMES "omp")
+endif()
 set(OpenMP_omp_LIBRARY "omp")
 
 # Find Eigen package

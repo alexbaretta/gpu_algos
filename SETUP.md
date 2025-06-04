@@ -78,6 +78,7 @@ wget https://repo.radeon.com/amdgpu-install/6.4.1/ubuntu/jammy/amdgpu-install_6.
 2. As root user:
 ```bash
 apt update
+apt install clang-19 clang-tidy-19 clangd-19 clang-tools-19 libstdc++-13-dev
 apt install python3-setuptools python3-wheel
 apt install ./amdgpu-install_6.4.60401-1_all.deb
 ```
@@ -96,7 +97,7 @@ modprobe amdgpu
 
 5. As root, add users to appropriate groups to have permission to use the GPU
 ```bash
-usermod -a -G render,video <username>
+usermod -a -G render,video [username]
 ```
 
 6. As normal user, check installation and configuration
