@@ -1,9 +1,9 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: src/common/benchmark.cu
+// source path: src/cuda/benchmark.cu
 
-#include "common/benchmark.h"
+#include "cuda/benchmark.h"
 
 
 void add_benchmark_options(cxxopts::Options& options) {

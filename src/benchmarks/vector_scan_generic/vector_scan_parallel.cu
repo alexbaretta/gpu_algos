@@ -5,7 +5,7 @@
 
 #include <cxxopts.hpp>
 
-#include "common/benchmark.h"
+#include "cuda/benchmark.h"
 
 #include "cuda/kernels/vector_scan_generic/vector_scan_parallel.h"
 

@@ -5,7 +5,7 @@
 
 #include <cxxopts.hpp>
 
-#include "common/benchmark.h"
+#include "cuda/benchmark.h"
 
 #include "cuda/kernels/vector_cummax/vector_cummax_parallel.h"
 
