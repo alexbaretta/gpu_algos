@@ -35,7 +35,7 @@ if(NOT CMAKE_CXX_FLAGS MATCHES "-Werror")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wall")
 endif()
 if(NOT CMAKE_CUDA_FLAGS MATCHES "--Werror")
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --Werror all-warnings -diag-suppress 20012,20015 --expt-relaxed-constexpr")
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --Werror all-warnings -diag-suppress 20012,20015")
 endif()
 
 # Set OpenMP flags and libraries
