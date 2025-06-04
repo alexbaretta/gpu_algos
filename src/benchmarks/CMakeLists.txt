@@ -32,7 +32,47 @@ function(add_gpu_executable target_name source_file)
         cuda
         CUDA::cublas
         CUDA::cublasLt
-        # hip::host
+        Eigen3::Eigen
+        OpenMP::OpenMP_CXX
+    )
+
+    # Conditionally link HIP libraries if available
+    if(HIP_AVAILABLE)
+        target_link_libraries(${target_name} PRIVATE hip::host)
+    endif()
+endfunction()
+
+# Function to create a HIP executable (only available when HIP is enabled)
+function(add_hip_executable target_name source_file)
+    if(NOT HIP_AVAILABLE)
+        message(STATUS "Skipping HIP target ${target_name} - HIP not available")
+        return()
+    endif()
+
+    add_executable(${target_name}
+        ${source_file}
+        ${CMAKE_SOURCE_DIR}/src/hip/hip_utils.cu
+        ${CMAKE_SOURCE_DIR}/src/common/benchmark_options.cpp
+        ${CMAKE_SOURCE_DIR}/src/hip/benchmark.cu
+    )
+
+    # Set HIP specific properties
+    set_target_properties(${target_name} PROPERTIES
+        HIP_STANDARD 20
+        HIP_ARCHITECTURES "gfx1201"
+    )
+
+    # Add include directories
+    target_include_directories(${target_name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/include/hip
+        ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
+        ${EIGEN3_INCLUDE_DIR}
+    )
+
+    # Link HIP libraries
+    target_link_libraries(${target_name} PRIVATE
+        hip::host
         Eigen3::Eigen
         OpenMP::OpenMP_CXX
     )
