@@ -5,6 +5,9 @@
 
 #pragma once
 
-#include "common/benchmark_options.h"
+#include <cxxopts.hpp>
+
+constexpr int DEFAULT_GPU_MEM = 16; // GPU memory size in GB
+constexpr int DEFAULT_SEED = 42;
 
 void add_benchmark_options(cxxopts::Options& options);

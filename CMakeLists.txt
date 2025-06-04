@@ -1,7 +1,7 @@
 # Copyright (c) 2025 Alessandro Baretta
 # All rights reserved.
 
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 4.0)  # Lowered requirement for hip::host usage
 
 # Set C++ compiler before project()
 set(CMAKE_CXX_COMPILER "g++-14")
@@ -9,7 +9,7 @@ set(CMAKE_CUDA_HOST_COMPILER "g++-14")
 # set(CMAKE_CXX_COMPILER "clang-19")
 # set(CMAKE_CUDA_HOST_COMPILER "clang-19")
 
-project(gpu_algos CUDA CXX)
+project(gpu_algos LANGUAGES CUDA CXX HIP)
 
 # Set default parallel jobs for building
 set(CMAKE_BUILD_PARALLEL_LEVEL 12)
@@ -21,11 +21,34 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_ARCHITECTURES "89")  # Compute capability 8.9
 
+# Set HIP specific flags
+set(CMAKE_HIP_STANDARD 20)
+set(CMAKE_HIP_STANDARD_REQUIRED ON)
+set(CMAKE_HIP_ARCHITECTURES "gfx1201")  # AMD Radeon RX 9070 (RDNA 3+)
+
 # Set output directory for executables
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# Find CUDA and cuBLAS
+# Configure ROCm/HIP paths
+if(NOT DEFINED ROCM_PATH)
+    if(DEFINED ENV{ROCM_PATH})
+        set(ROCM_PATH "$ENV{ROCM_PATH}" CACHE PATH "Path to ROCm installation")
+    else()
+        set(ROCM_PATH "/opt/rocm" CACHE PATH "Path to ROCm installation")
+    endif()
+endif()
+
+# Add ROCm to CMAKE_PREFIX_PATH for proper package discovery
+list(APPEND CMAKE_PREFIX_PATH
+    "${ROCM_PATH}"
+    "${ROCM_PATH}/lib/cmake"
+    "${ROCM_PATH}/hip"
+    "${ROCM_PATH}/hip/lib/cmake"
+)
+
+# Find CUDA and ROCm
 find_package(CUDAToolkit REQUIRED)
+find_package(hip REQUIRED)
 
 # Add OpenMP flags for CUDA (avoid duplication)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fopenmp")
@@ -37,12 +60,17 @@ endif()
 if(NOT CMAKE_CUDA_FLAGS MATCHES "--Werror")
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --Werror all-warnings -diag-suppress 20012,20015")
 endif()
+if(NOT CMAKE_HIP_FLAGS MATCHES "-Werror")
+    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -Werror -Wall")
+endif()
 
 # Set OpenMP flags and libraries
 set(OpenMP_CXX_FLAGS "-fopenmp")
 set(OpenMP_CXX_LIB_NAMES "omp")
 set(OpenMP_CUDA_FLAGS "-Xcompiler=-fopenmp")
 set(OpenMP_CUDA_LIB_NAMES "omp")
+set(OpenMP_HIP_FLAGS "-fopenmp")
+set(OpenMP_HIP_LIB_NAMES "omp")
 set(OpenMP_omp_LIBRARY "omp")
 
 # Find Eigen package
@@ -55,6 +83,7 @@ find_package(OpenMP REQUIRED)
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/cuda
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/hip
     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cxxopts/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cutlass/include
     ${EIGEN3_INCLUDE_DIR}
