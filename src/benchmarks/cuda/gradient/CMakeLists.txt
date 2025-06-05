@@ -4,4 +4,4 @@
 # source path: src/benchmarks/cuda/gradient/CMakeLists.txt
 
 add_gpu_executable(gradient_leastsquares_elasticnet_naive gradient_leastsquares_elasticnet_naive.cu)
-add_gpu_executable(matrix_gradient_elasticnet matrix_gradient_elasticnet.cu)
+add_gpu_executable(gradient_leastsquares_elasticnet_tensor gradient_leastsquares_elasticnet_tensor.cu)
