@@ -11,38 +11,39 @@
 
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
+#include "common/type_traits.h"
 
 /*
 This kernel computes the gradient of the loss of a linear regression
 with a custom loss function and an elastic net regularization term.
 
-There are 3 inputs: A, B, and C. The output is M.
+There are 3 inputs: A, B, and M. The output is ∇_M L.
 
 We interpret A as the matrix (a tensor really) of observed independent variables, B as the matrix of
 observed dependent variables. Both tensors contain nrow observations.
 
-C is the model coefficient matrix, such that
+M is the model coefficient matrix, such that
 
-B = <A, C> + E
+B = <A, M> + E
 
-whre <A, C> denotes the inner product between tensor A and matrix C, producing a matrix result.
+whre <A, M> denotes the inner product between tensor A and matrix M, producing a matrix result.
 
 The loss function is:
 
-L_[alpha, lambda](C) = SUM_i SUM_j E(i,j)^2 + ElasticNet_[alpha, lambda](C)
+L_[alpha, lambda](M) = SUM_i SUM_j E(i,j)^2 + ElasticNet_[alpha, lambda](M)
 
-We want to compute the partial derivatives of L with respect to the elements of C.
+We want to compute the partial derivatives of L with respect to the elements of M.
 
 The gradient is:
-∇_C L = -2A^T(B - AC) + α·sign(C) + 2λC
+∇_M L = -2A^T(B - AM) + α·sign(M) + 2λM
 */
 
 template <CUDA_scalar CUDA_Number>
 __global__ void gradient_leastsquares_elasticnet_naive(
     const CUDA_Number* A,     // m x n matrix (independent variables)
     const CUDA_Number* B,     // m x k matrix (dependent variables)
-    const CUDA_Number* C,     // n x k matrix (coefficients)
-    CUDA_Number* M,           // n x k matrix (gradient output)
+    const CUDA_Number* M,     // n x k matrix (coefficients)
+    CUDA_Number* grad_M,           // n x k matrix (gradient output)
     const long m,             // number of observations
     const long n,             // number of features
     const long k,             // number of outputs
@@ -53,16 +54,16 @@ __global__ void gradient_leastsquares_elasticnet_naive(
     int row = blockIdx.y * blockDim.y + threadIdx.y; // coefficient matrix row (feature dimension)
 
     if (row < n && col < k) {
-        // Compute gradient for coefficient C[row,col]
+        // Compute gradient for coefficient M[row,col]
         CUDA_Number grad = 0.0;
 
-        // Compute residual term: -2 * A^T * (B - A*C)
-        // For element (row,col), this is: -2 * sum_i A[i,row] * (B[i,col] - sum_j A[i,j]*C[j,col])
+        // Compute residual term: -2 * A^T * (B - A*M)
+        // For element (row,col), this is: -2 * sum_i A[i,row] * (B[i,col] - sum_j A[i,j]*M[j,col])
         for (int i = 0; i < m; ++i) {
-            // Compute prediction for observation i, output col: sum_j A[i,j]*C[j,col]
+            // Compute prediction for observation i, output col: sum_j A[i,j]*M[j,col]
             CUDA_Number prediction = 0.0;
             for (int j = 0; j < n; ++j) {
-                prediction += A[i * n + j] * C[j * k + col];
+                prediction += A[i * n + j] * M[j * k + col];
             }
 
             // Compute residual: B[i,col] - prediction
@@ -72,24 +73,24 @@ __global__ void gradient_leastsquares_elasticnet_naive(
             grad -= CUDA_Number(2) * A[i * n + row] * residual;
         }
 
-        // Add L1 regularization term: α * sign(C[row,col])
-        CUDA_Number c_val = C[row * k + col];
+        // Add L1 regularization term: α * sign(M[row,col])
+        CUDA_Number m_val = M[row * k + col];
         const CUDA_Number zero = CUDA_Number(0);
         if constexpr (std::is_unsigned_v<CUDA_Number>) {
-            grad += alpha * (c_val > zero ? 1 : zero);
-        } else if (c_val > zero) {
+            grad += alpha * (m_val > zero ? 1 : zero);
+        } else if (m_val > zero) {
             grad += alpha;
-        } else if (c_val < zero) {
+        } else if (m_val < zero) {
             grad -= alpha;
         }
-        // If c_val == 0, sign is undefined, so we use subgradient (can be any value in [-α, α])
+        // If m_val == 0, sign is undefined, so we use subgradient (can be any value in [-α, α])
         // We choose 0 for simplicity
 
-        // Add L2 regularization term: 2λ * C[row,col]
-        grad += CUDA_Number(2) * lambda * c_val;
+        // Add L2 regularization term: 2λ * M[row,col]
+        grad += CUDA_Number(2) * lambda * m_val;
 
         // Store result
-        M[row * k + col] = grad;
+        grad_M[row * k + col] = grad;
     }
 }
 
@@ -213,8 +214,8 @@ class Gradient_leastsquares_elasticnet_naive_kernel {
     void run_device_kernel(
         const Number* const gpu_data_A,  // independent variables (m x n)
         const Number* const gpu_data_B,  // dependent variables (m x k)
-        const Number* const gpu_data_C,  // coefficients (n x k)
-        Number* const gpu_data_D,        // gradient output (n x k)
+        const Number* const gpu_data_M,  // coefficients (n x k)
+        Number* const gpu_data_grad_M,        // gradient output (n x k)
         Number* const gpu_data_temp,     // temporary storage (unused)
         cudaStream_t stream
     ) {
@@ -223,35 +224,40 @@ class Gradient_leastsquares_elasticnet_naive_kernel {
             spec_.block_dim_,
             spec_.dynamic_shared_mem_words_ * sizeof(Number),
             stream
-        >>>(gpu_data_A, gpu_data_B, gpu_data_C, gpu_data_D,
+        >>>(gpu_data_A, gpu_data_B, gpu_data_M, gpu_data_grad_M,
             spec_.m_, spec_.n_, spec_.k_,
             Number(spec_.alpha_), Number(spec_.lambda_));
     }
 
+    template<typename Matrix_like_A, typename Matrix_like_B, typename Matrix_like_M>
+    requires is_matrix_like<Matrix_like_A> && is_matrix_like<Matrix_like_B> && is_matrix_like<Matrix_like_M> &&
+             std::is_same_v<typename Matrix_like_A::Scalar, Number> &&
+             std::is_same_v<typename Matrix_like_B::Scalar, Number> &&
+             std::is_same_v<typename Matrix_like_M::Scalar, Number>
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,  // m x n
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& B,  // m x k
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& C   // n x k
+        const Matrix_like_A& A,  // m x n
+        const Matrix_like_B& B,  // m x k
+        const Matrix_like_M& M   // n x k
     ) {
-        // Compute prediction: A * C (m x k)
-        auto predictions = A * C;
+        // Compute prediction: A * M (m x k)
+        auto predictions = A * M;
 
-        // Compute residuals: B - A*C (m x k)
+        // Compute residuals: B - A*M (m x k)
         auto residuals = B - predictions;
 
         // Compute gradient: -2 * A^T * residuals (n x k)
         auto grad_data_term = Number(-2) * A.transpose() * residuals;
 
-        // Add L1 regularization: α * sign(C)
-        auto grad_l1 = Number(spec_.alpha_) * C.unaryExpr([](const Number& x) -> Number {
+        // Add L1 regularization: α * sign(M)
+        auto grad_l1 = Number(spec_.alpha_) * M.unaryExpr([](const Number& x) -> Number {
             Number zero = Number(0);
             if (x > zero) return Number(1);
             else if (x < zero) return Number(-1);
             else return zero;  // subgradient choice for x=0
         });
 
-        // Add L2 regularization: 2λ * C
-        auto grad_l2 = Number(2) * Number(spec_.lambda_) * C;
+        // Add L2 regularization: 2λ * M
+        auto grad_l2 = Number(2) * Number(spec_.lambda_) * M;
 
         // Total gradient
         return (grad_data_term + grad_l1 + grad_l2).eval();
