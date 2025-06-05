@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/type_traits.h
+// source path: include/hip/type_traits.hip.h
 
 #pragma once
 
@@ -32,8 +32,12 @@ constexpr bool is_HIP_floating_point_v = is_HIP_floating_point<T>::value;
 template <typename T>
 concept HIP_floating_point = is_HIP_floating_point_v<T>;
 
+// Only define dependent_false_v if it hasn't been defined already
+#ifndef DEPENDENT_FALSE_V_DEFINED
+#define DEPENDENT_FALSE_V_DEFINED
 template <typename T>
 inline constexpr bool dependent_false_v = false;
+#endif
 
 template <HIP_floating_point HIP_FLOAT>
 struct HIP_vector2 {
@@ -58,6 +62,6 @@ template <HIP_floating_point HIP_FLOAT>
 using HIP_vector2_t = HIP_vector2<HIP_FLOAT>::vector_t;
 
 
-template <> struct HIP_vector2<_Float16> { using vector_t = _Float16_2; };
+template <> struct HIP_vector2<_Float16> { using vector_t = float2; }; // Use float2 as fallback for _Float16_2
 template <> struct HIP_vector2<float> { using vector_t = float2; };
 template <> struct HIP_vector2<double> { using vector_t = double2; };

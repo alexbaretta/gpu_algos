@@ -1,12 +1,11 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/benchmark.h
+// source path: include/hip/benchmark.hip.h
 
 #pragma once
 
 #include <iostream>
-#include <chrono>
 #include <iomanip>
 #include <vector>
 #include <Eigen/Dense>
@@ -15,24 +14,30 @@
 #include <cxxopts.hpp>
 
 #include "common/benchmark_options.h"
-#include "common/random.h"
-#include "hip/check_errors.h"
-#include "hip/hip_utils.h"
-#include "hip/kernel_api.h"
+// Prevent CUDA header inclusion when compiling HIP code
+#ifndef __HIP_PLATFORM_AMD__
+#define __HIP_PLATFORM_AMD__
+#endif
+
+#include "hip/random.hip.h"
+#include "hip/check_errors.hip.h"
+#include "hip/hip_utils.hip.h"
+#include "hip/kernel_api.hip.h"
 
 #ifndef _OPENMP
 static_assert(false, "OpenMP is not supported");
 #endif
 
-constexpr int DEFAULT_GPU_MEM = 16; // GPU memory size in GB
-constexpr int DEFAULT_SEED = 42;
+// Don't redefine constants that are already defined in common/benchmark_options.h
+// constexpr int DEFAULT_GPU_MEM = 16; // GPU memory size in GB
+// constexpr int DEFAULT_SEED = 42;
 
 template <KERNEL_2IN_1OUT Kernel_2In_1Out>
 class Benchmark_2In_1Out {
     public:
     using Kernel_spec = typename Kernel_2In_1Out::Kernel_spec;
     using Number = typename Kernel_2In_1Out::Number;
-    using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
+    using Printable_Number = std::conditional_t<std::is_same_v<Number, _Float16>, float, Number>;
 
     const Kernel_spec spec;
     const int seed;
@@ -185,14 +190,14 @@ class Benchmark_2In_1Out {
         }
         hip_check_error(hipEventRecord(e1, stream), "hipEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp1{};
-        hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
+        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS), "hipStreamAddCallback");
 
         const auto gpu_step_2 = "Copy data to device";
         hip_check_error(hipMemcpyAsync(gpu_data_A, vec_A.data(), size_A_bytes, hipMemcpyHostToDevice, stream), "hipMemcpyAsync");
         hip_check_error(hipMemcpyAsync(gpu_data_B, vec_B.data(), size_B_bytes, hipMemcpyHostToDevice, stream), "hipMemcpyAsync");
         hip_check_error(hipEventRecord(e2, stream), "hipEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
-        hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
+        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS), "hipStreamAddCallback");
 
         const auto gpu_step_3 = "Compute kernel";
         kernel.run_device_kernel(gpu_data_A, gpu_data_B, gpu_data_C, gpu_data_temp, stream);
@@ -209,7 +214,7 @@ class Benchmark_2In_1Out {
         std::chrono::high_resolution_clock::time_point gpu_tp4{};
         hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp4, NULL_FLAGS), "hipStreamAddCallback");
 
-        const auto gpu_step_5 = "Free device memory";
+        const auto gpu_step_5 = "Cleanup";
         hip_check_error(hipFreeAsync(gpu_data_A, stream), "hipFreeAsync");
         hip_check_error(hipFreeAsync(gpu_data_B, stream), "hipFreeAsync");
         hip_check_error(hipFreeAsync(gpu_data_C, stream), "hipFreeAsync");
@@ -217,12 +222,10 @@ class Benchmark_2In_1Out {
             hip_check_error(hipFreeAsync(gpu_data_temp, stream), "hipFreeAsync");
         }
         hip_check_error(hipEventRecord(e5, stream), "hipEventRecord");
-        std::chrono::high_resolution_clock::time_point gpu_tp5{};
-        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp5, NULL_FLAGS), "hipStreamAddCallback");
+        const auto gpu_tp5 = std::chrono::high_resolution_clock::now();
 
-        // Wait for stream to finish
         hip_check_error(hipStreamSynchronize(stream), "hipStreamSynchronize");
-
+        const auto gpu_tp6 = std::chrono::high_resolution_clock::now();
 
         // Print execution time
         constexpr int row_header_width = 22;
@@ -358,7 +361,7 @@ class Benchmark_1In_1Out {
     public:
     using Kernel_spec = typename Kernel_1In_1Out::Kernel_spec;
     using Number = typename Kernel_1In_1Out::Number;
-    using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
+    using Printable_Number = std::conditional_t<std::is_same_v<Number, _Float16>, float, Number>;
 
     const Kernel_spec spec;
     const int seed;
@@ -505,13 +508,13 @@ class Benchmark_1In_1Out {
         }
         hip_check_error(hipEventRecord(e1, stream), "hipEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp1{};
-        hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
+        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS), "hipStreamAddCallback");
 
         const auto gpu_step_2 = "Copy data to device";
         hip_check_error(hipMemcpyAsync(gpu_data_A, vec_A.data(), size_A_bytes, hipMemcpyHostToDevice, stream), "hipMemcpyAsync");
         hip_check_error(hipEventRecord(e2, stream), "hipEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
-        hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
+        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS), "hipStreamAddCallback");
 
         const auto gpu_step_3 = "Compute kernel";
         kernel.run_device_kernel(gpu_data_A, gpu_data_C, gpu_data_temp, stream);
@@ -535,12 +538,10 @@ class Benchmark_1In_1Out {
             hip_check_error(hipFreeAsync(gpu_data_temp, stream), "hipFreeAsync");
         }
         hip_check_error(hipEventRecord(e5, stream), "hipEventRecord");
-        std::chrono::high_resolution_clock::time_point gpu_tp5{};
-        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp5, NULL_FLAGS), "hipStreamAddCallback");
+        const auto gpu_tp5 = std::chrono::high_resolution_clock::now();
 
-        // Wait for stream to finish
         hip_check_error(hipStreamSynchronize(stream), "hipStreamSynchronize");
-
+        const auto gpu_tp6 = std::chrono::high_resolution_clock::now();
 
         // Print execution time
         constexpr int row_header_width = 22;

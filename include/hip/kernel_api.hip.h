@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernel_api.h
+// source path: include/hip/kernel_api.hip.h
 
 #pragma once
 
@@ -11,7 +11,7 @@
 
 #include <Eigen/Dense>
 
-#include "hip/type_traits.h"
+#include "hip/type_traits.hip.h"
 
 template <typename Kernel_spec_2In_1Out>
 concept KERNEL_SPEC_2IN_1OUT = requires (Kernel_spec_2In_1Out spec) {

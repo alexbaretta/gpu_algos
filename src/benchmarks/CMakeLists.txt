@@ -50,15 +50,20 @@ function(add_hip_executable target_name source_file)
 
     add_executable(${target_name}
         ${source_file}
-        ${CMAKE_SOURCE_DIR}/src/hip/hip_utils.cu
+        ${CMAKE_SOURCE_DIR}/src/hip/hip_utils.hip.cpp
         ${CMAKE_SOURCE_DIR}/src/common/benchmark_options.cpp
-        ${CMAKE_SOURCE_DIR}/src/hip/benchmark.cu
+        ${CMAKE_SOURCE_DIR}/src/hip/benchmark.hip.cpp
     )
 
     # Set HIP specific properties
     set_target_properties(${target_name} PROPERTIES
         HIP_STANDARD 20
         HIP_ARCHITECTURES "gfx1201"
+    )
+
+    # Set HIP platform definition
+    target_compile_definitions(${target_name} PRIVATE
+        __HIP_PLATFORM_AMD__
     )
 
     # Add include directories

@@ -1,0 +1,157 @@
+// Copyright (c) 2025 Alessandro Baretta
+// All rights reserved.
+
+// source path: include/hip/kernels/matrix/matrix_product_naive.h
+
+#pragma once
+#include <hip/hip_runtime.h>
+
+#include "hip/kernel_api.hip.h"
+#include "hip/type_traits.hip.h"
+
+template <HIP_scalar HIP_Number>
+__global__ void matrix_product_naive(
+    const HIP_Number* A,
+    const HIP_Number* B,
+    HIP_Number* C,
+    const long m,
+    const long n,
+    const long k
+) {
+    int col = blockIdx.x * blockDim.x + hipThreadIdx_x;
+    int row = blockIdx.y * blockDim.y + hipThreadIdx_y;
+
+    if (row < m && col < k) {
+        HIP_Number sum = 0.0f;
+        for (int i = 0; i < n; ++i) {
+            sum += A[row * n + i] * B[i * k + col];
+        }
+        C[row * k + col] = sum;
+    }
+}
+
+struct Matrix_product_naive_spec {
+    const std::string type_;
+
+    const long m_;    // Rows of first matrix
+    const long n_;    // Columns of first matrix and rows of second matrix
+    const long k_;    // Columns of second matrix
+
+    const long n_rows_A_;
+    const long n_cols_A_;
+
+    const long n_rows_B_;
+    const long n_cols_B_;
+
+    const long n_rows_C_;
+    const long n_cols_C_;
+
+    const long n_rows_temp_;
+    const long n_cols_temp_;
+
+    const dim3 block_dim_;
+    const dim3 grid_dim_;
+    const size_t dynamic_shared_mem_words_ = 0;
+
+    constexpr static int DEFAULT_M = 3000; // Rows of first matrix
+    constexpr static int DEFAULT_N = 300;  // Columns of first matrix / Rows of second matrix
+    constexpr static int DEFAULT_K = 1000; // Columns of second matrix
+    constexpr static int DEFAULT_BLOCK_DIM_X = 16;
+    constexpr static int DEFAULT_BLOCK_DIM_Y = 16;
+
+    inline static void add_kernel_spec_options(cxxopts::Options& options) {
+        options.add_options()
+            ("m", "Number of rows in first matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
+            ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("k", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
+        ;
+    }
+
+    inline static Matrix_product_naive_spec make(
+        const cxxopts::ParseResult& options_parsed
+    ) {
+        // Validate the type option
+        const auto& type = options_parsed["type"].as<std::string>();
+        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "int16" && type != "int32" && type != "int64" && type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64") {
+            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
+            throw cxxopts::exceptions::exception("Invalid --type: " + type);
+        }
+        return Matrix_product_naive_spec(
+            type,
+            options_parsed["m"].as<long>(),
+            options_parsed["n"].as<long>(),
+            options_parsed["k"].as<long>(),
+            options_parsed["block_dim_x"].as<long>(),
+            options_parsed["block_dim_y"].as<long>()
+        );
+    }
+
+    inline Matrix_product_naive_spec(
+        const std::string& type,
+        const long m,
+        const long n,
+        const long k,
+        const long block_dim_x,
+        const long block_dim_y
+    ) : type_(type),
+        m_(m),
+        n_(n),
+        k_(k),
+        n_rows_A_(m),
+        n_cols_A_(n),
+        n_rows_B_(n),
+        n_cols_B_(k),
+        n_rows_C_(m),
+        n_cols_C_(k),
+        n_rows_temp_(0),
+        n_cols_temp_(0),
+        block_dim_(block_dim_x, block_dim_y),
+        grid_dim_(
+            (k_ + block_dim_.x - 1) / block_dim_.x,
+            (m_ + block_dim_.y - 1) / block_dim_.y
+        )
+    {}
+};
+
+static_assert(Check_kernel_spec_2In_1Out<Matrix_product_naive_spec>::check_passed, "Matrix_product_naive_spec is not a valid kernel spec");
+
+
+template <HIP_scalar Number_>
+class Matrix_product_naive_kernel {
+    public:
+    using Number = Number_;
+    using Kernel_spec = Matrix_product_naive_spec;
+
+    const Kernel_spec spec_;
+
+    Matrix_product_naive_kernel(
+        const Kernel_spec spec
+    ) : spec_(spec) {}
+
+    void run_device_kernel(
+        const Number* const gpu_data_A,
+        const Number* const gpu_data_B,
+        Number* const gpu_data_C,
+        Number* const gpu_data_temp,
+        hipStream_t stream
+    ) {
+        hipLaunchKernel(matrix_product_naive,
+            spec_.grid_dim_,
+            spec_.block_dim_,
+            spec_.dynamic_shared_mem_words_ * sizeof(Number),
+            stream,
+            gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
+    }
+
+    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& B
+    ) {
+        return (A * B).eval();
+    }
+
+};
+static_assert(Check_kernel_2In_1Out_template<Matrix_product_naive_kernel>::check_passed, "Matrix_product_naive is not a valid kernel template");
