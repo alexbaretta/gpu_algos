@@ -6,6 +6,9 @@
 #pragma once
 #include <stdio.h>
 #include <cuda_runtime.h>
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
+#include <cassert>
 
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"

@@ -10,6 +10,7 @@
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 #include <algorithm>
+#include <vector>
 
 #include "common/kernel_api/tensor3d_1inout.h"
 #include "cuda/type_traits.h"

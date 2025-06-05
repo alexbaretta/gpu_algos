@@ -10,6 +10,7 @@
 #include <iostream>
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
+#include <cuda_fp16.h>
 
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"

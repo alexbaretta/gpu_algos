@@ -6,11 +6,13 @@
 #pragma once
 #include <iostream>
 #include <cuda_runtime.h>
-#include <cooperative_groups.h>
 #include <limits>
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
+#include <cassert>
+#include <concepts>
+#include <type_traits>
 
-#include <cuda_runtime.h>
-#include "cxxopts.hpp"
 #include "cuda/cuda_utils.h"
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"

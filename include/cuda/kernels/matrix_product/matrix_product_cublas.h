@@ -7,6 +7,10 @@
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <cublasLt.h>
+#include <cxxopts.hpp>
+#include <iostream>
+#include <Eigen/Dense>
+#include <cuda_fp16.h>
 
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"

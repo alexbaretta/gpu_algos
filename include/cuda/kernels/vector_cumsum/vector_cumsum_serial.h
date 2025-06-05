@@ -6,9 +6,9 @@
 #pragma once
 #include <iostream>
 #include <cuda_runtime.h>
-#include <cooperative_groups.h>
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
 
-#include "cxxopts.hpp"
 #include "cuda/cuda_utils.h"
 #include "cuda/kernel_api.h"
 #include "cuda/type_traits.h"
