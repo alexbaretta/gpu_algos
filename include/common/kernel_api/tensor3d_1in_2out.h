@@ -6,15 +6,7 @@
 #include <cuda_runtime.h>
 #include <Eigen/Dense>
 #include "cuda/type_traits.h"
-
-// Use a simple tensor representation as 3D array dimensions
-template <typename Number>
-struct Tensor3D {
-    long rows;
-    long cols;
-    long sheets;
-    Number* data;
-};
+#include "common/types/tensor3d.h"
 
 template <typename Tensor3d_kernel_spec_1In_2Out>
 concept TENSOR3D_KERNEL_SPEC_1IN_2OUT = requires (Tensor3d_kernel_spec_1In_2Out spec) {

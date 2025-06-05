@@ -12,6 +12,7 @@
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 
+#include "common/types/tensor3d.h"
 #include "common/random.h"
 #include "cuda/check_errors.h"
 #include "cuda/cuda_utils.h"
@@ -114,9 +115,9 @@ class Benchmark_Tensor3D_1In_1Out {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        std::vector<Number> vec_A(size_A, 0);
-        std::vector<Number> vec_C(size_C, 0);
-        std::vector<Number> vec_temp(size_temp, 0);
+        Tensor3D<Number> A(spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, 0);
+        Tensor3D<Number> C(spec.n_rows_C_, spec.n_cols_C_, spec.n_sheets_C_, 0);
+        Tensor3D<Number> temp(spec.n_rows_temp_, spec.n_cols_temp_, spec.n_sheets_temp_, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
@@ -245,8 +246,8 @@ class Benchmark_Tensor3D_1In_1Out {
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Tensor3D";
-        const Tensor3D<Number> A_gpu{spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, vec_A.data()};
-        const Tensor3D<Number> C_gpu{spec.n_rows_C_, spec.n_cols_C_, spec.n_sheets_C_, vec_C.data()};
+        const Tensor3D<Number> A_gpu{spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, vec_A};
+        const Tensor3D<Number> C_gpu{spec.n_rows_C_, spec.n_cols_C_, spec.n_sheets_C_, vec_C};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
@@ -367,8 +368,7 @@ class Benchmark_Tensor3D_1In_1Out {
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
 
-        // Clean up CPU tensors
-        delete[] C_cpu.data;
+        // No manual cleanup needed - std::vector manages its own memory
 
         return 0;
     }

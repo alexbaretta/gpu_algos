@@ -252,9 +252,9 @@ class Benchmark_Tensor3D_1In_2Out {
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Tensor3D";
-        const Tensor3D<Number> A_gpu{spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, vec_A.data()};
-        const Tensor3D<Number> B_gpu{spec.n_rows_B_, spec.n_cols_B_, spec.n_sheets_B_, vec_B.data()};
-        const Tensor3D<Number> C_gpu{spec.n_rows_C_, spec.n_cols_C_, spec.n_sheets_C_, vec_C.data()};
+        const Tensor3D<Number> A_gpu{spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, vec_A};
+        const Tensor3D<Number> B_gpu{spec.n_rows_B_, spec.n_cols_B_, spec.n_sheets_B_, vec_B};
+        const Tensor3D<Number> C_gpu{spec.n_rows_C_, spec.n_cols_C_, spec.n_sheets_C_, vec_C};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
@@ -418,16 +418,14 @@ class Benchmark_Tensor3D_1In_2Out {
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
-        std::cout << "Max error B   : " << max_error_B << " at (" << max_error_B_row << ", " << max_error_B_col << ", " << max_error_B_sheet << ")" << std::endl;
-        std::cout << "Max error C   : " << max_error_C << " at (" << max_error_C_row << ", " << max_error_C_col << ", " << max_error_C_sheet << ")" << std::endl;
-        std::cout << "Max error B % : " << max_error_pct_B << " at (" << max_error_pct_B_row << ", " << max_error_pct_B_col << ", " << max_error_pct_B_sheet << ")" << std::endl;
-        std::cout << "Max error C % : " << max_error_pct_C << " at (" << max_error_pct_C_row << ", " << max_error_pct_C_col << ", " << max_error_pct_C_sheet << ")" << std::endl;
+        std::cout << "Max error (B) : " << max_error_B << " at (" << max_error_B_row << ", " << max_error_B_col << ", " << max_error_B_sheet << ")" << std::endl;
+        std::cout << "Max error (C) : " << max_error_C << " at (" << max_error_C_row << ", " << max_error_C_col << ", " << max_error_C_sheet << ")" << std::endl;
+        std::cout << "Max error pct (B): " << max_error_pct_B << " at (" << max_error_pct_B_row << ", " << max_error_pct_B_col << ", " << max_error_pct_B_sheet << ")" << std::endl;
+        std::cout << "Max error pct (C): " << max_error_pct_C << " at (" << max_error_pct_C_row << ", " << max_error_pct_C_col << ", " << max_error_pct_C_sheet << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
 
-        // Clean up CPU tensors
-        delete[] B_cpu.data;
-        delete[] C_cpu.data;
+        // No manual cleanup needed - std::vector manages its own memory
 
         return 0;
     }

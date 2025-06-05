@@ -6,6 +6,7 @@
 #include <cuda_runtime.h>
 #include <Eigen/Dense>
 #include "cuda/type_traits.h"
+#include "common/types/tensor3d.h"
 
 template <typename Tensor3d_kernel_spec_1In_1Out>
 concept TENSOR3D_KERNEL_SPEC_1IN_1OUT = requires (Tensor3d_kernel_spec_1In_1Out spec) {    { spec.n_rows_A_ } -> std::same_as<const long&>;
@@ -48,15 +49,6 @@ struct Check_tensor3d_kernel_spec_1In_1Out {
     static_assert(TENSOR3D_KERNEL_SPEC_1IN_1OUT<Tensor3d_kernel_spec_1In_1Out>, "not a valid TENSOR3D_KERNEL_SPEC_1IN_1OUT");
 
     constexpr static bool check_passed = true;
-};
-
-// Use a simple tensor representation as 3D array dimensions
-template <typename Number>
-struct Tensor3D {
-    long rows;
-    long cols;
-    long sheets;
-    Number* data;
 };
 
 template <typename Tensor3d_kernel_1In_1Out>

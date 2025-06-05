@@ -238,8 +238,8 @@ class Benchmark_Tensor3D_1InOut {
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Tensor3D";
-        const Tensor3D<Number> A_original{spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, vec_A_original.data()};
-        const Tensor3D<Number> A_gpu{spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, vec_A.data()};
+        const Tensor3D<Number> A_original{spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, vec_A_original};
+        const Tensor3D<Number> A_gpu{spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, vec_A};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
