@@ -46,6 +46,7 @@ Makefile
 *.cmake
 
 # CUDA specific
+.cache/
 *.cubin
 *.ptx
 *.fatbin
