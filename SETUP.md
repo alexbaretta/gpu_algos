@@ -95,7 +95,7 @@ wget https://repo.radeon.com/amdgpu-install/6.4.1/ubuntu/jammy/amdgpu-install_6.
 2. As root user:
 ```bash
 apt update
-apt install clang-19 clang-tidy-19 clangd-19 clang-tools-19 libstdc++-13-dev
+apt install clang-19 clang-tidy-19 clangd-19 clang-tools-19 libomp-19-dev libstdc++-13-dev
 apt install python3-setuptools python3-wheel
 apt install ./amdgpu-install_6.4.60401-1_all.deb
 ```
