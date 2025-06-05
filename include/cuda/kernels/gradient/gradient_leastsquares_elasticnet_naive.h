@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/matrix_gradient_elasticnet.h
+// source path: include/cuda/kernels/matrix/gradient_leastsquares_elasticnet_naive.h
 
 #pragma once
 #include <cuda_runtime.h>
@@ -38,7 +38,7 @@ The gradient is:
 */
 
 template <CUDA_scalar CUDA_Number>
-__global__ void matrix_gradient_elasticnet(
+__global__ void gradient_leastsquares_elasticnet_naive(
     const CUDA_Number* A,     // m x n matrix (independent variables)
     const CUDA_Number* B,     // m x k matrix (dependent variables)
     const CUDA_Number* C,     // n x k matrix (coefficients)
@@ -93,7 +93,7 @@ __global__ void matrix_gradient_elasticnet(
     }
 }
 
-struct Matrix_gradient_elasticnet_spec {
+struct Gradient_leastsquares_elasticnet_naive_spec {
     const std::string type_;
 
     const long m_;    // Number of observations
@@ -142,7 +142,7 @@ struct Matrix_gradient_elasticnet_spec {
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
     }
 
-    inline static Matrix_gradient_elasticnet_spec make(
+    inline static Gradient_leastsquares_elasticnet_naive_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
         // Validate the type option
@@ -151,7 +151,7 @@ struct Matrix_gradient_elasticnet_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        return Matrix_gradient_elasticnet_spec(
+        return Gradient_leastsquares_elasticnet_naive_spec(
             type,
             options_parsed["m"].as<long>(),
             options_parsed["n"].as<long>(),
@@ -163,7 +163,7 @@ struct Matrix_gradient_elasticnet_spec {
         );
     }
 
-    inline Matrix_gradient_elasticnet_spec(
+    inline Gradient_leastsquares_elasticnet_naive_spec(
         const std::string& type,
         const long m,
         const long n,
@@ -196,17 +196,17 @@ struct Matrix_gradient_elasticnet_spec {
     {}
 };
 
-static_assert(Check_matrix_kernel_spec_3In_1Out<Matrix_gradient_elasticnet_spec>::check_passed, "Matrix_gradient_elasticnet_spec is not a valid 3In1Out kernel spec");
+static_assert(Check_matrix_kernel_spec_3In_1Out<Gradient_leastsquares_elasticnet_naive_spec>::check_passed, "Gradient_leastsquares_elasticnet_naive_spec is not a valid 3In1Out kernel spec");
 
 template <CUDA_scalar Number_>
-class Matrix_gradient_elasticnet_kernel {
+class Gradient_leastsquares_elasticnet_naive_kernel {
     public:
     using Number = Number_;
-    using Kernel_spec = Matrix_gradient_elasticnet_spec;
+    using Kernel_spec = Gradient_leastsquares_elasticnet_naive_spec;
 
     const Kernel_spec spec_;
 
-    Matrix_gradient_elasticnet_kernel(
+    Gradient_leastsquares_elasticnet_naive_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {}
 
@@ -218,7 +218,7 @@ class Matrix_gradient_elasticnet_kernel {
         Number* const gpu_data_temp,     // temporary storage (unused)
         cudaStream_t stream
     ) {
-        matrix_gradient_elasticnet<<<
+        gradient_leastsquares_elasticnet_naive<<<
             spec_.grid_dim_,
             spec_.block_dim_,
             spec_.dynamic_shared_mem_words_ * sizeof(Number),
@@ -258,4 +258,4 @@ class Matrix_gradient_elasticnet_kernel {
     }
 };
 
-static_assert(Check_matrix_kernel_3In_1Out_template<Matrix_gradient_elasticnet_kernel>::check_passed, "Matrix_gradient_elasticnet is not a valid 3In1Out kernel template");
+static_assert(Check_matrix_kernel_3In_1Out_template<Gradient_leastsquares_elasticnet_naive_kernel>::check_passed, "Gradient_leastsquares_elasticnet_naive is not a valid 3In1Out kernel template");
