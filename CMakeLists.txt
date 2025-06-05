@@ -10,6 +10,7 @@ set(CMAKE_CUDA_HOST_COMPILER "g++-14")
 # set(CMAKE_CUDA_HOST_COMPILER "clang-19")
 
 project(gpu_algos LANGUAGES CUDA CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set default parallel jobs for building
 set(CMAKE_BUILD_PARALLEL_LEVEL 12)
