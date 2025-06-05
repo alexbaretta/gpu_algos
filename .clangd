@@ -1,0 +1,18 @@
+CompileFlags:
+  CompilationDatabase: build/compile_commands.json
+  Add:
+    - --cuda-path=/usr/local/cuda # Or path to your CUDA installation
+    - --cuda-gpu-arch=sm_89 # Or your desired architecture
+    - -L/usr/local/cuda/lib64 # Or path to CUDA lib directory
+    - -isystem/usr/local/cuda/include # Or path to CUDA include directory
+    - -isystem/home/alex/git/gpu-algos/third-party/cutlass/include
+    - -isystem/home/alex/git/gpu-algos/third-party/cxxopts/include
+    - -isystem/usr/include/eigen3
+    - -isystem/usr/local/cuda/targets/x86_64-linux/include
+    - -xcuda
+  Remove:
+    - -forward-unknown-to-host-compiler
+    - --generate-code=*
+    - -rdc=*
+    - -Xcompiler*
+    - -xobjective-c++-header
