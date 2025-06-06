@@ -3,7 +3,10 @@
 
 // source path: src/benchmarks/matrix_product/matrix_product_cutlass.cu
 
+#include <iostream>
+
 #include <cxxopts.hpp>
+#include <cuda_fp16.h>
 
 #include "common/benchmark/benchmark_matrix_2in_1out.h"
 #include "common/benchmark_options.h"

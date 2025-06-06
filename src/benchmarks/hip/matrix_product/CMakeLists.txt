@@ -5,10 +5,6 @@
 
 # Matrix product executables
 add_hip_executable(hip_matrix_product_naive matrix_product_naive.hip.cpp)
-add_hip_executable(hip_matrix_product_tiled matrix_product_tiled.hip.cpp)
-add_hip_executable(hip_matrix_product_warp matrix_product_warp.hip.cpp)
-add_hip_executable(hip_matrix_product_tensor matrix_product_tensor.hip.cpp)
-add_hip_executable(hip_matrix_product_rocblas matrix_product_rocblas.hip.cpp)
 
 # Additional rocBLAS linking for rocBLAS implementation
 if(TARGET hip_matrix_product_rocblas)

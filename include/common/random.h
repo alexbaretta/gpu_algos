@@ -6,6 +6,7 @@
 #pragma once
 
 #include <random>
+#include <concepts>
 #include <vector>
 #include <cuda_fp16.h>
 

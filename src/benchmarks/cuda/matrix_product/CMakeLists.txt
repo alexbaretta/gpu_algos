@@ -18,11 +18,15 @@ target_link_libraries(matrix_product_cublas PRIVATE
 
 
 # CUTLASS causes errors due to initializer order mismatch
-# add_gpu_executable(matrix_product_cutlass matrix_product_cutlass.cu)
+set(DEFAULT_CUDA_FLAGS_ORIGINAL "${DEFAULT_CUDA_FLAGS}")
+string(REPLACE ",reorder" "" DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS} --expt-relaxed-constexpr")
+add_gpu_executable(matrix_product_cutlass matrix_product_cutlass.cu)
+set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS_ORIGINAL}")
 
 
 # # Additional compilation flags for CUTLASS implementation
 # target_compile_options(matrix_product_cutlass PRIVATE
-#     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-#     $<$<COMPILE_LANGUAGE:CUDA>:-diag-suppress 20013>
+#     # $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+#     # $<$<COMPILE_LANGUAGE:CUDA>:-diag-suppress 20013>
+#     CMAKE_CXX_FLAGS string(REPLACE <match-string> <replace-string> <out-var> <input>...)
 # )

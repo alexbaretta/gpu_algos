@@ -6,6 +6,9 @@ cmake_minimum_required(VERSION 4.0)  # Lowered requirement for hip::host usage
 # Set C++ compiler before project()
 set(CMAKE_CXX_COMPILER "g++-14")
 set(CMAKE_CUDA_HOST_COMPILER "g++-14")
+set(CMAKE_CUDA_COMPILER "nvcc")
+set(CMAKE_HIP_COMPILER "amdclang++")
+set(CMAKE_HIP_HOST_COMPILER "amdclang++")
 # set(CMAKE_CXX_COMPILER "clang-19")
 # set(CMAKE_CUDA_HOST_COMPILER "clang-19")
 
@@ -22,13 +25,33 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_ARCHITECTURES "89")  # Compute capability 8.9
 
+
+find_package(CUDAToolkit REQUIRED)
+
+
 # Try to enable HIP if available
 include(CheckLanguage)
 check_language(HIP)
+message(STATUS "HIP compiler found: ${CMAKE_HIP_COMPILER}")
+
+
+execute_process(
+    COMMAND bash -c "${CMAKE_CUDA_HOST_COMPILER} --print-search-dirs | grep libraries | cut -d= -f2 | tr ':' ';'"
+    OUTPUT_VARIABLE CUDA_HOST_COMPILER_LIBRARY_PATH
+    COMMAND_ECHO STDOUT
+    COMMAND_ERROR_IS_FATAL ANY
+)
 
 if(CMAKE_HIP_COMPILER)
     # Enable HIP language
     enable_language(HIP)
+
+    execute_process(
+        COMMAND bash -c "${CMAKE_HIP_HOST_COMPILER} --print-search-dirs | grep libraries | cut -d= -f2 | tr ':' ';'"
+        OUTPUT_VARIABLE HIP_HOST_COMPILER_LIBRARY_PATH
+        COMMAND_ECHO STDOUT
+        COMMAND_ERROR_IS_FATAL ANY
+    )
 
     # Set language mappings for HIP files
     set_property(GLOBAL PROPERTY CMAKE_HIP_LANGUAGE_EXTENSION ".hip.cpp")
@@ -52,6 +75,10 @@ if(CMAKE_HIP_COMPILER)
         if(rocblas_FOUND)
             message(STATUS "rocBLAS found")
         endif()
+
+        # Add OpenMP flags for HIP
+        set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp")
+
     else()
         message(WARNING "HIP compiler found but HIP package not found - HIP support disabled")
         set(HIP_AVAILABLE FALSE)
@@ -67,28 +94,24 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Force override CUDAToolkit's librt detection to prevent linking with it
 # (librt is unnecessary in modern glibc and causes nvlink issues)
 # Clear any existing cached rt library references
-unset(CUDAToolkit_rt_LIBRARY CACHE)
-set(CUDAToolkit_rt_LIBRARY "" CACHE FILEPATH "Force disable librt linking" FORCE)
-set(CUDAToolkit_rt_LIBRARY_RELEASE "" CACHE FILEPATH "Force disable librt linking (Release)" FORCE)
-set(CUDAToolkit_rt_LIBRARY_DEBUG "" CACHE FILEPATH "Force disable librt linking (Debug)" FORCE)
+# unset(CUDAToolkit_rt_LIBRARY CACHE)
+# set(CUDAToolkit_rt_LIBRARY "" CACHE FILEPATH "Force disable librt linking" FORCE)
+# set(CUDAToolkit_rt_LIBRARY_RELEASE "" CACHE FILEPATH "Force disable librt linking (Release)" FORCE)
+# set(CUDAToolkit_rt_LIBRARY_DEBUG "" CACHE FILEPATH "Force disable librt linking (Debug)" FORCE)
 
-find_package(CUDAToolkit REQUIRED)
 
 # Force override CUDAToolkit's librt detection to prevent linking with it
 # (librt is unnecessary in modern glibc and causes nvlink issues)
-set(CUDAToolkit_rt_LIBRARY "" CACHE FILEPATH "Force disable librt linking" FORCE)
+# set(CUDAToolkit_rt_LIBRARY "" CACHE FILEPATH "Force disable librt linking" FORCE)
 
 # Find OpenMP and let CMake automatically detect the correct implementation
 find_package(OpenMP REQUIRED)
 
 # Add OpenMP flags for CUDA (avoid duplication)
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=-fopenmp")
-set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fopenmp")
+set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS} -Xcompiler=-fopenmp")
+set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp")
+set(DEFAULT_LINK_FLAGS "${DEFAULT_LINK_FLAGS} -fopenmp")
 
-# Add OpenMP flags for HIP (if available)
-if(HIP_AVAILABLE)
-    # set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -fopenmp -D_OPENMP")
-endif()
 
 # Link OpenMP to all targets
 link_libraries(OpenMP::OpenMP_CXX)
@@ -97,11 +120,11 @@ link_libraries(OpenMP::OpenMP_CXX)
 if(NOT CMAKE_CXX_FLAGS MATCHES "-Werror")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wall")
 endif()
-if(NOT CMAKE_CUDA_FLAGS MATCHES "--Werror")
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --Werror cross-execution-space-call,reorder,ext-lambda-captures-this,deprecated-declarations -diag-suppress 20012,20015")
+if(NOT DEFAULT_CUDA_FLAGS MATCHES "--Werror")
+    set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS} --Werror cross-execution-space-call,reorder,ext-lambda-captures-this,deprecated-declarations -diag-suppress 20012,20015")
 endif()
-if(HIP_AVAILABLE AND NOT CMAKE_HIP_FLAGS MATCHES "-Werror")
-    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -Werror -Wall")
+if(HIP_AVAILABLE AND NOT DEFAULT_HIP_FLAGS MATCHES "-Werror")
+    set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -Werror -Wall")
 endif()
 
 # Find Eigen package
@@ -120,6 +143,112 @@ include_directories(
 if(HIP_AVAILABLE)
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/hip)
 endif()
+
+# Function to create a GPU executable with common settings
+function(add_gpu_executable target_name source_file)
+    add_executable(${target_name}
+        ${source_file}
+        ${CMAKE_SOURCE_DIR}/src/cuda/cuda_utils.cu
+        ${CMAKE_SOURCE_DIR}/src/common/benchmark_options.cpp
+    )
+
+    separate_arguments(LOCAL_CUDA_FLAGS UNIX_COMMAND ${DEFAULT_CUDA_FLAGS})
+    separate_arguments(LOCAL_LINK_FLAGS UNIX_COMMAND ${DEFAULT_LINK_FLAGS})
+    target_link_options(${target_name} PRIVATE "${LOCAL_LINK_FLAGS}")
+    set_source_files_properties(${source_file} PROPERTIES COMPILE_OPTIONS "${LOCAL_CUDA_FLAGS}")
+
+    message(STATUS "COMPILE_OPTIONS for CUDA ${source_file}: ${DEFAULT_CUDA_FLAGS}")
+
+    # Set CUDA specific properties
+    set_target_properties(${target_name} PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES 89
+    )
+
+    # Add include directories
+    target_include_directories(${target_name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/include/cuda
+        ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
+        ${EIGEN3_INCLUDE_DIR}
+    )
+
+    # Link CUDA libraries
+    target_link_libraries(${target_name} PRIVATE
+        cudart
+        cuda
+        CUDA::cublas
+        CUDA::cublasLt
+        Eigen3::Eigen
+        OpenMP::OpenMP_CXX
+    )
+
+    target_link_directories(
+        ${target_name} PRIVATE
+        ${CUDAToolkit_LIBRARY_DIR}
+        ${CUDA_HOST_COMPILER_LIBRARY_PATH}
+    )
+endfunction()
+
+# Function to create a HIP executable (only available when HIP is enabled)
+function(add_hip_executable target_name source_file)
+    if(NOT HIP_AVAILABLE)
+        message(STATUS "Skipping HIP target ${target_name} - HIP not available")
+        return()
+    endif()
+
+    add_executable(${target_name}
+        ${source_file}
+        ${CMAKE_SOURCE_DIR}/src/hip/hip_utils.hip.cpp
+        ${CMAKE_SOURCE_DIR}/src/common/benchmark_options.cpp
+        ${CMAKE_SOURCE_DIR}/src/hip/benchmark.hip.cpp
+    )
+
+    separate_arguments(LOCAL_HIP_FLAGS UNIX_COMMAND ${DEFAULT_HIP_FLAGS})
+    separate_arguments(LOCAL_LINK_FLAGS UNIX_COMMAND ${DEFAULT_LINK_FLAGS})
+    target_link_options(${target_name} PRIVATE "${LOCAL_LINK_FLAGS}")
+    set_source_files_properties(${source_file} PROPERTIES COMPILE_OPTIONS "${LOCAL_HIP_FLAGS}")
+
+    message(STATUS "COMPILE_OPTIONS for HIP ${source_file}: ${DEFAULT_HIP_FLAGS}")
+
+
+    # Set the language for HIP source files explicitly
+    set_source_files_properties(${source_file} PROPERTIES LANGUAGE HIP)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/hip/hip_utils.hip.cpp PROPERTIES LANGUAGE HIP)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/hip/benchmark.hip.cpp PROPERTIES LANGUAGE HIP)
+
+    # Set HIP specific properties
+    set_target_properties(${target_name} PROPERTIES
+        HIP_STANDARD 20
+        HIP_ARCHITECTURES "gfx1201"
+    )
+
+    # Set HIP platform definition
+    target_compile_definitions(${target_name} PRIVATE
+        __HIP_PLATFORM_AMD__
+    )
+
+    # Add include directories
+    target_include_directories(${target_name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/include/hip
+        ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
+        ${EIGEN3_INCLUDE_DIR}
+    )
+
+    # Link HIP libraries
+    target_link_libraries(${target_name} PRIVATE
+        hip::host
+        Eigen3::Eigen
+        OpenMP::OpenMP_CXX
+    )
+
+    target_link_directories(
+        ${target_name} PRIVATE
+        ${HIP_HOST_COMPILER_LIBRARY_PATH}
+    )
+endfunction()
+
 
 # Include all tools
 add_subdirectory(src/benchmarks)

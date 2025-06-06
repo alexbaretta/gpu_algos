@@ -14,11 +14,8 @@
         "cacheVariables": {
           "CMAKE_BUILD_TYPE": "Release",
           "CMAKE_CUDA_ARCHITECTURES": "89",
-          "CMAKE_CUDA_COMPILER": "nvcc",
-          "CMAKE_CXX_COMPILER": "g++-14",
-          "CMAKE_CUDA_HOST_COMPILER": "g++-14",
           "CMAKE_CXX_FLAGS": "-O3 -Werror -Wall",
-          "CMAKE_CUDA_FLAGS": "-O3 -lineinfo"
+          "DEFAULT_CUDA_FLAGS": "-O3 -lineinfo"
         }
       },
       {
@@ -30,7 +27,7 @@
         "cacheVariables": {
           "CMAKE_BUILD_TYPE": "Debug",
           "CMAKE_CXX_FLAGS": "-O0 -g -Werror -Wall",
-          "CMAKE_CUDA_FLAGS": "-O0 -g -G"
+          "DEFAULT_CUDA_FLAGS": "-O0 -g -G"
         }
       }
     ],

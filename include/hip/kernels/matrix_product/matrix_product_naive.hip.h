@@ -4,6 +4,9 @@
 // source path: include/hip/kernels/matrix/matrix_product_naive.h
 
 #pragma once
+#include <iostream>
+#include <cxxopts.hpp>
+
 #include <hip/hip_runtime.h>
 
 #include "hip/kernel_api.hip.h"
@@ -116,7 +119,7 @@ struct Matrix_product_naive_spec {
     {}
 };
 
-static_assert(Check_kernel_spec_2In_1Out<Matrix_product_naive_spec>::check_passed, "Matrix_product_naive_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_naive_spec>::check_passed, "Matrix_product_naive_spec is not a valid kernel spec");
 
 
 template <HIP_scalar Number_>
@@ -154,4 +157,4 @@ class Matrix_product_naive_kernel {
     }
 
 };
-static_assert(Check_kernel_2In_1Out_template<Matrix_product_naive_kernel>::check_passed, "Matrix_product_naive is not a valid kernel template");
+static_assert(Check_matrix_kernel_2In_1Out_template<Matrix_product_naive_kernel>::check_passed, "Matrix_product_naive is not a valid kernel template");
