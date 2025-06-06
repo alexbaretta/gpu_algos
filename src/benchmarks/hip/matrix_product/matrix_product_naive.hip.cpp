@@ -5,6 +5,8 @@
 
 #include <cxxopts.hpp>
 
+#include "common/benchmark_options.h"
+
 #include "hip/benchmark.hip.h"
 
 #include "hip/kernels/matrix_product/matrix_product_naive.hip.h"

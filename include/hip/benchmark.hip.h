@@ -14,7 +14,6 @@
 #include <hip/hip_runtime.h>
 #include <cxxopts.hpp>
 
-#include "common/benchmark_options.h"
 // Prevent CUDA header inclusion when compiling HIP code
 #ifndef __HIP_PLATFORM_AMD__
 #define __HIP_PLATFORM_AMD__
