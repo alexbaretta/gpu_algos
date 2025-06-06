@@ -11,7 +11,7 @@
 #include <Eigen/Dense>
 
 #include "cuda/cuda_utils.h"
-#include "cuda/kernel_api.h"
+#include "common/kernel_api/vector_1in_1out.h"
 #include "cuda/type_traits.h"
 
 constexpr static long MAX_BLOCK_SIZE = 1024;
@@ -217,14 +217,11 @@ struct Vector_cumsum_cooperative_spec {
     const long n_;    // size of vector
     const long k_;    // unused for vector cumsum
 
-    const long n_rows_A_;
-    const long n_cols_A_;
+    const long n_A_;
 
-    const long n_rows_C_;
-    const long n_cols_C_;
+    const long n_C_;
 
-    const long n_rows_temp_;
-    const long n_cols_temp_;
+    const long n_temp_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -266,12 +263,9 @@ struct Vector_cumsum_cooperative_spec {
         m_(0),  // unused
         n_(n),
         k_(0),  // unused
-        n_rows_A_(1),
-        n_cols_A_(n),
-        n_rows_C_(1),
-        n_cols_C_(n),
-        n_rows_temp_(0),
-        n_cols_temp_(0),
+        n_A_(n),
+        n_C_(n),
+        n_temp_(0),
 
         // Since parallel scan requires sharing data between blocks,
         // which in turn requires reading and writing to global memory,
@@ -282,7 +276,7 @@ struct Vector_cumsum_cooperative_spec {
     {}
 };
 
-static_assert(Check_kernel_spec_1In_1Out<Vector_cumsum_cooperative_spec>::check_passed, "Vector_cumsum_cooperative_spec is not a valid kernel spec");
+static_assert(Check_vector_kernel_spec_1In_1Out<Vector_cumsum_cooperative_spec>::check_passed, "Vector_cumsum_cooperative_spec is not a valid kernel spec");
 
 
 template <CUDA_scalar Number_>
@@ -354,11 +348,11 @@ class Vector_cumsum_cooperative_kernel {
 
     }
 
-    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A
+    Eigen::Vector<Number, Eigen::Dynamic> run_host_kernel(
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>>& A
     ) {
         // Compute cumulative sum for a vector (treat matrix as a flattened vector)
-        Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> result(A.rows(), A.cols());
+        Eigen::Vector<Number, Eigen::Dynamic> result(A.rows(), A.cols());
         Number accu = A(0);
         result(0) = accu;
         for (int i = 1; i < A.size(); ++i) {
@@ -368,4 +362,4 @@ class Vector_cumsum_cooperative_kernel {
         return result;
     }
 };
-static_assert(Check_kernel_1In_1Out_template<Vector_cumsum_cooperative_kernel>::check_passed, "Vector_cumsum_cooperative is not a valid kernel template");
+static_assert(Check_vector_kernel_1In_1Out_template<Vector_cumsum_cooperative_kernel>::check_passed, "Vector_cumsum_cooperative is not a valid kernel template");

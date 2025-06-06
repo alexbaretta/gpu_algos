@@ -5,7 +5,6 @@
 
 #include <iostream>
 #include <chrono>
-#include <iomanip>
 #include <vector>
 #include <Eigen/Dense>
 
@@ -239,10 +238,10 @@ class Benchmark_Vector_3In_1Out {
         const auto cpu_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Create Eigen maps: ";
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A{vec_A.data(), spec.n_rows_A_, spec.n_cols_A_};
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> B{vec_B.data(), spec.n_rows_B_, spec.n_cols_B_};
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> C{vec_C.data(), spec.n_rows_C_, spec.n_cols_C_};
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> D_gpu{vec_D.data(), spec.n_rows_D_, spec.n_cols_D_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> A{vec_A.data(), spec.n_rows_A_, spec.n_cols_A_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> B{vec_B.data(), spec.n_rows_B_, spec.n_cols_B_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> C{vec_C.data(), spec.n_rows_C_, spec.n_cols_C_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> D_gpu{vec_D.data(), spec.n_rows_D_, spec.n_cols_D_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
@@ -304,7 +303,7 @@ class Benchmark_Vector_3In_1Out {
             std::cout << "D_cpu  :\n";
             std::cout << D_cpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
             if (spec.n_cols_temp_ > 0) {
-                const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> tmp_gpu{
+                const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> tmp_gpu{
                     vec_temp.data(), spec.n_rows_temp_, spec.n_cols_temp_
                 };
                 std::cout << "tmp    :\n";

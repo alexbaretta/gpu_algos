@@ -9,7 +9,6 @@ function(add_gpu_executable target_name source_file)
         ${source_file}
         ${CMAKE_SOURCE_DIR}/src/cuda/cuda_utils.cu
         ${CMAKE_SOURCE_DIR}/src/common/benchmark_options.cpp
-        ${CMAKE_SOURCE_DIR}/src/cuda/benchmark.cu
     )
 
     # Set CUDA specific properties

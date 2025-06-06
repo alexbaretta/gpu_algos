@@ -6,7 +6,6 @@
 #pragma once
 
 #include <cuda_fp16.h>
-#include <concepts>
 #include <type_traits>
 
 template <typename T>

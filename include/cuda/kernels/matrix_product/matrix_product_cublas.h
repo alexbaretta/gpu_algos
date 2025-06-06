@@ -12,7 +12,7 @@
 #include <Eigen/Dense>
 #include <cuda_fp16.h>
 
-#include "cuda/kernel_api.h"
+#include "common/kernel_api/matrix_2in_1out.h"
 #include "cuda/type_traits.h"
 
 struct Matrix_product_cublas_spec {
@@ -102,7 +102,7 @@ struct Matrix_product_cublas_spec {
     {}
 };
 
-static_assert(Check_kernel_spec_2In_1Out<Matrix_product_cublas_spec>::check_passed, "Matrix_product_cublas_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_cublas_spec>::check_passed, "Matrix_product_cublas_spec is not a valid kernel spec");
 
 
 template <CUDA_scalar Number_>
@@ -205,4 +205,4 @@ class Matrix_product_cublas_kernel {
     }
 
 };
-static_assert(Check_kernel_2In_1Out_template<Matrix_product_cublas_kernel>::check_passed, "Matrix_product_cublas is not a valid kernel template");
+static_assert(Check_matrix_kernel_2In_1Out_template<Matrix_product_cublas_kernel>::check_passed, "Matrix_product_cublas is not a valid kernel template");

@@ -4,7 +4,6 @@
 // source path: include/cuda/kernels/matrix/vector_cummax_parallel.h
 
 #pragma once
-#include <cmath>
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
@@ -13,7 +12,7 @@
 #include <cassert>
 
 #include "cuda/cuda_utils.h"
-#include "cuda/kernel_api.h"
+#include "common/kernel_api/vector_1in_1out.h"
 #include "cuda/type_traits.h"
 
 constexpr static long MAX_BLOCK_SIZE = 1024;
@@ -187,14 +186,11 @@ struct Vector_cummax_parallel_spec {
     const long n_;    // size of vector
     const long k_;    // unused for vector cummax
 
-    const long n_rows_A_;
-    const long n_cols_A_;
+    const long n_A_;
 
-    const long n_rows_C_;
-    const long n_cols_C_;
+    const long n_C_;
 
-    const long n_rows_temp_;
-    const long n_cols_temp_;
+    const long n_temp_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -257,22 +253,15 @@ struct Vector_cummax_parallel_spec {
         m_(0),  // unused
         n_(n),
         k_(0),  // unused
-        n_rows_A_(1),
-        n_cols_A_(n),
-        n_rows_C_(1),
-
-        // We to allocate more space in C than the size of A because we will
-        // use the trailing part as temporary storage for the block-level scans.
-        // The trailing part is equal to the number of
-        n_cols_C_(n),
-        n_rows_temp_(1),
-        n_cols_temp_(compute_size_of_temp(n, block_size)),
+        n_A_(n),
+        n_C_(n),
+        n_temp_(compute_size_of_temp(n, block_size)),
         block_dim_(block_size),
         grid_dim_((n + block_size - 1) / block_size)
     {}
 };
 
-static_assert(Check_kernel_spec_1In_1Out<Vector_cummax_parallel_spec>::check_passed, "Vector_cummax_parallel_spec is not a valid kernel spec");
+static_assert(Check_vector_kernel_spec_1In_1Out<Vector_cummax_parallel_spec>::check_passed, "Vector_cummax_parallel_spec is not a valid kernel spec");
 
 
 template <CUDA_scalar Number_>
@@ -379,11 +368,11 @@ class Vector_cummax_parallel_kernel {
         }
     }
 
-    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A
+    Eigen::Vector<Number, Eigen::Dynamic> run_host_kernel(
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>>& A
     ) {
         // Compute cumulative max for a vector (treat matrix as a flattened vector)
-        Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> result(A.rows(), A.cols());
+        Eigen::Vector<Number, Eigen::Dynamic> result(A.rows(), A.cols());
         Number accu = A(0);
         result(0) = accu;
         for (int i = 1; i < A.size(); ++i) {
@@ -393,4 +382,4 @@ class Vector_cummax_parallel_kernel {
         return result;
     }
 };
-static_assert(Check_kernel_1In_1Out_template<Vector_cummax_parallel_kernel>::check_passed, "Vector_cummax_parallel is not a valid kernel template");
+static_assert(Check_vector_kernel_1In_1Out_template<Vector_cummax_parallel_kernel>::check_passed, "Vector_cummax_parallel is not a valid kernel template");

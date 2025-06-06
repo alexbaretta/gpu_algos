@@ -5,7 +5,8 @@
 
 #include <cxxopts.hpp>
 
-#include "cuda/benchmark.h"
+#include "common/benchmark_options.h"
+#include "common/benchmark/benchmark_matrix_1in_1out.h"
 
 #include "cuda/kernels/matrix_transpose/matrix_transpose_tiled.h"
 
@@ -20,27 +21,27 @@ int main(int argc, char** argv) {
         Matrix_transpose_tiled_spec spec = Matrix_transpose_tiled_spec::make(options_parsed);
 
         if (spec.type_ == "half") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<__half>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<__half>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "single" || spec.type_ == "float") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<float>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<float>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "double") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<double>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<double>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "int8") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<std::int8_t>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<std::int8_t>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "int16") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<std::int16_t>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<std::int16_t>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "int32") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<std::int32_t>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<std::int32_t>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "int64") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<std::int64_t>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<std::int64_t>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "uint8") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<std::uint8_t>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<std::uint8_t>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "uint16") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<std::uint16_t>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<std::uint16_t>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "uint32") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<std::uint32_t>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<std::uint32_t>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "uint64") {
-            return Benchmark_1In_1Out<Matrix_transpose_tiled_kernel<std::uint64_t>>(spec, options, options_parsed).run();
+            return Benchmark_Matrix_1In_1Out<Matrix_transpose_tiled_kernel<std::uint64_t>>(spec, options, options_parsed).run();
         } else {
             throw cxxopts::exceptions::exception("Invalid type: " + spec.type_);
         }

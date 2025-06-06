@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <vector>
 
-#include "common/kernel_api/tensor3d_1inout.h"
+#include "common/types/tensor3d.h"
 #include "cuda/type_traits.h"
 
 // Bitonic sort kernel for comparing and swapping elements along a specific dimension

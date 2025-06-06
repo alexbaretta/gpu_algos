@@ -101,3 +101,4 @@ struct Check_matrix_kernel_2In_1Out_template {
 
     constexpr static bool check_passed = true;
 };
+

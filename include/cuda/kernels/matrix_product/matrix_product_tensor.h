@@ -4,6 +4,9 @@
 // source path: include/cuda/kernels/matrix/matrix_product_tensor.h
 
 #pragma once
+
+#include <iostream>
+
 #include <cuda_runtime.h>
 #include <mma.h>
 #include <cxxopts.hpp>
@@ -12,7 +15,7 @@
 #include <cstdint>
 #include <cuda_fp16.h>
 
-#include "cuda/kernel_api.h"
+#include "common/kernel_api/matrix_2in_1out.h"
 #include "cuda/type_traits.h"
 
 struct Matrix_product_tensor_spec {
@@ -104,7 +107,7 @@ struct Matrix_product_tensor_spec {
     {}
 };
 
-static_assert(Check_kernel_spec_2In_1Out<Matrix_product_tensor_spec>::check_passed, "Matrix_product_tensor_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_tensor_spec>::check_passed, "Matrix_product_tensor_spec is not a valid kernel spec");
 
 // WMMA tensor core matrix multiplication kernel
 template <typename Number>
@@ -276,4 +279,4 @@ class Matrix_product_tensor_kernel {
     }
 
 };
-static_assert(Check_kernel_2In_1Out_template<Matrix_product_tensor_kernel>::check_passed, "Matrix_product_tensor is not a valid kernel template");
+static_assert(Check_matrix_kernel_2In_1Out_template<Matrix_product_tensor_kernel>::check_passed, "Matrix_product_tensor is not a valid kernel template");

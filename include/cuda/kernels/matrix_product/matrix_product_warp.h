@@ -4,11 +4,14 @@
 // source path: include/cuda/kernels/matrix/matrix_product_warp.h
 
 #pragma once
+
+#include <iostream>
+
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 
-#include "cuda/kernel_api.h"
+#include "common/kernel_api/matrix_2in_1out.h"
 #include "cuda/type_traits.h"
 
 /*
@@ -107,7 +110,7 @@ struct Matrix_product_warp_spec {
     {}
 };
 
-static_assert(Check_kernel_spec_2In_1Out<Matrix_product_warp_spec>::check_passed, "Matrix_product_warp_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_warp_spec>::check_passed, "Matrix_product_warp_spec is not a valid kernel spec");
 
 template <CUDA_scalar CUDA_Number>
 __global__ void matrix_product_warp(
@@ -178,4 +181,4 @@ class Matrix_product_warp_kernel {
     }
 
 };
-static_assert(Check_kernel_2In_1Out_template<Matrix_product_warp_kernel>::check_passed, "Matrix_product_warp is not a valid kernel template");
+static_assert(Check_matrix_kernel_2In_1Out_template<Matrix_product_warp_kernel>::check_passed, "Matrix_product_warp is not a valid kernel template");

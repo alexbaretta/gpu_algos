@@ -6,7 +6,6 @@
 #include <iostream>
 #include <chrono>
 #include <iomanip>
-#include <vector>
 #include <Eigen/Dense>
 
 #include <cuda_runtime.h>
@@ -124,11 +123,11 @@ class Benchmark_Tensor3D_1In_1Out {
 
         std::cout << "  - Initializing tensor: ";
         if (is_random) {
-            randomize_vector(vec_A, seed);
+            randomize_vector(A.data, seed);
         } else if (is_increasing) {
-            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
+            for (size_t i = 0; i < size_A; ++i) A.data[i] = Number(i);
         } else if (is_decreasing) {
-            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
+            for (size_t i = 0; i < size_A; ++i) A.data[i] = Number(size_A - i);
         }
         const auto setup_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_step_dt2 = setup_tp2 - setup_tp1;
@@ -172,7 +171,7 @@ class Benchmark_Tensor3D_1In_1Out {
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
 
         const auto gpu_step_2 = "Copy data to device";
-        cuda_check_error(cudaMemcpyAsync(gpu_data_A, vec_A.data(), size_A_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(gpu_data_A, A.data.data(), size_A_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e2, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
         cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
@@ -184,9 +183,9 @@ class Benchmark_Tensor3D_1In_1Out {
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
-        cuda_check_error(cudaMemcpyAsync(vec_C.data(), gpu_data_C, size_C_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(C.data.data(), gpu_data_C, size_C_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
         if (size_temp_bytes > 0) {
-            cuda_check_error(cudaMemcpyAsync(vec_temp.data(), gpu_data_temp, size_temp_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+            cuda_check_error(cudaMemcpyAsync(temp.data.data(), gpu_data_temp, size_temp_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
         }
         cuda_check_error(cudaEventRecord(e4, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp4{};
@@ -246,15 +245,13 @@ class Benchmark_Tensor3D_1In_1Out {
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Tensor3D";
-        const Tensor3D<Number> A_gpu{spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, vec_A};
-        const Tensor3D<Number> C_gpu{spec.n_rows_C_, spec.n_cols_C_, spec.n_sheets_C_, vec_C};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
         const auto cpu_step_2 = "Compute result with CPU";
-        const auto C_cpu = kernel.run_host_kernel(A_gpu);
+        const auto C_cpu = kernel.run_host_kernel(A);
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;
@@ -270,7 +267,7 @@ class Benchmark_Tensor3D_1In_1Out {
             for (long r = 0; r < spec.n_rows_C_; ++r) {
                 for (long c = 0; c < spec.n_cols_C_; ++c) {
                     const long idx = s * spec.n_rows_C_ * spec.n_cols_C_ + r * spec.n_cols_C_ + c;
-                    const double error = std::abs(static_cast<double>(C_gpu.data[idx]) - static_cast<double>(C_cpu.data[idx]));
+                    const double error = std::abs(static_cast<double>(C.data[idx]) - static_cast<double>(C_cpu.data[idx]));
                     const double error_pct = error / std::abs(static_cast<double>(C_cpu.data[idx]));
 
                     if (error > max_error) {
@@ -300,11 +297,11 @@ class Benchmark_Tensor3D_1In_1Out {
                 for (long r = 0; r < spec.n_rows_C_; ++r) {
                     for (long c = 0; c < spec.n_cols_C_; ++c) {
                         const long idx = s * spec.n_rows_C_ * spec.n_cols_C_ + r * spec.n_cols_C_ + c;
-                        const double error = std::abs(static_cast<double>(C_gpu.data[idx]) - static_cast<double>(C_cpu.data[idx]));
+                        const double error = std::abs(static_cast<double>(C.data[idx]) - static_cast<double>(C_cpu.data[idx]));
                         if (error != 0.0) {
                             found_errors = true;
                             std::cout << "(" << r << ", " << c << ", " << s << "): "
-                                      << "C_gpu=" << static_cast<Printable_Number>(C_gpu.data[idx]) << ", "
+                                      << "C_gpu=" << static_cast<Printable_Number>(C.data[idx]) << ", "
                                       << "C_cpu=" << static_cast<Printable_Number>(C_cpu.data[idx]) << ", "
                                       << "E=" << error << "\n";
                         }
@@ -324,7 +321,7 @@ class Benchmark_Tensor3D_1In_1Out {
                     std::cout << "    [";
                     for (long c = 0; c < spec.n_cols_A_; ++c) {
                         const long idx = s * spec.n_rows_A_ * spec.n_cols_A_ + r * spec.n_cols_A_ + c;
-                        std::cout << static_cast<Printable_Number>(A_gpu.data[idx]);
+                        std::cout << static_cast<Printable_Number>(A.data[idx]);
                         if (c < spec.n_cols_A_ - 1) std::cout << ", ";
                     }
                     std::cout << "]\n";
@@ -338,7 +335,7 @@ class Benchmark_Tensor3D_1In_1Out {
                     std::cout << "    [";
                     for (long c = 0; c < spec.n_cols_C_; ++c) {
                         const long idx = s * spec.n_rows_C_ * spec.n_cols_C_ + r * spec.n_cols_C_ + c;
-                        std::cout << static_cast<Printable_Number>(C_gpu.data[idx]);
+                        std::cout << static_cast<Printable_Number>(C.data[idx]);
                         if (c < spec.n_cols_C_ - 1) std::cout << ", ";
                     }
                     std::cout << "]\n";

@@ -39,7 +39,7 @@ concept KERNEL_SPEC_2IN_1OUT = requires (Kernel_spec_2In_1Out spec) {
 };
 
 template <typename Kernel_spec_2In_1Out>
-struct Check_kernel_spec_2In_1Out {
+struct Check_matrix_kernel_spec_2In_1Out {
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().m_), const long>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().n_), const long>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_2In_1Out>().k_), const long>);
@@ -90,7 +90,7 @@ concept KERNEL_2IN_1OUT = requires (Kernel_2In_1Out kernel) {
 };
 
 template <typename Kernel_2In_1Out>
-struct Check_kernel_2In_1Out {
+struct Check_matrix_kernel_2In_1Out {
     // ...while decltype determines the static declared type of expressions (underlying types)
     using Number = typename Kernel_2In_1Out::Number;
     using Kernel_spec = typename Kernel_2In_1Out::Kernel_spec;
@@ -114,10 +114,10 @@ struct Check_kernel_2In_1Out {
 };
 
 template <template <HIP_scalar HIP_Number> class Kernel_2In_1Out>
-struct Check_kernel_2In_1Out_template {
-    static_assert(Check_kernel_2In_1Out<Kernel_2In_1Out<_Float16>>::check_passed);
-    static_assert(Check_kernel_2In_1Out<Kernel_2In_1Out<float>>::check_passed);
-    static_assert(Check_kernel_2In_1Out<Kernel_2In_1Out<double>>::check_passed);
+struct Check_matrix_kernel_2In_1Out_template {
+    static_assert(Check_matrix_kernel_2In_1Out<Kernel_2In_1Out<_Float16>>::check_passed);
+    static_assert(Check_matrix_kernel_2In_1Out<Kernel_2In_1Out<float>>::check_passed);
+    static_assert(Check_matrix_kernel_2In_1Out<Kernel_2In_1Out<double>>::check_passed);
 
     constexpr static bool check_passed = true;
 };
@@ -150,7 +150,7 @@ concept KERNEL_SPEC_1IN_1OUT = requires (Kernel_spec_1In_1Out spec) {
 };
 
 template <typename Kernel_spec_1In_1Out>
-struct Check_kernel_spec_1In_1Out {
+struct Check_matrix_kernel_spec_1In_1Out {
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().m_), const long>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().n_), const long>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1In_1Out>().k_), const long>);
@@ -196,7 +196,7 @@ concept KERNEL_1IN_1OUT = requires (Kernel_1In_1Out kernel) {
 };
 
 template <typename Kernel_1In_1Out>
-struct Check_kernel_1In_1Out {
+struct Check_matrix_kernel_1In_1Out {
     // ...while decltype determines the static declared type of expressions (underlying types)
     using Number = typename Kernel_1In_1Out::Number;
     using Kernel_spec = typename Kernel_1In_1Out::Kernel_spec;
@@ -218,10 +218,10 @@ struct Check_kernel_1In_1Out {
 };
 
 template <template <HIP_scalar HIP_Number> class Kernel_1In_1Out>
-struct Check_kernel_1In_1Out_template {
-    static_assert(Check_kernel_1In_1Out<Kernel_1In_1Out<_Float16>>::check_passed);
-    static_assert(Check_kernel_1In_1Out<Kernel_1In_1Out<float>>::check_passed);
-    static_assert(Check_kernel_1In_1Out<Kernel_1In_1Out<double>>::check_passed);
+struct Check_matrix_kernel_1In_1Out_template {
+    static_assert(Check_matrix_kernel_1In_1Out<Kernel_1In_1Out<_Float16>>::check_passed);
+    static_assert(Check_matrix_kernel_1In_1Out<Kernel_1In_1Out<float>>::check_passed);
+    static_assert(Check_matrix_kernel_1In_1Out<Kernel_1In_1Out<double>>::check_passed);
 
     constexpr static bool check_passed = true;
 };
@@ -250,7 +250,7 @@ concept KERNEL_SPEC_1INOUT = requires (Kernel_spec_1InOut spec) {
 };
 
 template <typename Kernel_spec_1InOut>
-struct Check_kernel_spec_1InOut {
+struct Check_matrix_kernel_spec_1InOut {
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().m_), const long>);
     static_assert(std::same_as<decltype(std::declval<Kernel_spec_1InOut>().n_), const long>);
 
@@ -287,7 +287,7 @@ concept KERNEL_1INOUT = requires (Kernel_1InOut kernel) {
 };
 
 template <typename Kernel_1InOut>
-struct Check_kernel_1InOut {
+struct Check_matrix_kernel_1InOut {
     // ...while decltype determines the static declared type of expressions (underlying types)
     using Number = typename Kernel_1InOut::Number;
     using Kernel_spec = typename Kernel_1InOut::Kernel_spec;
@@ -307,10 +307,10 @@ struct Check_kernel_1InOut {
 };
 
 template <template <HIP_scalar HIP_Number> class Kernel_1InOut>
-struct Check_kernel_1InOut_template {
-    static_assert(Check_kernel_1InOut<Kernel_1InOut<_Float16>>::check_passed);
-    static_assert(Check_kernel_1InOut<Kernel_1InOut<float>>::check_passed);
-    static_assert(Check_kernel_1InOut<Kernel_1InOut<double>>::check_passed);
+struct Check_matrix_kernel_1InOut_template {
+    static_assert(Check_matrix_kernel_1InOut<Kernel_1InOut<_Float16>>::check_passed);
+    static_assert(Check_matrix_kernel_1InOut<Kernel_1InOut<float>>::check_passed);
+    static_assert(Check_matrix_kernel_1InOut<Kernel_1InOut<double>>::check_passed);
 
     constexpr static bool check_passed = true;
 };

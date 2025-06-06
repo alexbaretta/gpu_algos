@@ -11,7 +11,7 @@
 #include <iostream>
 #include <Eigen/Dense>
 
-#include "cuda/kernel_api.h"
+#include "common/kernel_api/matrix_3in_1out.h"
 #include "cuda/type_traits.h"
 #include "common/type_traits.h"
 

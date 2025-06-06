@@ -4,11 +4,12 @@
 // source path: include/cuda/kernels/matrix/matrix_transpose_naive.h
 
 #pragma once
+#include <iostream>
+
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
-
-#include "cuda/kernel_api.h"
+#include "common/kernel_api/matrix_1in_1out.h"
 #include "cuda/type_traits.h"
 
 template <CUDA_scalar CUDA_Number>
@@ -115,7 +116,7 @@ struct Matrix_transpose_naive_spec {
     {}
 };
 
-static_assert(Check_kernel_spec_1In_1Out<Matrix_transpose_naive_spec>::check_passed, "Matrix_transpose_naive_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_1In_1Out<Matrix_transpose_naive_spec>::check_passed, "Matrix_transpose_naive_spec is not a valid kernel spec");
 
 
 template <CUDA_scalar Number_>
@@ -151,4 +152,4 @@ class Matrix_transpose_naive_kernel {
     }
 
 };
-static_assert(Check_kernel_1In_1Out_template<Matrix_transpose_naive_kernel>::check_passed, "Matrix_transpose_naive is not a valid kernel template");
+static_assert(Check_matrix_kernel_1In_1Out_template<Matrix_transpose_naive_kernel>::check_passed, "Matrix_transpose_naive is not a valid kernel template");

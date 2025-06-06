@@ -9,8 +9,7 @@
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 
-#include "cuda/cuda_utils.h"
-#include "cuda/kernel_api.h"
+#include "common/kernel_api/vector_1in_1out.h"
 #include "cuda/type_traits.h"
 
 template <CUDA_scalar CUDA_Number>
@@ -34,14 +33,9 @@ struct Vector_cumsum_serial_spec {
     const long n_;    // size of vector
     const long k_;    // unused for vector cumsum
 
-    const long n_rows_A_;
-    const long n_cols_A_;
-
-    const long n_rows_C_;
-    const long n_cols_C_;
-
-    const long n_rows_temp_;
-    const long n_cols_temp_;
+    const long n_A_;
+    const long n_C_;
+    const long n_temp_;
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
@@ -81,18 +75,15 @@ struct Vector_cumsum_serial_spec {
         m_(0),  // unused
         n_(n),
         k_(0),  // unused
-        n_rows_A_(1),
-        n_cols_A_(n),
-        n_rows_C_(1),
-        n_cols_C_(n),
-        n_rows_temp_(0),
-        n_cols_temp_(0),
+        n_A_(n),
+        n_C_(n),
+        n_temp_(0),
         block_dim_(1),
         grid_dim_(1)
     {}
 };
 
-static_assert(Check_kernel_spec_1In_1Out<Vector_cumsum_serial_spec>::check_passed, "Vector_cumsum_serial_spec is not a valid kernel spec");
+static_assert(Check_vector_kernel_spec_1In_1Out<Vector_cumsum_serial_spec>::check_passed, "Vector_cumsum_serial_spec is not a valid kernel spec");
 
 
 template <CUDA_scalar Number_>
@@ -121,11 +112,11 @@ class Vector_cumsum_serial_kernel {
         >>>(gpu_data_A, gpu_data_C, spec_.n_);
     }
 
-    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A
+    Eigen::Vector<Number, Eigen::Dynamic> run_host_kernel(
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>>& A
     ) {
         // Compute cumulative sum for a vector (treat matrix as a flattened vector)
-        Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> result(A.rows(), A.cols());
+        Eigen::Vector<Number, Eigen::Dynamic> result(A.rows(), A.cols());
         Number accu = A(0);
         result(0) = accu;
         for (int i = 1; i < A.size(); ++i) {
@@ -136,4 +127,4 @@ class Vector_cumsum_serial_kernel {
     }
 
 };
-static_assert(Check_kernel_1In_1Out_template<Vector_cumsum_serial_kernel>::check_passed, "Vector_cumsum_serial is not a valid kernel template");
+static_assert(Check_vector_kernel_1In_1Out_template<Vector_cumsum_serial_kernel>::check_passed, "Vector_cumsum_serial is not a valid kernel template");

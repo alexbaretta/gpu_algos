@@ -7,11 +7,6 @@
 
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
-#include <iostream>
-#include <string>
-#include <functional>
-#include <chrono>
-#include "check_errors.h"
 #include "type_traits.h"
 
 constexpr size_t NULL_FLAGS = 0;

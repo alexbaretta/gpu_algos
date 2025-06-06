@@ -3,6 +3,8 @@
 
 // source path: src/cuda/cuda_utils.cu
 
+#include <chrono>
+
 #include "cuda/cuda_utils.h"
 
 void report_completion_time_callback(cudaStream_t stream, cudaError_t status, void* userData) {
