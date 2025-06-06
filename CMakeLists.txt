@@ -36,7 +36,7 @@ message(STATUS "HIP compiler found: ${CMAKE_HIP_COMPILER}")
 
 
 execute_process(
-    COMMAND bash -c "${CMAKE_CUDA_HOST_COMPILER} --print-search-dirs | grep libraries | cut -d= -f2 | tr ':' ';'"
+    COMMAND bash -c "${CMAKE_CUDA_HOST_COMPILER} --print-search-dirs | grep libraries | cut -d= -f2 | tr ':' ' ' | xargs readlink -f | tr '\n' ';' | head -c -1"
     OUTPUT_VARIABLE CUDA_HOST_COMPILER_LIBRARY_PATH
     COMMAND_ECHO STDOUT
     COMMAND_ERROR_IS_FATAL ANY
@@ -47,7 +47,7 @@ if(CMAKE_HIP_COMPILER)
     enable_language(HIP)
 
     execute_process(
-        COMMAND bash -c "${CMAKE_HIP_HOST_COMPILER} --print-search-dirs | grep libraries | cut -d= -f2 | tr ':' ';'"
+        COMMAND bash -c "${CMAKE_HIP_HOST_COMPILER} --print-search-dirs | grep libraries | cut -d= -f2 | tr ':' ' ' | xargs readlink -f | tr '\n' ';' | head -c -1"
         OUTPUT_VARIABLE HIP_HOST_COMPILER_LIBRARY_PATH
         COMMAND_ECHO STDOUT
         COMMAND_ERROR_IS_FATAL ANY
@@ -162,7 +162,9 @@ function(add_gpu_executable target_name source_file)
     # Set CUDA specific properties
     set_target_properties(${target_name} PROPERTIES
         CUDA_SEPARABLE_COMPILATION ON
+        CUDA_RUNTIME_LIBRARY Shared
         CUDA_ARCHITECTURES 89
+        LINKER_LANGUAGE CUDA
     )
 
     # Add include directories
@@ -174,19 +176,19 @@ function(add_gpu_executable target_name source_file)
     )
 
     # Link CUDA libraries
-    target_link_libraries(${target_name} PRIVATE
-        cudart
-        cuda
-        CUDA::cublas
-        CUDA::cublasLt
-        Eigen3::Eigen
-        OpenMP::OpenMP_CXX
-    )
-
     target_link_directories(
         ${target_name} PRIVATE
         ${CUDAToolkit_LIBRARY_DIR}
         ${CUDA_HOST_COMPILER_LIBRARY_PATH}
+    )
+
+    target_link_libraries(${target_name} PRIVATE
+        CUDA::cudart
+        CUDA::cuda_driver
+        CUDA::cublas
+        CUDA::cublasLt
+        Eigen3::Eigen
+        OpenMP::OpenMP_CXX
     )
 endfunction()
 
@@ -237,15 +239,15 @@ function(add_hip_executable target_name source_file)
     )
 
     # Link HIP libraries
+    target_link_directories(
+        ${target_name} PRIVATE
+        ${HIP_HOST_COMPILER_LIBRARY_PATH}
+    )
+
     target_link_libraries(${target_name} PRIVATE
         hip::host
         Eigen3::Eigen
         OpenMP::OpenMP_CXX
-    )
-
-    target_link_directories(
-        ${target_name} PRIVATE
-        ${HIP_HOST_COMPILER_LIBRARY_PATH}
     )
 endfunction()
 
