@@ -48,6 +48,18 @@ apt-get update
 apt-get -y install cuda-toolkit-12-9
 ```
 
+We also need install an older version of cuda to support clangd.
+```bash
+wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda_12.8.0_570.86.10_linux.run
+chmod a+x cuda_12.8.0_570.86.10_linux.run
+```
+
+As root user:
+```bash
+./cuda_12.8.0_570.86.10_linux.run
+```
+
+
 2. Add CUDA to your PATH, ideally in /etc/profile:
 ```bash
    cat > /etc/profile.d/cuda.sh <<EOF
@@ -163,4 +175,10 @@ git clone https://github.com/ROCm/rocm-cmake.git
    cmake --build .
    sudo cmake --build . --target install
 )
+```
+
+8. Set up user-level clangd configuration (pay attention not to overwrite your own config file with the following command.)
+```bash
+mkdir -p ~/.config/clangd
+cp .clangd ~/.config/clangd/config.yaml
 ```
