@@ -1,14 +1,9 @@
 CompileFlags:
   Compiler: clang++
   Add:
-    - -L/usr/local/cuda/lib64 # Or path to CUDA lib directory
     - -I/usr/local/cuda/include # Or path to CUDA include directory
     - -I/opt/rocm/include # Or path to HIP include directory
-    - -isystem/usr/include/eigen3
     - -I/usr/local/cuda/targets/x86_64-linux/include
-    - -xcuda
-    - --cuda-path=/usr/local/cuda-clang
-    - -include=Eigen/Dense
   Remove:
     - --expt-relaxed-constexpr
     - -forward-unknown-to-host-compiler
@@ -25,3 +20,5 @@ CompileFlags:
     - -x
     - -Werror
     - -Wall
+    - -fopenmp
+    - --offload-arch=gfx90a
