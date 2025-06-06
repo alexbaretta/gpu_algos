@@ -6,6 +6,7 @@
 #pragma once
 
 #include <iostream>
+#include <chrono>
 #include <iomanip>
 #include <vector>
 #include <Eigen/Dense>
@@ -24,8 +25,10 @@
 #include "hip/hip_utils.hip.h"
 #include "hip/kernel_api.hip.h"
 
+#include <omp.h>
+
 #ifndef _OPENMP
-static_assert(false, "OpenMP is not supported");
+// static_assert(false, "OpenMP is not supported");
 #endif
 
 // Don't redefine constants that are already defined in common/benchmark_options.h
@@ -222,10 +225,8 @@ class Benchmark_2In_1Out {
             hip_check_error(hipFreeAsync(gpu_data_temp, stream), "hipFreeAsync");
         }
         hip_check_error(hipEventRecord(e5, stream), "hipEventRecord");
-        const auto gpu_tp5 = std::chrono::high_resolution_clock::now();
-
         hip_check_error(hipStreamSynchronize(stream), "hipStreamSynchronize");
-        const auto gpu_tp6 = std::chrono::high_resolution_clock::now();
+        const auto gpu_tp5 = std::chrono::high_resolution_clock::now();
 
         // Print execution time
         constexpr int row_header_width = 22;
@@ -538,10 +539,8 @@ class Benchmark_1In_1Out {
             hip_check_error(hipFreeAsync(gpu_data_temp, stream), "hipFreeAsync");
         }
         hip_check_error(hipEventRecord(e5, stream), "hipEventRecord");
-        const auto gpu_tp5 = std::chrono::high_resolution_clock::now();
-
         hip_check_error(hipStreamSynchronize(stream), "hipStreamSynchronize");
-        const auto gpu_tp6 = std::chrono::high_resolution_clock::now();
+        const auto gpu_tp5 = std::chrono::high_resolution_clock::now();
 
         // Print execution time
         constexpr int row_header_width = 22;

@@ -18,8 +18,8 @@ __global__ void matrix_product_naive(
     const long n,
     const long k
 ) {
-    int col = blockIdx.x * blockDim.x + hipThreadIdx_x;
-    int row = blockIdx.y * blockDim.y + hipThreadIdx_y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (row < m && col < k) {
         HIP_Number sum = 0.0f;
@@ -138,12 +138,12 @@ class Matrix_product_naive_kernel {
         Number* const gpu_data_temp,
         hipStream_t stream
     ) {
-        hipLaunchKernel(matrix_product_naive,
+        matrix_product_naive<<<
             spec_.grid_dim_,
             spec_.block_dim_,
             spec_.dynamic_shared_mem_words_ * sizeof(Number),
-            stream,
-            gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
+            stream
+        >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }
 
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(

@@ -55,6 +55,11 @@ function(add_hip_executable target_name source_file)
         ${CMAKE_SOURCE_DIR}/src/hip/benchmark.hip.cpp
     )
 
+    # Set the language for HIP source files explicitly
+    set_source_files_properties(${source_file} PROPERTIES LANGUAGE HIP)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/hip/hip_utils.hip.cpp PROPERTIES LANGUAGE HIP)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/hip/benchmark.hip.cpp PROPERTIES LANGUAGE HIP)
+
     # Set HIP specific properties
     set_target_properties(${target_name} PROPERTIES
         HIP_STANDARD 20

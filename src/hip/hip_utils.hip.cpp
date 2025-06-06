@@ -21,7 +21,7 @@ __host__ __device__ _Float16 hip_min<_Float16>(_Float16 a, _Float16 b) {
 
 template <>
 __host__ __device__ _Float16 device_nan<_Float16>() {
-    return _Float16(nanf(nullptr));
+    return std::numeric_limits<_Float16>::quiet_NaN();
 }
 
 void report_completion_time_callback(hipStream_t stream, hipError_t status, void* userData) {

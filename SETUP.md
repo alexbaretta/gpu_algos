@@ -187,3 +187,18 @@ git clone https://github.com/ROCm/rocm-cmake.git
 mkdir -p ~/.config/clangd
 cp .clangd ~/.config/clangd/config.yaml
 ```
+
+## librt linking errors
+
+librt is now included in glibc, so we no longer need CUDA to link it. Until a new version of cmake is
+released that can handle this new oddity, it is best to manualy edit FindCUDAToolkit.cmake as follows:
+
+```cmake
+      #find_library(CUDAToolkit_rt_LIBRARY rt)
+      #mark_as_advanced(CUDAToolkit_rt_LIBRARY)
+      #if(NOT CUDAToolkit_rt_LIBRARY)
+      #  message(WARNING "Could not find librt library, needed by CUDA::cudart_static")
+      #else()
+      #  target_link_libraries(CUDA::cudart_static_deps INTERFACE ${CUDAToolkit_rt_LIBRARY})
+      #endif()
+```
