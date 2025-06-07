@@ -4,6 +4,7 @@ CompileFlags:
     - -I/usr/local/cuda/include # Or path to CUDA include directory
     - -I/opt/rocm/include # Or path to HIP include directory
     - -I/usr/local/cuda/targets/x86_64-linux/include
+    - -xc++
   Remove:
     - --expt-relaxed-constexpr
     - -forward-unknown-to-host-compiler
@@ -17,8 +18,38 @@ CompileFlags:
     - -G
     - -ccbin=g++-14
     - --Werror
-    - -x
     - -Werror
     - -Wall
+    - -L
     - -fopenmp
-    - --offload-arch=gfx90a
+    - --offload-arch
+
+---
+If:
+  PathMatch: .*\.cu$
+CompileFlags:
+  Add:
+    - -xcuda
+
+---
+If:
+  PathMatch: .*\.hip.cpp$
+CompileFlags:
+  Compiler: amdclang++
+  Add:
+    - -xhip
+
+# ---
+# If:
+#   PathMatch: .*\.cuh$
+# CompileFlags:
+#   Add:
+#     - -xcuda
+
+# ---
+# If:
+#   PathMatch: .*\.hip.h$
+# CompileFlags:
+#   Compiler: amdclang++
+#   Add:
+#     - -xhip
