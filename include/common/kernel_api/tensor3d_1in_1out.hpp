@@ -5,8 +5,8 @@
 
 #include <cuda_runtime.h>
 #include <Eigen/Dense>
-#include "cuda/type_traits.h"
-#include "common/types/tensor3d.h"
+#include "cuda/type_traits.hpp"
+#include "common/types/tensor3d.hpp"
 
 template <typename Tensor3d_kernel_spec_1In_1Out>
 concept TENSOR3D_KERNEL_SPEC_1IN_1OUT = requires (Tensor3d_kernel_spec_1In_1Out spec) {    { spec.n_rows_A_ } -> std::same_as<const long&>;

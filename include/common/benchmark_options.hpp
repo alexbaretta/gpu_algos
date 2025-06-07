@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/common/benchmark_options.h
+// source path: include/common/benchmark_options.hpp
 
 #pragma once
 

@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/hip_utils.hip.h
+// source path: include/hip/hip_utils.hip.hpp
 
 #pragma once
 
@@ -11,8 +11,8 @@
 #include <string>
 #include <functional>
 #include <chrono>
-#include "hip/check_errors.hip.h"
-#include "hip/type_traits.hip.h"
+#include "hip/check_errors.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
 constexpr size_t NULL_FLAGS = 0;
 

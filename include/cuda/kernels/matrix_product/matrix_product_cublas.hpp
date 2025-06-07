@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/matrix_product_cublas.h
+// source path: include/cuda/kernels/matrix/matrix_product_cublas.hpp
 
 #pragma once
 #include <cuda_runtime.h>
@@ -12,8 +12,8 @@
 #include <Eigen/Dense>
 #include <cuda_fp16.h>
 
-#include "common/kernel_api/matrix_2in_1out.h"
-#include "cuda/type_traits.h"
+#include "common/kernel_api/matrix_2in_1out.hpp"
+#include "cuda/type_traits.hpp"
 
 struct Matrix_product_cublas_spec {
     const std::string type_;

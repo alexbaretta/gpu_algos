@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/gradient/gradient_leastsquares_elasticnet_optimizer.h
+// source path: include/cuda/kernels/gradient/gradient_leastsquares_elasticnet_optimizer.hpp
 
 #pragma once
 #include <cuda_runtime.h>
@@ -11,10 +11,10 @@
 #include <iostream>
 #include <Eigen/Dense>
 
-#include "common/kernel_api/matrix_3in_1out.h"
-#include "cuda/type_traits.h"
-#include "common/type_traits.h"
-#include "cuda/kernels/gradient/gradient_leastsquares_elasticnet_tensor.h"
+#include "common/kernel_api/matrix_3in_1out.hpp"
+#include "cuda/type_traits.hpp"
+#include "common/type_traits.hpp"
+#include "cuda/kernels/gradient/gradient_leastsquares_elasticnet_tensor.hpp"
 
 /*
 This kernel performs gradient descent optimization for linear regression
@@ -237,7 +237,7 @@ struct Gradient_leastsquares_elasticnet_optimizer_spec {
             ("n", "Number of features", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("k", "Number of outputs", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("max_iterations", "Maximum optimization iterations", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_MAX_ITERATIONS)))
-            ("n_points_line_search", "Number of line search points", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N_POINTS_LINE_SEARCH)))
+            ("n_points_line_sear.hpp", "Number of line search points", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N_POINTS_LINE_SEARCH)))
             ("eta", "Learning rate", cxxopts::value<double>())
             ("alpha", "L1 regularization parameter", cxxopts::value<double>()->default_value(std::to_string(DEFAULT_ALPHA)))
             ("lambda", "L2 regularization parameter", cxxopts::value<double>()->default_value(std::to_string(DEFAULT_LAMBDA)))
@@ -263,7 +263,7 @@ struct Gradient_leastsquares_elasticnet_optimizer_spec {
         if (options_parsed.count("eta")) {
             eta = options_parsed["eta"].as<double>();
         } else {
-            int n_points = options_parsed["n_points_line_search"].as<int>();
+            int n_points = options_parsed["n_points_line_sear.hpp"].as<int>();
             eta = 1.0 / (n_points * n_points);
         }
 
@@ -273,7 +273,7 @@ struct Gradient_leastsquares_elasticnet_optimizer_spec {
             options_parsed["n"].as<long>(),
             options_parsed["k"].as<long>(),
             options_parsed["max_iterations"].as<int>(),
-            options_parsed["n_points_line_search"].as<int>(),
+            options_parsed["n_points_line_sear.hpp"].as<int>(),
             eta,
             options_parsed["alpha"].as<double>(),
             options_parsed["lambda"].as<double>(),

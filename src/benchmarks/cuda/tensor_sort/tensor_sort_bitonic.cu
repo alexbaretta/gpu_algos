@@ -5,10 +5,10 @@
 
 #include <cxxopts.hpp>
 
-#include "common/benchmark_options.h"
-#include "common/benchmark/benchmark_tensor3d_1inout.h"
+#include "common/benchmark_options.hpp"
+#include "common/benchmark/benchmark_tensor3d_1inout.hpp"
 
-#include "cuda/kernels/sort/tensor_sort_bitonic.h"
+#include "cuda/kernels/sort/tensor_sort_bitonic.hpp"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("tensor_sort_bitonic", "Tensor sort (bitonic algorithm)");

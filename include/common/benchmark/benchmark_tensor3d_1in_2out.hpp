@@ -12,10 +12,10 @@
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 
-#include "common/random.h"
-#include "cuda/check_errors.h"
-#include "cuda/cuda_utils.h"
-#include "common/kernel_api/tensor3d_1in_2out.h"
+#include "common/random.hpp"
+#include "cuda/check_errors.hpp"
+#include "cuda/cuda_utils.hpp"
+#include "common/kernel_api/tensor3d_1in_2out.hpp"
 
 template <TENSOR3D_KERNEL_1IN_2OUT Tensor3d_kernel_1In_2Out>
 class Benchmark_Tensor3D_1In_2Out {

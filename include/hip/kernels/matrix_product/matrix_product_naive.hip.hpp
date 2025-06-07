@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_product_naive.h
+// source path: include/hip/kernels/matrix/matrix_product_naive.hpp
 
 #pragma once
 #include <iostream>
@@ -9,8 +9,8 @@
 
 #include <hip/hip_runtime.h>
 
-#include "hip/kernel_api.hip.h"
-#include "hip/type_traits.hip.h"
+#include "hip/kernel_api.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
 template <HIP_scalar HIP_Number>
 __global__ void matrix_product_naive(

@@ -3,7 +3,7 @@
 
 // source path: src/common/benchmark_options.cpp
 
-#include "common/benchmark_options.h"
+#include "common/benchmark_options.hpp"
 
 void add_benchmark_options(cxxopts::Options& options) {
     options.add_options()

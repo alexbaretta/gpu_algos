@@ -3,4 +3,4 @@
 
 // source path: src/hip/benchmark.cu
 
-#include "hip/benchmark.hip.h"
+#include "hip/benchmark.hip.hpp"

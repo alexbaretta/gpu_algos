@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/vector_cumsum_serial.h
+// source path: include/cuda/kernels/matrix/vector_cumsum_serial.hpp
 
 #pragma once
 #include <iostream>
@@ -9,8 +9,8 @@
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 
-#include "common/kernel_api/vector_1in_1out.h"
-#include "cuda/type_traits.h"
+#include "common/kernel_api/vector_1in_1out.hpp"
+#include "cuda/type_traits.hpp"
 
 template <CUDA_scalar CUDA_Number>
 __global__ void vector_cumsum_serial(

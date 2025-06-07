@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix_product/matrix_product_cutlass.h
+// source path: include/cuda/kernels/matrix_product/matrix_product_cutlass.hpp
 
 #pragma once
 #include <cuda_runtime.h>
@@ -11,8 +11,8 @@
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 
-#include "common/kernel_api/matrix_2in_1out.h"
-#include "cuda/type_traits.h"
+#include "common/kernel_api/matrix_2in_1out.hpp"
+#include "cuda/type_traits.hpp"
 
 struct Matrix_product_cutlass_spec {
     const std::string type_;

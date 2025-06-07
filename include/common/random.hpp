@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/common/random.h
+// source path: include/common/random.hpp
 
 #pragma once
 

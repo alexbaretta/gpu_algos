@@ -12,10 +12,10 @@
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 
-#include "common/random.h"
-#include "cuda/check_errors.h"
-#include "cuda/cuda_utils.h"
-#include "common/kernel_api/matrix_1inout.h"
+#include "common/random.hpp"
+#include "cuda/check_errors.hpp"
+#include "cuda/cuda_utils.hpp"
+#include "common/kernel_api/matrix_1inout.hpp"
 
 template <MATRIX_KERNEL_1INOUT Matrix_kernel_1InOut>
 class Benchmark_Matrix_1InOut {

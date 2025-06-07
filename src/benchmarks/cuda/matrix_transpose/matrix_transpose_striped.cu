@@ -5,10 +5,10 @@
 
 #include <cxxopts.hpp>
 
-#include "common/benchmark_options.h"
-#include "common/benchmark/benchmark_matrix_1in_1out.h"
+#include "common/benchmark_options.hpp"
+#include "common/benchmark/benchmark_matrix_1in_1out.hpp"
 
-#include "cuda/kernels/matrix_transpose/matrix_transpose_striped.h"
+#include "cuda/kernels/matrix_transpose/matrix_transpose_striped.hpp"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("matrix_transpose_striped", "Matrix transpose (striped algorithm)");

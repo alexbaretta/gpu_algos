@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/matrix_product_naive.h
+// source path: include/cuda/kernels/matrix/matrix_product_naive.hpp
 
 #pragma once
 
@@ -11,8 +11,8 @@
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 
-#include "common/kernel_api/matrix_2in_1out.h"
-#include "cuda/type_traits.h"
+#include "common/kernel_api/matrix_2in_1out.hpp"
+#include "cuda/type_traits.hpp"
 
 template <CUDA_scalar CUDA_Number>
 __global__ void matrix_product_naive(

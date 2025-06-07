@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/sort/tensor_sort_bitonic.h
+// source path: include/cuda/kernels/sort/tensor_sort_bitonic.hpp
 
 #pragma once
 #include <cuda_runtime.h>
@@ -12,8 +12,8 @@
 #include <algorithm>
 #include <vector>
 
-#include "common/types/tensor3d.h"
-#include "cuda/type_traits.h"
+#include "common/types/tensor3d.hpp"
+#include "cuda/type_traits.hpp"
 
 // Bitonic sort kernel for comparing and swapping elements along a specific dimension
 template <CUDA_scalar CUDA_Number>

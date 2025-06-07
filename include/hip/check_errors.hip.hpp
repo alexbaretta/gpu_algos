@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/check_errors.hip.h
+// source path: include/hip/check_errors.hip.hpp
 
 #pragma once
 

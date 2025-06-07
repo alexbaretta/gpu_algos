@@ -5,11 +5,11 @@
 
 #include <cxxopts.hpp>
 
-#include "common/benchmark_options.h"
+#include "common/benchmark_options.hpp"
 
-#include "hip/benchmark.hip.h"
+#include "hip/benchmark.hip.hpp"
 
-#include "hip/kernels/matrix_product/matrix_product_naive.hip.h"
+#include "hip/kernels/matrix_product/matrix_product_naive.hip.hpp"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("matrix_product_naive", "Matrix multiplication (naive algorithm)");

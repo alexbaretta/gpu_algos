@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/vector_scan_parallel.h
+// source path: include/cuda/kernels/matrix/vector_scan_parallel.hpp
 
 #pragma once
 #include <iostream>
@@ -12,9 +12,9 @@
 #include <concepts>
 #include <type_traits>
 
-#include "common/kernel_api/vector_1in_1out.h"
-#include "cuda/cuda_utils.h"
-#include "cuda/type_traits.h"
+#include "common/kernel_api/vector_1in_1out.hpp"
+#include "cuda/cuda_utils.hpp"
+#include "cuda/type_traits.hpp"
 
 constexpr static long MAX_BLOCK_SIZE = 1024;
 constexpr static long WARP_SIZE = 32;

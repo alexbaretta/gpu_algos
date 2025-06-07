@@ -5,10 +5,10 @@
 
 #include <cxxopts.hpp>
 
-#include "common/benchmark_options.h"
-#include "common/benchmark/benchmark_vector_1in_1out.h"
+#include "common/benchmark_options.hpp"
+#include "common/benchmark/benchmark_vector_1in_1out.hpp"
 
-#include "cuda/kernels/vector_cummax/vector_cummax_parallel.h"
+#include "cuda/kernels/vector_cummax/vector_cummax_parallel.hpp"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("vector_cummax_parallel", "Vector cumulative sum (parallel algorithm)");

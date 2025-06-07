@@ -6,7 +6,7 @@
 #include <hip/hip_runtime.h>
 #include <chrono>
 #include <random>
-#include "hip/hip_utils.hip.h"
+#include "hip/hip_utils.hip.hpp"
 
 // Template specializations for _Float16
 template <>

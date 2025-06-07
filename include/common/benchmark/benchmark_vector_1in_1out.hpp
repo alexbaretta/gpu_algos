@@ -12,10 +12,10 @@
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 
-#include "common/random.h"
-#include "cuda/check_errors.h"
-#include "cuda/cuda_utils.h"
-#include "common/kernel_api/vector_1in_1out.h"
+#include "common/random.hpp"
+#include "cuda/check_errors.hpp"
+#include "cuda/cuda_utils.hpp"
+#include "common/kernel_api/vector_1in_1out.hpp"
 
 template <VECTOR_KERNEL_1IN_1OUT Vector_kernel_1In_1Out>
 class Benchmark_Vector_1In_1Out {

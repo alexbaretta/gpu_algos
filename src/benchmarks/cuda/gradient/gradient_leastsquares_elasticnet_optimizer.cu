@@ -5,13 +5,13 @@
 
 #include <cxxopts.hpp>
 
-#include "common/benchmark_options.h"
-#include "common/benchmark/benchmark_matrix_3in_1out.h"
+#include "common/benchmark_options.hpp"
+#include "common/benchmark/benchmark_matrix_3in_1out.hpp"
 
-#include "cuda/kernels/gradient/gradient_leastsquares_elasticnet_optimizer.h"
+#include "cuda/kernels/gradient/gradient_leastsquares_elasticnet_optimizer.hpp"
 
 int main(int argc, char** argv) {
-    cxxopts::Options options("gradient_leastsquares_elasticnet_optimizer", "Gradient descent optimization with ElasticNet regularization and line search");
+    cxxopts::Options options("gradient_leastsquares_elasticnet_optimizer", "Gradient descent optimization with ElasticNet regularization and line sear.hpp");
     add_benchmark_options(options);
     Gradient_leastsquares_elasticnet_optimizer_spec::add_kernel_spec_options(options);
 

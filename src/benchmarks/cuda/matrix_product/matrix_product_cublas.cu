@@ -5,10 +5,10 @@
 
 #include <cxxopts.hpp>
 
-#include "common/benchmark_options.h"
-#include "common/benchmark/benchmark_matrix_2in_1out.h"
+#include "common/benchmark_options.hpp"
+#include "common/benchmark/benchmark_matrix_2in_1out.hpp"
 
-#include "cuda/kernels/matrix_product/matrix_product_cublas.h"
+#include "cuda/kernels/matrix_product/matrix_product_cublas.hpp"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("matrix_product_cublas", "Matrix multiplication using cuBLAS");

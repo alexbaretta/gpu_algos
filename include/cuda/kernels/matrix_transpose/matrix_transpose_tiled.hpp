@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/matrix_transpose_tiled.h
+// source path: include/cuda/kernels/matrix/matrix_transpose_tiled.hpp
 
 #pragma once
 
@@ -12,8 +12,8 @@
 #include <Eigen/Dense>
 #include <cassert>
 
-#include "common/kernel_api/matrix_1in_1out.h"
-#include "cuda/type_traits.h"
+#include "common/kernel_api/matrix_1in_1out.hpp"
+#include "cuda/type_traits.hpp"
 
 constexpr long TILE_DIM = 32;
 

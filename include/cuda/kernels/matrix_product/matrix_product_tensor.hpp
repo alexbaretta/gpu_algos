@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/matrix_product_tensor.h
+// source path: include/cuda/kernels/matrix/matrix_product_tensor.hpp
 
 #pragma once
 
@@ -15,8 +15,8 @@
 #include <cstdint>
 #include <cuda_fp16.h>
 
-#include "common/kernel_api/matrix_2in_1out.h"
-#include "cuda/type_traits.h"
+#include "common/kernel_api/matrix_2in_1out.hpp"
+#include "cuda/type_traits.hpp"
 
 struct Matrix_product_tensor_spec {
     const std::string type_;

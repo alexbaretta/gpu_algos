@@ -1,13 +1,13 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/cuda_utils.h
+// source path: include/cuda/cuda_utils.hpp
 
 #pragma once
 
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
-#include "type_traits.h"
+#include "type_traits.hpp"
 
 constexpr size_t NULL_FLAGS = 0;
 

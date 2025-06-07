@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/benchmark.hip.h
+// source path: include/hip/benchmark.hip.hpp
 
 #pragma once
 
@@ -19,10 +19,10 @@
 #define __HIP_PLATFORM_AMD__
 #endif
 
-#include "hip/random.hip.h"
-#include "hip/check_errors.hip.h"
-#include "hip/hip_utils.hip.h"
-#include "hip/kernel_api.hip.h"
+#include "hip/random.hip.hpp"
+#include "hip/check_errors.hip.hpp"
+#include "hip/hip_utils.hip.hpp"
+#include "hip/kernel_api.hip.hpp"
 
 #include <omp.h>
 
@@ -30,7 +30,7 @@
 // static_assert(false, "OpenMP is not supported");
 #endif
 
-// Don't redefine constants that are already defined in common/benchmark_options.h
+// Don't redefine constants that are already defined in common/benchmark_options.hpp
 // constexpr int DEFAULT_GPU_MEM = 16; // GPU memory size in GB
 // constexpr int DEFAULT_SEED = 42;
 
