@@ -92,9 +92,6 @@ if(CMAKE_HIP_COMPILER)
         # Add OpenMP flags for HIP
         set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp")
 
-        # Add HIP platform definition
-        set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -D__HIP_PLATFORM_NVIDIA__")
-
     else()
         message(WARNING "HIP compiler found but HIP package not found - HIP support disabled")
         set(HIP_AVAILABLE FALSE)
