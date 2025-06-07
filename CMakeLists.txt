@@ -80,7 +80,7 @@ if(CMAKE_HIP_COMPILER)
         set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp")
 
         # Add HIP platform definition
-        set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -D__HIP_PLATFORM_AMD__")
+        set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -D__HIP_PLATFORM_NVIDIA__")
 
     else()
         message(WARNING "HIP compiler found but HIP package not found - HIP support disabled")
@@ -112,7 +112,7 @@ find_package(OpenMP REQUIRED)
 
 # Add OpenMP flags for CUDA (avoid duplication)
 set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS} -Xcompiler=-fopenmp")
-set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp")
+set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp -xhip")
 set(DEFAULT_LINK_FLAGS "${DEFAULT_LINK_FLAGS} -fopenmp")
 
 
@@ -158,7 +158,10 @@ function(add_gpu_executable target_name source_file)
     separate_arguments(LOCAL_CUDA_FLAGS UNIX_COMMAND ${DEFAULT_CUDA_FLAGS})
     separate_arguments(LOCAL_LINK_FLAGS UNIX_COMMAND ${DEFAULT_LINK_FLAGS})
     target_link_options(${target_name} PRIVATE "${LOCAL_LINK_FLAGS}")
-    set_source_files_properties(${source_file} PROPERTIES COMPILE_OPTIONS "${LOCAL_CUDA_FLAGS}")
+    set_source_files_properties(${source_file} PROPERTIES
+        COMPILE_OPTIONS "${LOCAL_CUDA_FLAGS}"
+        LANGUAGE CUDA
+    )
 
     message(STATUS "COMPILE_OPTIONS for CUDA ${source_file}: ${DEFAULT_CUDA_FLAGS}")
 
@@ -212,13 +215,15 @@ function(add_hip_executable target_name source_file)
     separate_arguments(LOCAL_HIP_FLAGS UNIX_COMMAND ${DEFAULT_HIP_FLAGS})
     separate_arguments(LOCAL_LINK_FLAGS UNIX_COMMAND ${DEFAULT_LINK_FLAGS})
     target_link_options(${target_name} PRIVATE "${LOCAL_LINK_FLAGS}")
-    set_source_files_properties(${source_file} PROPERTIES COMPILE_OPTIONS "${LOCAL_HIP_FLAGS}")
+    set_source_files_properties(${source_file} PROPERTIES
+        COMPILE_OPTIONS "${LOCAL_HIP_FLAGS}"
+        LANGUAGE HIP
+    )
 
     message(STATUS "COMPILE_OPTIONS for HIP ${source_file}: ${DEFAULT_HIP_FLAGS}")
 
 
     # Set the language for HIP source files explicitly
-    set_source_files_properties(${source_file} PROPERTIES LANGUAGE HIP)
     set_source_files_properties(${CMAKE_SOURCE_DIR}/src/hip/hip_utils.hip.cpp PROPERTIES LANGUAGE HIP)
     set_source_files_properties(${CMAKE_SOURCE_DIR}/src/hip/benchmark.hip.cpp PROPERTIES LANGUAGE HIP)
 
