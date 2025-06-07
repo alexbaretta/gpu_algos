@@ -49,8 +49,8 @@ wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cu
 As root user:
 ```bash
 dpkg -i cuda-keyring_1.1-1_all.deb
-apt-get update
-apt-get -y install cuda-toolkit-12-9
+apt update
+apt -y install cuda-toolkit-12-9
 ```
 
 We also need install an older version of cuda to support clangd.
@@ -107,10 +107,19 @@ sed  -i 's/|debian/|debian|devuan/' /usr/bin/amdgpu-install
 ```
 
 4. Continue installing as root:
+
+If you have an AMD GPU:
 ```bash
-amdgpu-install -y --usecase=workstation,rocm,mllib,mlsdk,dkms,graphics
+amdgpu-install -y --usecase=workstation,rocm,rocmdev,mllib,mlsdk,dkms,graphics
 modprobe amdgpu
 ```
+
+If you do NOT have an AMD GPU but want to compile ROCm code anyway:
+```bash
+amdgpu-install -y --usecase=workstation,rocm,rocmdev,mllib,mlsdk
+modprobe amdgpu
+```
+
 
 5. As root, add users to appropriate groups to have permission to use the GPU
 ```bash
