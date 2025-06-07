@@ -18,6 +18,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Set default parallel jobs for building
 set(CMAKE_BUILD_PARALLEL_LEVEL 12)
 
+# Create meta-targets for different technology stacks
+add_custom_target(cuda-targets
+    COMMENT "Building all CUDA targets"
+)
+
+add_custom_target(hip-targets
+    COMMENT "Building all HIP targets"
+)
+
+add_custom_target(cpp-targets
+    COMMENT "Building all C++ targets"
+)
+
 # Set CUDA specific flags
 set(CMAKE_CUDA_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -196,6 +209,9 @@ function(add_gpu_executable target_name source_file)
         Eigen3::Eigen
         OpenMP::OpenMP_CXX
     )
+
+    # Add this target to the cuda-targets meta-target
+    add_dependencies(cuda-targets ${target_name})
 endfunction()
 
 # Function to create a HIP executable (only available when HIP is enabled)
@@ -252,8 +268,41 @@ function(add_hip_executable target_name source_file)
         Eigen3::Eigen
         OpenMP::OpenMP_CXX
     )
+
+    # Add this target to the hip-targets meta-target
+    add_dependencies(hip-targets ${target_name})
 endfunction()
 
+# Function to create a C++ executable
+function(add_cpp_executable target_name source_file)
+    add_executable(${target_name}
+        ${source_file}
+        ${CMAKE_SOURCE_DIR}/src/common/benchmark_options.cpp
+    )
+
+    # Set C++ specific properties
+    set_target_properties(${target_name} PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+    )
+
+    # Add include directories
+    target_include_directories(${target_name} PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/include/common
+        ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
+        ${EIGEN3_INCLUDE_DIR}
+    )
+
+    # Link libraries
+    target_link_libraries(${target_name} PRIVATE
+        Eigen3::Eigen
+        OpenMP::OpenMP_CXX
+    )
+
+    # Add this target to the cpp-targets meta-target
+    add_dependencies(cpp-targets ${target_name})
+endfunction()
 
 # Include all tools
 add_subdirectory(src/benchmarks)
