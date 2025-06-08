@@ -177,14 +177,14 @@ class Benchmark_Matrix_2In_1Out {
         }
         cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp1{};
-        cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
+        cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_2 = "Copy data to device";
         cuda_check_error(cudaMemcpyAsync(gpu_data_A, vec_A.data(), size_A_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaMemcpyAsync(gpu_data_B, vec_B.data(), size_B_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e2, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
-        cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
+        cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_3 = "Compute kernel";
         kernel.run_device_kernel(gpu_data_A, gpu_data_B, gpu_data_C, gpu_data_temp, stream);
