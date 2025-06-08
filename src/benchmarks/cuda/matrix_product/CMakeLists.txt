@@ -19,7 +19,7 @@ target_link_libraries(matrix_product_cublas PRIVATE
 
 # CUTLASS causes errors due to initializer order mismatch
 set(DEFAULT_CUDA_FLAGS_ORIGINAL "${DEFAULT_CUDA_FLAGS}")
-string(REPLACE ",reorder" "" DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS} --expt-relaxed-constexpr")
+string(REPLACE ",reorder" "" DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS}")
 add_gpu_executable(matrix_product_cutlass matrix_product_cutlass.cu)
 set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS_ORIGINAL}")
 
