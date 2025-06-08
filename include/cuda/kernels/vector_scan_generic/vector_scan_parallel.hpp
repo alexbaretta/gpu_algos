@@ -319,7 +319,7 @@ class Vector_scan_parallel_kernel {
             spec_.block_dim_.x,
             prev_n_elems
         );
-        if (prev_n_elems > spec_.block_dim_.x) {
+        if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
             const auto next_result_index = curr_result_index + curr_n_elems;
             block_strided_pass(output_buffer, curr_result_index, curr_n_elems, output_buffer, next_result_index, stream);
             // By the powers of recursion, curr_result is fully scanned
@@ -383,7 +383,7 @@ class Vector_scan_parallel_kernel {
         auto prev_result = gpu_data_C;
         auto curr_result = gpu_data_temp;
         auto prev_n_elems = spec_.n_;
-        if (prev_n_elems > spec_.block_dim_.x) {
+        if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
             block_strided_pass(gpu_data_C, 0, spec_.n_, gpu_data_temp, 0, stream);
         }
     }

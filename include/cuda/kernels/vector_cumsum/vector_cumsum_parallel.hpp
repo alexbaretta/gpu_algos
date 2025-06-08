@@ -315,7 +315,7 @@ class Vector_cumsum_parallel_kernel {
             spec_.block_dim_.x,
             prev_n_elems
         );
-        if (prev_n_elems > spec_.block_dim_.x) {
+        if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
             const auto curr_result = buffer + curr_result_index;
             const auto next_result_index = curr_result_index + curr_n_elems;
             strided_pass(buffer, curr_result, curr_n_elems, next_result_index, stream);
@@ -380,7 +380,7 @@ class Vector_cumsum_parallel_kernel {
         auto prev_result = gpu_data_C;
         auto curr_result = gpu_data_temp;
         auto prev_n_elems = spec_.n_;
-        if (prev_n_elems > spec_.block_dim_.x) {
+        if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
             strided_pass(gpu_data_temp, prev_result, prev_n_elems, 0, stream);
         }
     }
