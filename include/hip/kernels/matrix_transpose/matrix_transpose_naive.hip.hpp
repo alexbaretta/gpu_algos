@@ -6,8 +6,8 @@
 #pragma once
 #include <hip/hip_runtime.h>
 
-#include "hip/kernel_api.hip.hpp
-#include "hip/type_traits.hip.hpp
+#include "hip/kernel_api.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
 template <HIP_scalar HIP_Number>
 __global__ void matrix_transpose_naive(

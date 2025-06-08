@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+// source path: include/cuda/kernel_api/matrix_1in_1out.hpp
+
 #pragma once
 
 #include <cuda_runtime.h>
