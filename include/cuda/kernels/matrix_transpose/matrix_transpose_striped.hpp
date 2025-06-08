@@ -12,7 +12,7 @@
 #include <Eigen/Dense>
 #include <cassert>
 
-#include "common/kernel_api/matrix_1in_1out.hpp"
+#include "cuda/kernel_api/matrix_1in_1out.hpp"
 #include "cuda/type_traits.hpp"
 
 constexpr long STRIPE_WIDTH = 32;

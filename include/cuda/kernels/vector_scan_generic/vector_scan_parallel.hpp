@@ -12,7 +12,7 @@
 #include <concepts>
 #include <type_traits>
 
-#include "common/kernel_api/vector_1in_1out.hpp"
+#include "cuda/kernel_api/vector_1in_1out.hpp"
 #include "cuda/cuda_utils.hpp"
 #include "cuda/type_traits.hpp"
 

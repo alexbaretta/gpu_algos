@@ -16,7 +16,7 @@
 #include "common/random.hpp"
 #include "cuda/check_errors.hpp"
 #include "cuda/cuda_utils.hpp"
-#include "common/kernel_api/vector_3in_1out.hpp"
+#include "cuda/kernel_api/vector_3in_1out.hpp"
 
 template <VECTOR_KERNEL_3IN_1OUT Vector_kernel_3In_1Out>
 class Benchmark_Vector_3In_1Out {

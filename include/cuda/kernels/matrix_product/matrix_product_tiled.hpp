@@ -11,7 +11,7 @@
 #include <cassert>
 
 #include "cxxopts.hpp"
-#include "common/kernel_api/matrix_2in_1out.hpp"
+#include "cuda/kernel_api/matrix_2in_1out.hpp"
 #include "cuda/type_traits.hpp"
 
 constexpr long TILE_SIZE = 16;

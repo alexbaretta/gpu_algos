@@ -12,7 +12,7 @@
 #include <Eigen/Dense>
 #include <cuda_fp16.h>
 
-#include "common/kernel_api/matrix_2in_1out.hpp"
+#include "cuda/kernel_api/matrix_2in_1out.hpp"
 #include "cuda/type_traits.hpp"
 
 struct Matrix_product_cublas_spec {

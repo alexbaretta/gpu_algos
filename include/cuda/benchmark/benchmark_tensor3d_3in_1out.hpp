@@ -18,7 +18,7 @@
 #include "common/random.hpp"
 #include "cuda/check_errors.hpp"
 #include "cuda/cuda_utils.hpp"
-#include "common/kernel_api/tensor3d_3in_1out.hpp"
+#include "cuda/kernel_api/tensor3d_3in_1out.hpp"
 
 template <TENSOR3D_KERNEL_3IN_1OUT Tensor3d_kernel_3In_1Out>
 class Benchmark_Tensor3D_3In_1Out {

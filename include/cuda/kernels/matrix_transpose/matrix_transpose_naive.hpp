@@ -9,7 +9,7 @@
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
-#include "common/kernel_api/matrix_1in_1out.hpp"
+#include "cuda/kernel_api/matrix_1in_1out.hpp"
 #include "cuda/type_traits.hpp"
 
 template <CUDA_scalar CUDA_Number>

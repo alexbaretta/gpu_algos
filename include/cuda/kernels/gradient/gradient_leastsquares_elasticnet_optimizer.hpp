@@ -11,7 +11,7 @@
 #include <iostream>
 #include <Eigen/Dense>
 
-#include "common/kernel_api/matrix_3in_1out.hpp"
+#include "cuda/kernel_api/matrix_3in_1out.hpp"
 #include "cuda/type_traits.hpp"
 #include "common/type_traits.hpp"
 #include "cuda/kernels/gradient/gradient_leastsquares_elasticnet_tensor.hpp"

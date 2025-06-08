@@ -11,7 +11,7 @@
 #include <cassert>
 
 #include "cuda/cuda_utils.hpp"
-#include "common/kernel_api/vector_1in_1out.hpp"
+#include "cuda/kernel_api/vector_1in_1out.hpp"
 #include "cuda/type_traits.hpp"
 
 constexpr static long MAX_BLOCK_SIZE = 1024;

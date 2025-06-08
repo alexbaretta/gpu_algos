@@ -17,7 +17,7 @@
 #include "common/random.hpp"
 #include "cuda/check_errors.hpp"
 #include "cuda/cuda_utils.hpp"
-#include "common/kernel_api/vector_1inout.hpp"
+#include "cuda/kernel_api/vector_1inout.hpp"
 
 template <VECTOR_KERNEL_1INOUT Vector_kernel_1InOut>
 class Benchmark_Vector_1InOut {

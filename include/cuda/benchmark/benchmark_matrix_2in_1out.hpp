@@ -17,7 +17,7 @@
 #include "common/random.hpp"
 #include "cuda/check_errors.hpp"
 #include "cuda/cuda_utils.hpp"
-#include "common/kernel_api/matrix_2in_1out.hpp"
+#include "cuda/kernel_api/matrix_2in_1out.hpp"
 
 template <MATRIX_KERNEL_2IN_1OUT Matrix_kernel_2In_1Out>
 class Benchmark_Matrix_2In_1Out {
