@@ -1,13 +1,16 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_transpose_naive.hip.h
+// source path: include/hip/kernels/matrix/matrix_transpose_naive.hip.hpp
 
 #pragma once
-#include <hip/hip_runtime.h>
+#include <iostream>
 
-#include "hip/kernel_api.hip.hpp"
-#include "hip/type_traits.hip.hpp"
+#include <hip/hip_runtime.h>
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
+#include "hip/kernel_api/matrix_1in_1out.hpp"
+#include "hip/type_traits.hpp"
 
 template <HIP_scalar HIP_Number>
 __global__ void matrix_transpose_naive(
@@ -55,8 +58,9 @@ struct Matrix_transpose_naive_spec {
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
 
-    constexpr static int DEFAULT_M = 3000; // Rows of input matrix
-    constexpr static int DEFAULT_N = 3000; // Columns of input matrix
+    constexpr static int DEFAULT_M = 3000; // rows of A, cols of C
+    constexpr static int DEFAULT_N = 300;  // cols of A, rows of C
+    constexpr static int DEFAULT_K = 1000; // unused
     constexpr static int DEFAULT_BLOCK_DIM_X = 16;
     constexpr static int DEFAULT_BLOCK_DIM_Y = 16;
 
@@ -64,6 +68,7 @@ struct Matrix_transpose_naive_spec {
         options.add_options()
             ("m", "Number of rows in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
             ("n", "Number of columns in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("k", "Unused", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
@@ -111,7 +116,8 @@ struct Matrix_transpose_naive_spec {
     {}
 };
 
-static_assert(Check_kernel_spec_1In_1Out<Matrix_transpose_naive_spec>::check_passed, "Matrix_transpose_naive_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_1In_1Out<Matrix_transpose_naive_spec>::check_passed, "Matrix_transpose_naive_spec is not a valid kernel spec");
+
 
 template <HIP_scalar Number_>
 class Matrix_transpose_naive_kernel {
@@ -131,14 +137,12 @@ class Matrix_transpose_naive_kernel {
         Number* const gpu_data_temp,
         hipStream_t stream
     ) {
-        hipLaunchKernelGGL(
-            matrix_transpose_naive<Number>,
+        matrix_transpose_naive<<<
             spec_.grid_dim_,
             spec_.block_dim_,
             spec_.dynamic_shared_mem_words_ * sizeof(Number),
-            stream,
-            gpu_data_A, gpu_data_C, spec_.m_, spec_.n_
-        );
+            stream
+        >>>(gpu_data_A, gpu_data_C, spec_.m_, spec_.n_);
     }
 
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
@@ -148,4 +152,4 @@ class Matrix_transpose_naive_kernel {
     }
 
 };
-static_assert(Check_kernel_1In_1Out_template<Matrix_transpose_naive_kernel>::check_passed, "Matrix_transpose_naive is not a valid kernel template");
+static_assert(Check_matrix_kernel_1In_1Out_template<Matrix_transpose_naive_kernel>::check_passed, "Matrix_transpose_naive is not a valid kernel template");

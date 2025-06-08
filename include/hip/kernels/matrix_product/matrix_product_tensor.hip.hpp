@@ -1,13 +1,22 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_product_tensor.hip.h
+// source path: include/hip/kernels/matrix/matrix_product_tensor.hip.hpp
 
 #pragma once
-#include <hip/hip_runtime.h>
 
-#include "hip/kernel_api.hip.hpp
-#include "hip/type_traits.hip.hpp
+#include <iostream>
+
+#include <hip/hip_runtime.h>
+#include <mma.h>
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
+#include <type_traits>
+#include <cstdint>
+#include <hip_fp16.h>
+
+#include "hip/kernel_api/matrix_2in_1out.hpp"
+#include "hip/type_traits.hpp"
 
 struct Matrix_product_tensor_spec {
     const std::string type_;
@@ -28,7 +37,7 @@ struct Matrix_product_tensor_spec {
     const long n_rows_temp_;
     const long n_cols_temp_;
 
-    // Note: block_dim and grid_dim are not used with tensor cores but kept for compatibility
+    // Note: block_dim and grid_dim are not used with cuBLAS but kept for compatibility
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
@@ -46,7 +55,7 @@ struct Matrix_product_tensor_spec {
             ("k", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
-            ("type", "Numeric type (half*, int8*, single/float, double, int16, int32, int64, uint8, uint16, uint32, uint64) (* = matrix cores when available)", cxxopts::value<std::string>()->default_value("float"));
+            ("type", "Numeric type (half*, int8*, single/float, double, int16, int32, int64, uint8, uint16, uint32, uint64) (* = tensor cores)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
 
@@ -92,19 +101,17 @@ struct Matrix_product_tensor_spec {
         n_cols_temp_(0),
         block_dim_(block_dim_x, block_dim_y),
         grid_dim_(
-            (k_ + block_dim_.x - 1) / block_dim_.x,
-            (m_ + block_dim_.y - 1) / block_dim_.y
+            (k_ + 15) / 16,  // Each warp handles 16 columns for WMMA
+            (m_ + 15) / 16   // Each warp handles 16 rows for WMMA
         )
     {}
 };
 
-static_assert(Check_kernel_spec_2In_1Out<Matrix_product_tensor_spec>::check_passed, "Matrix_product_tensor_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_tensor_spec>::check_passed, "Matrix_product_tensor_spec is not a valid kernel spec");
 
-// Matrix multiplication kernel optimized for tensor operations
-// Note: HIP doesn't have direct WMMA equivalent, but this kernel is structured
-// to be compatible with potential future matrix core accelerations
+// WMMA tensor core matrix multiplication kernel
 template <typename Number>
-__global__ void matrix_product_tensor_accelerated(
+__global__ void matrix_product_tensor_wmma(
     const Number* A,
     const Number* B,
     Number* C,
@@ -112,44 +119,129 @@ __global__ void matrix_product_tensor_accelerated(
     const int n,
     const int k
 ) {
-    // Use shared memory for tiling to improve memory access patterns
-    const int TILE_SIZE = 16;
-    __shared__ Number shared_A[TILE_SIZE][TILE_SIZE];
-    __shared__ Number shared_B[TILE_SIZE][TILE_SIZE];
+    // WMMA fragment dimensions
+    const int WMMA_M = 16;
+    const int WMMA_N = 16;
+    const int WMMA_K = 16;
 
-    const int row = blockIdx.y * TILE_SIZE + threadIdx.y;
-    const int col = blockIdx.x * TILE_SIZE + threadIdx.x;
+    // Shared memory for int8 conversion
+    __shared__ int shared_temp[WMMA_M * WMMA_N];
 
-    Number sum = static_cast<Number>(0);
+    // Calculate which 16x16 tile this block handles
+    const int block_row = blockIdx.y;
+    const int block_col = blockIdx.x;
 
-    // Tile across the K dimension
-    for (int tile = 0; tile < (n + TILE_SIZE - 1) / TILE_SIZE; ++tile) {
-        // Load tiles into shared memory with bounds checking
-        if (row < m && tile * TILE_SIZE + threadIdx.x < n) {
-            shared_A[threadIdx.y][threadIdx.x] = A[row * n + tile * TILE_SIZE + threadIdx.x];
-        } else {
-            shared_A[threadIdx.y][threadIdx.x] = static_cast<Number>(0);
+    // Each block handles one 16x16 output tile
+    const int row_base = block_row * WMMA_M;
+    const int col_base = block_col * WMMA_N;
+
+    if constexpr (std::is_same_v<Number, __half>) {
+        using namespace nvhip::wmma;
+
+        // Get warp ID within the block
+        const int warpId = (threadIdx.y * blockDim.x + threadIdx.x) / warpSize;
+
+        // Only first warp per block performs WMMA operations
+        if (warpId == 0) {
+            // Declare WMMA fragments
+            fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, __half, row_major> a_frag;
+            fragment<matrix_b, WMMA_M, WMMA_N, WMMA_K, __half, row_major> b_frag;
+            fragment<accumulator, WMMA_M, WMMA_N, WMMA_K, __half> c_frag;
+
+            // Initialize accumulator to zero
+            fill_fragment(c_frag, 0.0f);
+
+            // Loop over K dimension in chunks of WMMA_K
+            for (int i = 0; i < n; i += WMMA_K) {
+                // Bounds checking for this tile
+                if (row_base < m && col_base < k &&
+                    row_base + WMMA_M <= m && col_base + WMMA_N <= k &&
+                    i + WMMA_K <= n) {
+
+                    // Load fragments from global memory
+                    load_matrix_sync(a_frag, A + row_base * n + i, n);
+                    load_matrix_sync(b_frag, B + i * k + col_base, k);
+
+                    // Perform tensor core matrix multiplication
+                    mma_sync(c_frag, a_frag, b_frag, c_frag);
+                }
+            }
+
+            // Store the result
+            if (row_base < m && col_base < k &&
+                row_base + WMMA_M <= m && col_base + WMMA_N <= k) {
+                store_matrix_sync(C + row_base * k + col_base, c_frag, k, mem_row_major);
+            }
         }
+    } else if constexpr (std::is_same_v<Number, std::int8_t>) {
+        using namespace nvhip::wmma;
 
-        if (col < k && tile * TILE_SIZE + threadIdx.y < n) {
-            shared_B[threadIdx.y][threadIdx.x] = B[(tile * TILE_SIZE + threadIdx.y) * k + col];
-        } else {
-            shared_B[threadIdx.y][threadIdx.x] = static_cast<Number>(0);
+        // Get warp ID within the block
+        const int warpId = (threadIdx.y * blockDim.x + threadIdx.x) / warpSize;
+
+        // Only first warp per block performs WMMA operations
+        if (warpId == 0) {
+            // Declare WMMA fragments for INT8 inputs with INT32 accumulation
+            fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, signed char, row_major> a_frag;
+            fragment<matrix_b, WMMA_M, WMMA_N, WMMA_K, signed char, row_major> b_frag;
+            fragment<accumulator, WMMA_M, WMMA_N, WMMA_K, int> c_frag;
+
+            // Initialize accumulator to zero
+            fill_fragment(c_frag, 0);
+
+            // Loop over K dimension in chunks of WMMA_K
+            for (int i = 0; i < n; i += WMMA_K) {
+                // Bounds checking for this tile
+                if (row_base < m && col_base < k &&
+                    row_base + WMMA_M <= m && col_base + WMMA_N <= k &&
+                    i + WMMA_K <= n) {
+
+                    // Load fragments from global memory
+                    load_matrix_sync(a_frag,
+                        reinterpret_cast<const signed char*>(A) + row_base * n + i, n);
+                    load_matrix_sync(b_frag,
+                        reinterpret_cast<const signed char*>(B) + i * k + col_base, k);
+
+                    // Perform tensor core matrix multiplication
+                    mma_sync(c_frag, a_frag, b_frag, c_frag);
+                }
+            }
+
+            // Store the result (convert from INT32 back to INT8)
+            if (row_base < m && col_base < k &&
+                row_base + WMMA_M <= m && col_base + WMMA_N <= k) {
+
+                // Store to shared memory instead of local memory
+                store_matrix_sync(shared_temp, c_frag, WMMA_N, mem_row_major);
+
+                // Synchronize threads within the block
+                __syncthreads();
+
+                // Convert and store as INT8
+                for (int i = 0; i < WMMA_M; ++i) {
+                    for (int j = 0; j < WMMA_N; ++j) {
+                        if (row_base + i < m && col_base + j < k) {
+                            // Clamp to INT8 range
+                            int val = shared_temp[i * WMMA_N + j];
+                            val = max(-128, min(127, val));
+                            C[(row_base + i) * k + (col_base + j)] = static_cast<Number>(val);
+                        }
+                    }
+                }
+            }
         }
+    } else {
+        // Fallback to naive implementation for unsupported types
+        const int row = blockIdx.y * blockDim.y + threadIdx.y;
+        const int col = blockIdx.x * blockDim.x + threadIdx.x;
 
-        __syncthreads();
-
-        // Compute partial dot product for this tile
-        for (int i = 0; i < TILE_SIZE; ++i) {
-            sum += shared_A[threadIdx.y][i] * shared_B[i][threadIdx.x];
+        if (row < m && col < k) {
+            Number sum = 0;
+            for (int i = 0; i < n; ++i) {
+                sum += A[row * n + i] * B[i * k + col];
+            }
+            C[row * k + col] = sum;
         }
-
-        __syncthreads();
-    }
-
-    // Write result to global memory
-    if (row < m && col < k) {
-        C[row * k + col] = sum;
     }
 }
 
@@ -171,15 +263,13 @@ class Matrix_product_tensor_kernel {
         Number* const gpu_data_temp,
         hipStream_t stream
     ) {
-        // Launch accelerated matrix multiplication kernel
-        hipLaunchKernelGGL(
-            matrix_product_tensor_accelerated<Number>,
+        // Launch tensor core matrix multiplication kernel
+        matrix_product_tensor_wmma<<<
             spec_.grid_dim_,
             spec_.block_dim_,
             spec_.dynamic_shared_mem_words_ * sizeof(Number),
-            stream,
-            gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_
-        );
+            stream
+        >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
@@ -189,4 +279,4 @@ class Matrix_product_tensor_kernel {
     }
 
 };
-static_assert(Check_kernel_2In_1Out_template<Matrix_product_tensor_kernel>::check_passed, "Matrix_product_tensor is not a valid kernel template");
+static_assert(Check_matrix_kernel_2In_1Out_template<Matrix_product_tensor_kernel>::check_passed, "Matrix_product_tensor is not a valid kernel template");

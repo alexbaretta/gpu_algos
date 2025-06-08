@@ -1,17 +1,18 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_product_tiled.hip.h
+// source path: include/hip/kernels/matrix/matrix_product_tiled.hip.hpp
 
 #pragma once
 #include <iostream>
 #include <hip/hip_runtime.h>
-#include <hip/hip_cooperative_groups.h>
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
+#include <cassert>
 
 #include "cxxopts.hpp"
-#include "hip/hip_utils.hip.hpp
-#include "hip/kernel_api.hip.hpp
-#include "hip/type_traits.hip.hpp
+#include "hip/kernel_api/matrix_2in_1out.hpp"
+#include "hip/type_traits.hpp"
 
 constexpr long TILE_SIZE = 16;
 
@@ -38,7 +39,7 @@ __global__ void matrix_product_tiled(
     const int global_col = blockIdx.x * blockDim.x + threadIdx.x;
     const int global_row = blockIdx.y * blockDim.y + threadIdx.y;
 
-    HIP_Number accumulator = static_cast<HIP_Number>(0);
+    HIP_Number accumulator = 0.0f;
 
     // TILING STRATEGY EXPLANATION:
     //
@@ -75,7 +76,7 @@ __global__ void matrix_product_tiled(
         if (global_row < m && a_col < n) {
             tile_A[ty][tx] = A[global_row * n + a_col];
         } else {
-            tile_A[ty][tx] = static_cast<HIP_Number>(0);  // Padding for out-of-bounds
+            tile_A[ty][tx] = 0.0f;  // Padding for out-of-bounds
         }
 
         // Load tile of matrix B into shared memory
@@ -85,7 +86,7 @@ __global__ void matrix_product_tiled(
         if (b_row < n && global_col < k) {
             tile_B[ty][tx] = B[b_row * k + global_col];
         } else {
-            tile_B[ty][tx] = static_cast<HIP_Number>(0);  // Padding for out-of-bounds
+            tile_B[ty][tx] = 0.0f;  // Padding for out-of-bounds
         }
 
         // Synchronize threads to ensure tiles are fully loaded
@@ -187,7 +188,7 @@ struct Matrix_product_tiled_spec {
     {}
 };
 
-static_assert(Check_kernel_spec_2In_1Out<Matrix_product_tiled_spec>::check_passed, "Matrix_product_tiled_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_tiled_spec>::check_passed, "Matrix_product_tiled_spec is not a valid kernel spec");
 
 
 template <HIP_scalar Number_>
@@ -210,14 +211,12 @@ class Matrix_product_tiled_kernel {
         Number* gpu_data_temp,
         hipStream_t stream
     ) const {
-        hipLaunchKernelGGL(
-            matrix_product_tiled<Number>,
+        matrix_product_tiled<<<
             spec_.grid_dim_,
             spec_.block_dim_,
             spec_.dynamic_shared_mem_words_ * sizeof(Number),
-            stream,
-            gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_
-        );
+            stream
+        >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
@@ -227,4 +226,4 @@ class Matrix_product_tiled_kernel {
     }
 
 };
-static_assert(Check_kernel_2In_1Out_template<Matrix_product_tiled_kernel>::check_passed, "matrix_product_tiled is not a valid kernel template");
+static_assert(Check_matrix_kernel_2In_1Out_template<Matrix_product_tiled_kernel>::check_passed, "matrix_product_tiled is not a valid kernel template");

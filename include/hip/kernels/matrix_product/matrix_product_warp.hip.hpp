@@ -1,33 +1,38 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_product_warp.hip.h
+// source path: include/hip/kernels/matrix/matrix_product_warp.hip.hpp
 
 #pragma once
-#include <hip/hip_runtime.h>
 
-#include "hip/kernel_api.hip.hpp
-#include "hip/type_traits.hip.hpp
+#include <iostream>
+
+#include <hip/hip_runtime.h>
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
+
+#include "hip/kernel_api/matrix_2in_1out.hpp"
+#include "hip/type_traits.hpp"
 
 /*
-    This kernel uses a "one wavefront per result element" threading strategy.
-    Conceptually, we want to allocate one wavefront per result element, and each wavefront
+    This kernel uses a "one warp per result element" threading strategy.
+    Conceptually, we want to allocate one warp per result element, and each warp
     will compute the result element for a single row of the left matrix and a single
     column of the right matrix.
 
     The grid is then defined by the Number of result elements, which is the product of
     the Number of rows of the left matrix and the Number of columns of the right matrix.
 
-    The threads in each wavefront collaborate to compute the result element for a single row
+    The threads in each warp collaborate to compute the result element for a single row
     of the left matrix and a single column of the right matrix: each thread processes
-    the products whose index mod WAVEFRONT_SIZE is equal to the thread's index within the wavefront.
+    the products whose index mod WARP_SIZE is equal to the thread's index within the warp.
 
-    Wavefront-reduction is then used to compute the sum of the partial results computed by
-    the threads in the wavefront.
+    Warp-reduction is then used to compute the sum of the partial results computed by
+    the threads in the warp.
 */
 
 struct Matrix_product_warp_spec {
-    constexpr static int WAVEFRONT_SIZE = 64;  // AMD wavefront size (different from NVIDIA warp size)
+    constexpr static int WARP_SIZE = 32;   // Shouldn't this come from the HIP API?
     constexpr static int TILE_SIZE = 4;
     constexpr static int DEFAULT_M = 3000; // Rows of first matrix
     constexpr static int DEFAULT_N = 300;  // Columns of first matrix / Rows of second matrix
@@ -51,7 +56,7 @@ struct Matrix_product_warp_spec {
     const long n_rows_temp_;
     const long n_cols_temp_;
 
-    const long wavefront_size_;
+    const long warp_size_;
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
@@ -99,13 +104,13 @@ struct Matrix_product_warp_spec {
         n_cols_C_(k),
         n_rows_temp_(0),
         n_cols_temp_(0),
-        wavefront_size_(WAVEFRONT_SIZE),
-        block_dim_(wavefront_size_, TILE_SIZE, TILE_SIZE),
-        grid_dim_(wavefront_size_, (k_ + TILE_SIZE - 1) / TILE_SIZE, (m_ + TILE_SIZE - 1) / TILE_SIZE)
+        warp_size_(WARP_SIZE),
+        block_dim_(warp_size_, TILE_SIZE, TILE_SIZE),
+        grid_dim_(warp_size_, (k_ + TILE_SIZE - 1) / TILE_SIZE, (m_ + TILE_SIZE - 1) / TILE_SIZE)
     {}
 };
 
-static_assert(Check_kernel_spec_2In_1Out<Matrix_product_warp_spec>::check_passed, "Matrix_product_warp_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_warp_spec>::check_passed, "Matrix_product_warp_spec is not a valid kernel spec");
 
 template <HIP_scalar HIP_Number>
 __global__ void matrix_product_warp(
@@ -116,40 +121,29 @@ __global__ void matrix_product_warp(
     const long n, // shared dimension
     const long k
 ) {
-    // thread id is (x + y Dx + z Dx Dy, see https://rocm.docs.amd.com/en/latest/understand/gpu_arch/mi200.html#wavefront-execution
+    // thread id is (x + y Dx + z Dx Dy, see https://docs.nvidia.com/hip/hip-c-programming-guide/index.html#thread-hierarchy
     // int thread_id = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
-    // but blockDim.x is 64, so the lane id is just threadIdx.x
+    // but blockDim.x is 32, so the lane id is just threadIdx.x
     int thread_id = threadIdx.x;
-    int lane = thread_id % 64; // AMD wavefront size
+    int lane = thread_id % warpSize;
     int col = threadIdx.y + blockIdx.y * blockDim.y;
     int row = threadIdx.z + blockIdx.z * blockDim.z;
 
-    HIP_Number sum = static_cast<HIP_Number>(0);
+    HIP_Number sum = 0.0f;
 
     // Compute the partial sum for the current thread
-    for (int i = lane; i < n; i += 64) { // AMD wavefront size
+    for (int i = lane; i < n; i += warpSize) {
         sum += A[row * n + i] * B[i * k + col];
     }
 
-    // Reduce the partial sum using wavefront-reduction
-    // HIP provides __shfl_down but it works within a 32-thread group on AMD
-    // For 64-thread wavefronts, we need to handle this differently
-    __shared__ HIP_Number shared_mem[64]; // One per wavefront lane
-
-    shared_mem[lane] = sum;
-    __syncthreads();
-
-    // Manual reduction within wavefront
-    for (int offset = 32; offset > 0; offset >>= 1) {
-        if (lane < offset) {
-            shared_mem[lane] += shared_mem[lane + offset];
-        }
-        __syncthreads();
+    // Reduce the partial sum using warp-reduction
+    for (int offset = warpSize/2; offset > 0; offset >>= 1) {
+        sum += __shfl_down_sync(__activemask(), sum, offset);
     }
 
     // Store the result
     if (lane == 0) {
-        C[row * k + col] = shared_mem[0];
+        C[row * k + col] = sum;
     }
 }
 
@@ -172,14 +166,12 @@ class Matrix_product_warp_kernel {
         Number* const gpu_data_temp,
         hipStream_t stream
     ) {
-        hipLaunchKernelGGL(
-            matrix_product_warp<Number>,
+        matrix_product_warp<<<
             spec_.grid_dim_,
             spec_.block_dim_,
             spec_.dynamic_shared_mem_words_ * sizeof(Number),
-            stream,
-            gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_
-        );
+            stream
+        >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
     }
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
@@ -189,4 +181,4 @@ class Matrix_product_warp_kernel {
     }
 
 };
-static_assert(Check_kernel_2In_1Out_template<Matrix_product_warp_kernel>::check_passed, "Matrix_product_warp is not a valid kernel template");
+static_assert(Check_matrix_kernel_2In_1Out_template<Matrix_product_warp_kernel>::check_passed, "Matrix_product_warp is not a valid kernel template");

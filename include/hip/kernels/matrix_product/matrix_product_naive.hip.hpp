@@ -1,16 +1,18 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_product_naive.hpp
+// source path: include/hip/kernels/matrix/matrix_product_naive.hip.hpp
 
 #pragma once
+
 #include <iostream>
-#include <cxxopts.hpp>
 
 #include <hip/hip_runtime.h>
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
 
-#include "hip/kernel_api.hip.hpp"
-#include "hip/type_traits.hip.hpp"
+#include "hip/kernel_api/matrix_2in_1out.hpp"
+#include "hip/type_traits.hpp"
 
 template <HIP_scalar HIP_Number>
 __global__ void matrix_product_naive(
