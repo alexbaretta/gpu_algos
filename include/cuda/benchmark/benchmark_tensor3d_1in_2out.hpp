@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+// source path: include/cuda/benchmark/benchmark_tensor3d_1in_2out.hpp
+
 #pragma once
 
 #include <iostream>
