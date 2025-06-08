@@ -8,7 +8,7 @@
 #include <cxxopts.hpp>
 #include <cuda_fp16.h>
 
-#include "common/benchmark/benchmark_matrix_2in_1out.hpp"
+#include "cuda/benchmark/benchmark_matrix_2in_1out.hpp"
 #include "common/benchmark_options.hpp"
 
 #include "cuda/kernels/matrix_product/matrix_product_cutlass.hpp"

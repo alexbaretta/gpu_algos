@@ -5,7 +5,7 @@
 
 #include <cxxopts.hpp>
 
-#include "common/benchmark/benchmark_matrix_1in_1out.hpp"
+#include "cuda/benchmark/benchmark_matrix_1in_1out.hpp"
 #include "common/benchmark_options.hpp"
 
 #include "cuda/kernels/matrix_transpose/matrix_transpose_cublas.hpp"

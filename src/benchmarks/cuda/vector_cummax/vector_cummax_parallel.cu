@@ -6,7 +6,7 @@
 #include <cxxopts.hpp>
 
 #include "common/benchmark_options.hpp"
-#include "common/benchmark/benchmark_vector_1in_1out.hpp"
+#include "cuda/benchmark/benchmark_vector_1in_1out.hpp"
 
 #include "cuda/kernels/vector_cummax/vector_cummax_parallel.hpp"
 

@@ -6,7 +6,7 @@
 #include <cxxopts.hpp>
 
 #include "common/benchmark_options.hpp"
-#include "common/benchmark/benchmark_tensor3d_1inout.hpp"
+#include "cuda/benchmark/benchmark_tensor3d_1inout.hpp"
 
 #include "cuda/kernels/sort/tensor_sort_bitonic.hpp"
 

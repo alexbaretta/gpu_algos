@@ -6,7 +6,7 @@
 #include <cxxopts.hpp>
 
 #include "common/benchmark_options.hpp"
-#include "common/benchmark/benchmark_matrix_3in_1out.hpp"
+#include "cuda/benchmark/benchmark_matrix_3in_1out.hpp"
 
 #include "cuda/kernels/gradient/gradient_leastsquares_elasticnet_tensor.hpp"
 

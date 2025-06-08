@@ -6,7 +6,7 @@
 #include <cxxopts.hpp>
 
 #include "common/benchmark_options.hpp"
-#include "common/benchmark/benchmark_matrix_2in_1out.hpp"
+#include "cuda/benchmark/benchmark_matrix_2in_1out.hpp"
 
 #include "cuda/kernels/matrix_product/matrix_product_tensor.hpp"
 
