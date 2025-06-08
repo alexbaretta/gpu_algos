@@ -5,11 +5,11 @@
 
 #pragma once
 
-#include <hip/hip_fp16.h>
+#include <cuda_fp16.h>
 #include "common/random.hpp"
 
 inline void randomize_vector(
-    std::vector<_Float16>& data,
+    std::vector<__half>& data,
     int seed
 ) {
     constexpr float min = 0.0;

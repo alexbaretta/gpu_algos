@@ -15,10 +15,10 @@
 #include <cxxopts.hpp>
 
 #include "common/types/tensor3d.hpp"
-#include "common/random.hpp"
-#include "hip/check_errors.hpp"
+#include "hip/random.hip.hpp"
+#include "hip/check_errors.hip.hpp"
 #include "hip/hip_utils.hip.hpp"
-#include "hip/kernel_api/tensor3d_1in_1out.hpp"
+#include "hip/kernel_api/tensor3d_1in_1out.hip.hpp"
 
 template <TENSOR3D_KERNEL_1IN_1OUT Tensor3d_kernel_1In_1Out>
 class Benchmark_Tensor3D_1In_1Out {

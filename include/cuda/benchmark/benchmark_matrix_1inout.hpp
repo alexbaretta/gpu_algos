@@ -14,7 +14,7 @@
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 
-#include "common/random.hpp"
+#include "cuda/random.hpp"
 #include "cuda/check_errors.hpp"
 #include "cuda/cuda_utils.hpp"
 #include "cuda/kernel_api/matrix_1inout.hpp"

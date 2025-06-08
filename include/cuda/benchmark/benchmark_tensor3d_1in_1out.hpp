@@ -14,7 +14,7 @@
 #include <cxxopts.hpp>
 
 #include "common/types/tensor3d.hpp"
-#include "common/random.hpp"
+#include "cuda/random.hpp"
 #include "cuda/check_errors.hpp"
 #include "cuda/cuda_utils.hpp"
 #include "cuda/kernel_api/tensor3d_1in_1out.hpp"

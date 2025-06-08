@@ -15,10 +15,10 @@
 #include <hip/hip_fp16.h>
 #include <cxxopts.hpp>
 
-#include "common/random.hpp"
-#include "hip/check_errors.hpp"
+#include "hip/random.hip.hpp"
+#include "hip/check_errors.hip.hpp"
 #include "hip/hip_utils.hip.hpp"
-#include "hip/kernel_api/vector_2in_1out.hpp"
+#include "hip/kernel_api/vector_2in_1out.hip.hpp"
 
 template <VECTOR_KERNEL_2IN_1OUT Vector_kernel_2In_1Out>
 class Benchmark_Vector_2In_1Out {
