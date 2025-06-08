@@ -65,3 +65,10 @@ using HIP_vector2_t = HIP_vector2<HIP_FLOAT>::vector_t;
 template <> struct HIP_vector2<_Float16> { using vector_t = float2; }; // Use float2 as fallback for _Float16_2
 template <> struct HIP_vector2<float> { using vector_t = float2; };
 template <> struct HIP_vector2<double> { using vector_t = double2; };
+
+#include <Eigen/Dense>
+template<typename MATRIX_LIKE>
+concept is_matrix_like = (
+    std::is_same_v<std::decay_t<MATRIX_LIKE>, Eigen::Matrix<typename MATRIX_LIKE::Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+    || std::is_same_v<std::decay_t<MATRIX_LIKE>, Eigen::Map<Eigen::Matrix<typename MATRIX_LIKE::Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>>
+) && is_HIP_scalar_v<typename MATRIX_LIKE::Scalar>;

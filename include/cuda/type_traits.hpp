@@ -60,3 +60,10 @@ using CUDA_vector2_t = CUDA_vector2<CUDA_FLOAT>::vector_t;
 template <> struct CUDA_vector2<__half> { using vector_t = __half2; };
 template <> struct CUDA_vector2<float> { using vector_t = float2; };
 template <> struct CUDA_vector2<double> { using vector_t = double2; };
+
+#include <Eigen/Dense>
+template<typename MATRIX_LIKE>
+concept is_matrix_like = (
+    std::is_same_v<std::decay_t<MATRIX_LIKE>, Eigen::Matrix<typename MATRIX_LIKE::Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+    || std::is_same_v<std::decay_t<MATRIX_LIKE>, Eigen::Map<Eigen::Matrix<typename MATRIX_LIKE::Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>>
+) && is_CUDA_scalar_v<typename MATRIX_LIKE::Scalar>;

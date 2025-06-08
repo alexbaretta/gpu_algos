@@ -13,7 +13,7 @@
 
 #include "cuda/kernel_api/matrix_3in_1out.hpp"
 #include "cuda/type_traits.hpp"
-#include "common/type_traits.hpp"
+#include "cuda/type_traits.hpp"
 
 /*
 This kernel computes the gradient of the loss of a linear regression
