@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+// source path: include/hip/benchmark/benchmark_vector_2in_1out.hip.hpp
+
 #pragma once
 
 #include <iostream>
@@ -14,9 +16,9 @@
 #include <cxxopts.hpp>
 
 #include "common/random.hpp"
-#include "hip/check_errors.hip.hpp"
+#include "hip/check_errors.hpp"
 #include "hip/hip_utils.hip.hpp"
-#include "common/kernel_api/vector_2in_1out.hpp"
+#include "hip/kernel_api/vector_2in_1out.hpp"
 
 template <VECTOR_KERNEL_2IN_1OUT Vector_kernel_2In_1Out>
 class Benchmark_Vector_2In_1Out {

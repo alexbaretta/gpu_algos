@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+// source path: include/hip/benchmark/benchmark_matrix_1inout.hip.hpp
+
 #pragma once
 
 #include <iostream>
@@ -14,9 +16,9 @@
 #include <cxxopts.hpp>
 
 #include "common/random.hpp"
-#include "hip/check_errors.hip.hpp"
+#include "hip/check_errors.hpp"
 #include "hip/hip_utils.hip.hpp"
-#include "common/kernel_api/matrix_1inout.hpp"
+#include "hip/kernel_api/matrix_1inout.hpp"
 
 template <MATRIX_KERNEL_1INOUT Matrix_kernel_1InOut>
 class Benchmark_Matrix_1InOut {
@@ -145,36 +147,36 @@ class Benchmark_Matrix_1InOut {
 
         const auto gpu_step_1 = "Allocate device memory";
         Number *gpu_data_C = nullptr;
-        hip_check_error(cudaMallocAsync(&gpu_data_C, size_C_bytes, stream), "cudaMallocAsync");
+        hip_check_error(hipMallocAsync(&gpu_data_C, size_C_bytes, stream), "hipMallocAsync");
         hip_check_error(hipEventRecord(e1, stream), "hipEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp1{};
-        cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
+        hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
 
         const auto gpu_step_2 = "Copy data to device";
-        hip_check_error(cudaMemcpyAsync(gpu_data_C, vec_C.data(), size_C_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
+        hip_check_error(hipMemcpyAsync(gpu_data_C, vec_C.data(), size_C_bytes, hipMemcpyHostToDevice, stream), "hipMemcpyAsync");
         hip_check_error(hipEventRecord(e2, stream), "hipEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
-        cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
+        hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
 
         const auto gpu_step_3 = "Compute kernel";
         kernel.run_device_kernel(gpu_data_C, stream);
         hip_check_error(hipEventRecord(e3, stream), "hipEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp3{};
-        hip_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
+        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "hipStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
-        hip_check_error(cudaMemcpyAsync(vec_C.data(), gpu_data_C, size_C_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        hip_check_error(hipMemcpyAsync(vec_C.data(), gpu_data_C, size_C_bytes, hipMemcpyDeviceToHost, stream), "hipMemcpyAsync");
         hip_check_error(hipEventRecord(e4, stream), "hipEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp4{};
-        hip_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp4, NULL_FLAGS), "cudaStreamAddCallback");
+        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp4, NULL_FLAGS), "hipStreamAddCallback");
 
         const auto gpu_step_5 = "Free device memory";
-        hip_check_error(cudaFreeAsync(gpu_data_C, stream), "cudaFreeAsync");
+        hip_check_error(hipFreeAsync(gpu_data_C, stream), "hipFreeAsync");
         std::chrono::high_resolution_clock::time_point gpu_tp5{};
-        hip_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp5, NULL_FLAGS), "cudaStreamAddCallback");
+        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp5, NULL_FLAGS), "hipStreamAddCallback");
 
         // Wait for stream to finish
-        hip_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
+        hip_check_error(hipStreamSynchronize(stream), "hipStreamSynchronize");
 
         // Print execution time
         constexpr int row_header_width = 22;
@@ -184,26 +186,26 @@ class Benchmark_Matrix_1InOut {
 
         std::chrono::duration<double, std::milli> chrono_step_dt1 = gpu_tp1 - gpu_tp0;
         std::chrono::duration<double, std::milli> chrono_total_dt1 = gpu_tp1 - gpu_tp0;
-        hip_check_error(cudaEventElapsedTime(&gpu_step_dt1, e0, e1), "cudaEventElapsedTime");
-        hip_check_error(cudaEventElapsedTime(&gpu_total_dt1, e0, e1), "cudaEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_step_dt1, e0, e1), "hipEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_total_dt1, e0, e1), "hipEventElapsedTime");
         std::cout << "1 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_1 << ": " << chrono_step_dt1.count() << " ms (" << chrono_total_dt1.count() << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> chrono_step_dt2 = gpu_tp2 - gpu_tp1;
         std::chrono::duration<double, std::milli> chrono_total_dt2 = gpu_tp2 - gpu_tp0;
-        hip_check_error(cudaEventElapsedTime(&gpu_step_dt2, e1, e2), "cudaEventElapsedTime");
-        hip_check_error(cudaEventElapsedTime(&gpu_total_dt2, e0, e2), "cudaEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_step_dt2, e1, e2), "hipEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_total_dt2, e0, e2), "hipEventElapsedTime");
         std::cout << "2 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_2 << ": " << chrono_step_dt2.count() << " ms (" << chrono_total_dt2.count() << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> chrono_step_dt3 = gpu_tp3 - gpu_tp2;
         std::chrono::duration<double, std::milli> chrono_total_dt3 = gpu_tp3 - gpu_tp0;
-        hip_check_error(cudaEventElapsedTime(&gpu_step_dt3, e2, e3), "cudaEventElapsedTime");
-        hip_check_error(cudaEventElapsedTime(&gpu_total_dt3, e0, e3), "cudaEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_step_dt3, e2, e3), "hipEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_total_dt3, e0, e3), "hipEventElapsedTime");
         std::cout << "3 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_3 << ": " << chrono_step_dt3.count() << " ms (" << chrono_total_dt3.count() << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> chrono_step_dt4 = gpu_tp4 - gpu_tp3;
         std::chrono::duration<double, std::milli> chrono_total_dt4 = gpu_tp4 - gpu_tp0;
-        hip_check_error(cudaEventElapsedTime(&gpu_step_dt4, e3, e4), "cudaEventElapsedTime");
-        hip_check_error(cudaEventElapsedTime(&gpu_total_dt4, e0, e4), "cudaEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_step_dt4, e3, e4), "hipEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_total_dt4, e0, e4), "hipEventElapsedTime");
         std::cout << "4 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_4 << ": " << chrono_step_dt4.count() << " ms (" << chrono_total_dt4.count() << " ms total)" << std::endl;
 
         const auto cpu_tp0 = std::chrono::high_resolution_clock::now();
