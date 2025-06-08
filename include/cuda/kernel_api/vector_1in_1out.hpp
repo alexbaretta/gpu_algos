@@ -7,7 +7,6 @@
 
 #include <cuda_runtime.h>
 #include <Eigen/Dense>
-#include "cuda/type_traits.hpp"
 
 template <typename Vector_kernel_spec_1In_1Out>
 concept VECTOR_KERNEL_SPEC_1IN_1OUT = requires (Vector_kernel_spec_1In_1Out spec) {

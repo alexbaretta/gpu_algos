@@ -7,7 +7,6 @@
 
 #include <cuda_runtime.h>
 #include <Eigen/Dense>
-#include "cuda/type_traits.hpp"
 
 template <typename Matrix_kernel_spec_1InOut>
 concept MATRIX_KERNEL_SPEC_1INOUT = requires (Matrix_kernel_spec_1InOut spec) {

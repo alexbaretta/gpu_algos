@@ -7,7 +7,6 @@
 
 #include <cuda_runtime.h>
 #include <Eigen/Dense>
-#include "cuda/type_traits.hpp"
 #include "common/types/tensor3d.hpp"
 
 template <typename Tensor3d_kernel_spec_1In_1Out>
