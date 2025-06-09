@@ -19,11 +19,11 @@
 #include "cuda/cuda_utils.hpp"
 #include "cuda/kernel_api/vector_1inout.hpp"
 
-template <VECTOR_KERNEL_1INOUT Vector_kernel_1InOut>
-class Benchmark_Vector_1InOut {
+template <VECTOR_KERNEL_1INOUT Vector_Kernel_1Inout>
+class Benchmark_Vector_1Inout {
     public:
-    using Kernel_spec = typename Vector_kernel_1InOut::Kernel_spec;
-    using Number = typename Vector_kernel_1InOut::Number;
+    using Kernel_spec = typename Vector_Kernel_1Inout::Kernel_spec;
+    using Number = typename Vector_Kernel_1Inout::Number;
     using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
 
     const Kernel_spec spec;
@@ -34,10 +34,10 @@ class Benchmark_Vector_1InOut {
     const bool force;
     const std::string init_method;
 
-    Vector_kernel_1InOut kernel;
+    Vector_Kernel_1Inout kernel;
 
     template <typename... Args>
-    Benchmark_Vector_1InOut(
+    Benchmark_Vector_1Inout(
         const Kernel_spec spec,
         const cxxopts::Options& options,
         const cxxopts::ParseResult& options_parsed,
@@ -56,22 +56,30 @@ class Benchmark_Vector_1InOut {
             std::cout << options.help() << std::endl;
             exit(0);
         }
-        if (verbose && spec.n_C_ > 1000000) {
-            std::cerr << "WARNING: verbose mode is enabled and the input vector is large."
-            << "This will print the entire vector to the console." << std::endl;
+        if (verbose && (
+            (spec.n_A_ > 1000000)
+        )) {
+            std::cerr << "WARNING: verbose mode is enabled and the input vectors are large."
+            << "This will print the entire vectors to the console." << std::endl;
             if (!force) {
                 std::cerr << "Use --force to override." << std::endl
-                          << "[ERROR] vector too big for verbose mode" << std::endl;
+                          << "[ERROR] vectors too big for verbose mode" << std::endl;
                 exit(1);
             }
         }
     }
 
     int run() {
-        const size_t size_C = size_t(spec.n_C_);
-        const size_t size_C_bytes = size_C * sizeof(Number);
-        const size_t mem_size_bytes = size_C_bytes;
+        const size_t size_A = size_t(spec.n_A_);
+        const size_t size_temp = size_t(spec.n_temp_);
+        const size_t size_A_bytes = size_A * sizeof(Number);
+        const size_t size_temp_bytes = size_temp * sizeof(Number);
+        const size_t inout_size_bytes = size_A_bytes;
+        const size_t temp_size_bytes = size_temp_bytes;
+        const size_t mem_size_bytes = inout_size_bytes + temp_size_bytes;
         constexpr float GB = 1024.0f * 1024.0f * 1024.0f;
+        const float inout_size_gb = inout_size_bytes / GB;
+        const float temp_size_gb = temp_size_bytes / GB;
         const float mem_gb = mem_size_bytes / GB;
 
         const auto [is_random, is_increasing, is_decreasing] = [&](){
@@ -88,11 +96,14 @@ class Benchmark_Vector_1InOut {
         }();
 
         std::cout
-            << "Vector size (in/out)        : " << spec.n_C_ << "\n"
+            << "Inout vector size           : " << spec.n_A_ << "\n"
+            << "Temp vector size            : " << spec.n_temp_ << "\n"
+            << "Inout size                  : " << inout_size_gb << " GB (" << inout_size_bytes << " bytes)\n"
+            << "Temp size                   : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
             << "Required memory             : " << mem_gb << " GB (" << mem_size_bytes << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
-            std::cerr << "[ERROR] GPU memory size is less than the vector size" << std::endl;
+            std::cerr << "[ERROR] GPU memory size is less than the required size" << std::endl;
             return 1;
         }
 
@@ -100,21 +111,24 @@ class Benchmark_Vector_1InOut {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        std::vector<Number> vec_C(size_C, 0);
-        std::vector<Number> vec_C_original(size_C, 0);
+        std::vector<Number> vec_A(size_A, 0);
+        std::vector<Number> vec_temp(size_temp, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Initializing vector: ";
+        std::cout << "  - Initializing vectors: ";
         if (is_random) {
-            randomize_vector(vec_C, seed);
+            std::cout << "  - Randomizing vectors: ";
+            randomize_vector(vec_A, seed);
         } else if (is_increasing) {
-            for (size_t i = 0; i < size_C; ++i) vec_C[i] = Number(i);
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
         } else if (is_decreasing) {
-            for (size_t i = 0; i < size_C; ++i) vec_C[i] = Number(size_C - i);
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
+        } else {
+            std::cerr << "[ERROR] Invalid initialization method" << std::endl;
+            exit(1);
         }
-        vec_C_original = vec_C; // Keep original for CPU verification
         const auto setup_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_step_dt2 = setup_tp2 - setup_tp1;
         std::chrono::duration<double, std::milli> setup_total_dt2 = setup_tp2 - setup_tp0;
@@ -129,48 +143,62 @@ class Benchmark_Vector_1InOut {
         std::cout << setup_step_dt3.count() << " ms (" << setup_total_dt3.count() << " ms total)" << std::endl;
 
         std::cout << "  - Creating GPU events: ";
-        cudaEvent_t e0, e1, e2, e3, e4;
+        cudaEvent_t e0, e1, e2, e3, e4, e5;
         cuda_check_error(cudaEventCreate(&e0), "cudaEventCreate");
         cuda_check_error(cudaEventCreate(&e1), "cudaEventCreate");
         cuda_check_error(cudaEventCreate(&e2), "cudaEventCreate");
         cuda_check_error(cudaEventCreate(&e3), "cudaEventCreate");
         cuda_check_error(cudaEventCreate(&e4), "cudaEventCreate");
+        cuda_check_error(cudaEventCreate(&e5), "cudaEventCreate");
         const auto setup_tp4 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_step_dt4 = setup_tp4 - setup_tp3;
         std::chrono::duration<double, std::milli> setup_total_dt4 = setup_tp4 - setup_tp0;
         std::cout << setup_step_dt4.count() << " ms (" << setup_total_dt4.count() << " ms total)" << std::endl;
 
-        std::cout << "VECTOR_KERNEL_1INOUT:" << std::endl;
+        std::cout << "Vector_Kernel_1Inout:" << std::endl;
         const auto gpu_tp0 = std::chrono::high_resolution_clock::now();
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number *gpu_data_C = nullptr;
-        cuda_check_error(cudaMallocAsync(&gpu_data_C, size_C_bytes, stream), "cudaMallocAsync");
+        Number* const gpu_data_A = nullptr;
+        Number* const gpu_data_temp = nullptr;
+
+        cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
+        if (size_temp_bytes > 0) {
+            cuda_check_error(cudaMallocAsync(&gpu_data_temp, size_temp_bytes, stream), "cudaMallocAsync");
+        }
         cuda_check_error(cudaEventRecord(e1, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp1{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_2 = "Copy data to device";
-        cuda_check_error(cudaMemcpyAsync(gpu_data_C, vec_C.data(), size_C_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(gpu_data_A, vec_A.data(), size_A_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e2, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_3 = "Compute kernel";
-        kernel.run_device_kernel(gpu_data_C, stream);
+        kernel.run_device_kernel(gpu_data_A, gpu_data_temp, stream);
         cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp3{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
-        cuda_check_error(cudaMemcpyAsync(vec_C.data(), gpu_data_C, size_C_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        auto vec_A_result_gpu = std::vector<Number>(size_A, 0);
+        cuda_check_error(cudaMemcpyAsync(vec_A_result_gpu.data(), gpu_data_A, size_A_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        if (size_temp_bytes > 0) {
+            cuda_check_error(cudaMemcpyAsync(vec_temp.data(), gpu_data_temp, size_temp_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        }
         cuda_check_error(cudaEventRecord(e4, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp4{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp4, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_5 = "Free device memory";
-        cuda_check_error(cudaFreeAsync(gpu_data_C, stream), "cudaFreeAsync");
+        cuda_check_error(cudaFreeAsync(gpu_data_A, stream), "cudaFreeAsync");
+        if (size_temp_bytes > 0) {
+            cuda_check_error(cudaFreeAsync(gpu_data_temp, stream), "cudaFreeAsync");
+        }
+        cuda_check_error(cudaEventRecord(e5, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp5{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp5, NULL_FLAGS), "cudaStreamAddCallback");
 
@@ -180,55 +208,69 @@ class Benchmark_Vector_1InOut {
         // Print execution time
         constexpr int row_header_width = 22;
         constexpr int field_name_width = 25;
-        float gpu_step_dt1 = 0.0f, gpu_step_dt2 = 0.0f, gpu_step_dt3 = 0.0f, gpu_step_dt4 = 0.0f;
-        float gpu_total_dt1 = 0.0f, gpu_total_dt2 = 0.0f, gpu_total_dt3 = 0.0f, gpu_total_dt4 = 0.0f;
+        float gpu_step_dt1 = 0.0f, gpu_step_dt2 = 0.0f, gpu_step_dt3 = 0.0f, gpu_step_dt4 = 0.0f, gpu_step_dt5 = 0.0f;
+        float gpu_total_dt1 = 0.0f, gpu_total_dt2 = 0.0f, gpu_total_dt3 = 0.0f, gpu_total_dt4 = 0.0f, gpu_total_dt5 = 0.0f;
 
         std::chrono::duration<double, std::milli> chrono_step_dt1 = gpu_tp1 - gpu_tp0;
         std::chrono::duration<double, std::milli> chrono_total_dt1 = gpu_tp1 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt1, e0, e1), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt1, e0, e1), "cudaEventElapsedTime");
-        std::cout << "1 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_1 << ": " << chrono_step_dt1.count() << " ms (" << chrono_total_dt1.count() << " ms total)" << std::endl;
+        std::cout << "1 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_1 << ": " << chrono_step_dt1.count() << " ms (" << chrono_total_dt1.count() << " ms total)" << std::endl;
+        std::cout << "1 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_1 << ": " << gpu_step_dt1 << " ms (" << gpu_total_dt1 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> chrono_step_dt2 = gpu_tp2 - gpu_tp1;
         std::chrono::duration<double, std::milli> chrono_total_dt2 = gpu_tp2 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt2, e1, e2), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt2, e0, e2), "cudaEventElapsedTime");
-        std::cout << "2 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_2 << ": " << chrono_step_dt2.count() << " ms (" << chrono_total_dt2.count() << " ms total)" << std::endl;
+        std::cout << "2 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_2 << ": " << chrono_step_dt2.count() << " ms (" << chrono_total_dt2.count() << " ms total)" << std::endl;
+        std::cout << "2 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_2 << ": " << gpu_step_dt2 << " ms (" << gpu_total_dt2 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> chrono_step_dt3 = gpu_tp3 - gpu_tp2;
         std::chrono::duration<double, std::milli> chrono_total_dt3 = gpu_tp3 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt3, e2, e3), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt3, e0, e3), "cudaEventElapsedTime");
-        std::cout << "3 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_3 << ": " << chrono_step_dt3.count() << " ms (" << chrono_total_dt3.count() << " ms total)" << std::endl;
+        std::cout << "3 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_3 << ": " << chrono_step_dt3.count() << " ms (" << chrono_total_dt3.count() << " ms total)" << std::endl;
+        std::cout << "3 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_3 << ": " << gpu_step_dt3 << " ms (" << gpu_total_dt3 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> chrono_step_dt4 = gpu_tp4 - gpu_tp3;
         std::chrono::duration<double, std::milli> chrono_total_dt4 = gpu_tp4 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt4, e3, e4), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt4, e0, e4), "cudaEventElapsedTime");
-        std::cout << "4 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_4 << ": " << chrono_step_dt4.count() << " ms (" << chrono_total_dt4.count() << " ms total)" << std::endl;
+        std::cout << "4 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_4 << ": " << chrono_step_dt4.count() << " ms (" << chrono_total_dt4.count() << " ms total)" << std::endl;
+        std::cout << "4 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_4 << ": " << gpu_step_dt4 << " ms (" << gpu_total_dt4 << " ms total)" << std::endl;
+
+        std::chrono::duration<double, std::milli> chrono_step_dt5 = gpu_tp5 - gpu_tp4;
+        std::chrono::duration<double, std::milli> chrono_total_dt5 = gpu_tp5 - gpu_tp0;
+        cuda_check_error(cudaEventElapsedTime(&gpu_step_dt5, e4, e5), "cudaEventElapsedTime");
+        cuda_check_error(cudaEventElapsedTime(&gpu_total_dt5, e0, e5), "cudaEventElapsedTime");
+        std::cout << "5 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_5 << ": " << chrono_step_dt5.count() << " ms (" << chrono_total_dt5.count() << " ms total)" << std::endl;
+        std::cout << "5 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_5 << ": " << gpu_step_dt5 << " ms (" << gpu_total_dt5 << " ms total)" << std::endl;
 
         const auto cpu_tp0 = std::chrono::high_resolution_clock::now();
 
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Eigen";
-        Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> C_gpu{vec_C.data(), spec.n_C_};
-        Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> C_cpu{vec_C_original.data(), spec.n_C_};
+        auto vec_A_result_cpu{vec_A}; // Copy constructor
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A{vec_A.data(), spec.n_A_};
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A_result_gpu{vec_A_result_gpu.data(), spec.n_A_};
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A_result_cpu{vec_A_result_cpu.data(), spec.n_A_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
         const auto cpu_step_2 = "Compute result with Eigen";
-        kernel.run_host_kernel(C_cpu);
+        const auto void_result = kernel.run_host_kernel(A_result_cpu);
+        static_assert(std::is_same_v<decltype(void_result), void>);
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
 
         const auto cpu_step_3 = "Compute error vector";
-        const auto E = (C_gpu - C_cpu).eval();
-        const auto E_pct = E.cwiseAbs().template cast<double>().array() / C_cpu.cwiseAbs().template cast<double>().array();
+        const auto E = (A_gpu - A_result_cpu).eval();
+        const auto E_pct = E.cwiseAbs().template cast<double>().array() / A_result_cpu.cwiseAbs().template cast<double>().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
@@ -250,9 +292,10 @@ class Benchmark_Vector_1InOut {
                 if (E(i) != Number(0)) {
                     found_errors = true;
                     std::cout << "(" << i << "): "
-                              << "C_gpu=" << static_cast<Printable_Number>(C_gpu(i)) << ", "
-                              << "C_cpu=" << static_cast<Printable_Number>(C_cpu(i)) << ", "
-                              << "E=" << static_cast<Printable_Number>(E(i)) << "\n";
+                              << "A           =" << static_cast<Printable_Number>(A(i)) << ", "
+                              << "A_result_gpu=" << static_cast<Printable_Number>(A_gpu(i)) << ", "
+                              << "A_result_cpu=" << static_cast<Printable_Number>(A_result_cpu(i)) << ", "
+                              << "E           =" << static_cast<Printable_Number>(E(i)) << "\n";
                 }
             }
             if (!found_errors) {
@@ -262,10 +305,17 @@ class Benchmark_Vector_1InOut {
 
         if (verbose) {
             const Eigen::IOFormat clean_vector_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "C_gpu  :\n";
-            std::cout << C_gpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
-            std::cout << "C_cpu  :\n";
-            std::cout << C_cpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << "A      :\n";
+            std::cout << A.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << "A_result_gpu  :\n";
+            std::cout << A_result_gpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << "A_result_cpu  :\n";
+            std::cout << A_result_cpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            if (spec.n_temp_ > 0) {
+                const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> tmp_gpu{vec_temp.data(), spec.n_temp_};
+                std::cout << "tmp    :\n";
+                std::cout << tmp_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+            }
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
@@ -274,7 +324,7 @@ class Benchmark_Vector_1InOut {
         std::cout << "Max error     : " << E_max << " at (" << E_max_idx << ")" << std::endl;
         std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_idx << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
-        std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt4) << std::endl;
+        std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
         return 0;
     }
 };
