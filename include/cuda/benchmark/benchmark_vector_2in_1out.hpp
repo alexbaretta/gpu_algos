@@ -58,7 +58,7 @@ class Benchmark_Vector_2In_1Out {
         }
         if (verbose && (
             (spec.n_A_ > 1000000)
-            || (spec.n_C_ > 1000000)
+            || (spec.n_B_ > 1000000)
         )) {
             std::cerr << "WARNING: verbose mode is enabled and the input vectors are large."
             << "This will print the entire vectors to the console." << std::endl;
@@ -273,6 +273,7 @@ class Benchmark_Vector_2In_1Out {
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Eigen";
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A{vec_A.data(), spec.n_A_};
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> B{vec_B.data(), spec.n_B_};
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> C_gpu{vec_C.data(), spec.n_C_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
@@ -280,7 +281,7 @@ class Benchmark_Vector_2In_1Out {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
         const auto cpu_step_2 = "Compute result with Eigen";
-        const auto C_cpu = kernel.run_host_kernel(A);
+        const auto C_cpu = kernel.run_host_kernel(A, B);
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;
@@ -323,19 +324,19 @@ class Benchmark_Vector_2In_1Out {
         }
 
         if (verbose) {
-            const Eigen::IOFormat clean_vector_format(4, 0, ", ", "\n", "  [", "]");
+            const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
             std::cout << "A      :\n";
-            std::cout << A.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "B      :\n";
-            std::cout << B.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << B.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "C_gpu  :\n";
-            std::cout << C_gpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << C_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "C_cpu  :\n";
-            std::cout << C_cpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << C_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             if (spec.n_temp_ > 0) {
                 const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> tmp_gpu{vec_temp.data(), spec.n_temp_};
                 std::cout << "tmp    :\n";
-                std::cout << tmp_gpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+                std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             }
         }
 

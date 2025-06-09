@@ -108,7 +108,7 @@ class Benchmark_Vector_3In_1Out {
             << "Input vector A sizes   : " << spec.n_A_ << "\n"
             << "Input vector B sizes   : " << spec.n_B_ << "\n"
             << "Input vector C sizes   : " << spec.n_C_ << "\n"
-            << "Output vector sizes    : " << spec.n_C_ << "\n"
+            << "Output vector sizes    : " << spec.n_D_ << "\n"
             << "Temp vector sizes      : " << spec.n_temp_ << "\n"
             << "Input size                  : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
             << "Output size                 : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
@@ -202,7 +202,7 @@ class Benchmark_Vector_3In_1Out {
         const auto gpu_step_2 = "Copy data to device";
         cuda_check_error(cudaMemcpyAsync(gpu_data_A, vec_A.data(), size_A_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaMemcpyAsync(gpu_data_B, vec_B.data(), size_B_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
-        cuda_check_error(cudaMemcpyAsync(gpu_data_C, vec_C.data(), size_B_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(gpu_data_C, vec_C.data(), size_C_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e2, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS), "cudaStreamAddCallback");
@@ -285,15 +285,15 @@ class Benchmark_Vector_3In_1Out {
         const auto cpu_step_1 = "Convert data to Eigen";
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A{vec_A.data(), spec.n_A_};
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> B{vec_B.data(), spec.n_B_};
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A{vec_A.data(), spec.n_A_};
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> C_gpu{vec_C.data(), spec.n_C_};
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> C{vec_C.data(), spec.n_C_};
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> D_gpu{vec_D.data(), spec.n_D_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
         const auto cpu_step_2 = "Compute result with Eigen";
-        const auto C_cpu = kernel.run_host_kernel(A);
+        const auto D_cpu = kernel.run_host_kernel(A, B, C);
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;
@@ -325,8 +325,9 @@ class Benchmark_Vector_3In_1Out {
                     std::cout << "(" << i << "): "
                               << "A=" << static_cast<Printable_Number>(A(i)) << ", "
                               << "B=" << static_cast<Printable_Number>(B(i)) << ", "
-                              << "C_gpu=" << static_cast<Printable_Number>(C_gpu(i)) << ", "
-                              << "C_cpu=" << static_cast<Printable_Number>(C_cpu(i)) << ", "
+                              << "C=" << static_cast<Printable_Number>(C(i)) << ", "
+                              << "D_gpu=" << static_cast<Printable_Number>(D_gpu(i)) << ", "
+                              << "D_cpu=" << static_cast<Printable_Number>(D_cpu(i)) << ", "
                               << "E=" << static_cast<Printable_Number>(E(i)) << "\n";
                 }
             }
@@ -336,21 +337,21 @@ class Benchmark_Vector_3In_1Out {
         }
 
         if (verbose) {
-            const Eigen::IOFormat clean_vector_format(4, 0, ", ", "\n", "  [", "]");
+            const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
             std::cout << "A      :\n";
-            std::cout << A.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "B      :\n";
-            std::cout << B.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << B.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "C      :\n";
-            std::cout << C.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << C.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "D_gpu  :\n";
-            std::cout << D_gpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << D_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "D_cpu  :\n";
-            std::cout << D_cpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << D_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             if (spec.n_temp_ > 0) {
                 const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> tmp_gpu{vec_temp.data(), spec.n_temp_};
                 std::cout << "tmp    :\n";
-                std::cout << tmp_gpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+                std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             }
         }
 

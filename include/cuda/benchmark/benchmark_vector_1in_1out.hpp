@@ -100,10 +100,10 @@ class Benchmark_Vector_1In_1Out {
         }();
 
         std::cout
-            << "Input vector A dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << "\n"
+            << "Input vector A size         : " << spec.n_A_ << "\n"
 
-            << "Output vector dimensions    : " << spec.n_rows_C_ << "x" << spec.n_cols_C_ << "\n"
-            << "Temp vector dimensions      : " << spec.n_rows_temp_ << "x" << spec.n_cols_temp_ << "\n"
+            << "Output vector size          : " << spec.n_C_ << "\n"
+            << "Temp vector size            : " << spec.n_temp_ << "\n"
             << "Input size                  : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
             << "Output size                 : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
             << "Temp size                   : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
@@ -311,17 +311,17 @@ class Benchmark_Vector_1In_1Out {
         }
 
         if (verbose) {
-            const Eigen::IOFormat clean_vector_format(4, 0, ", ", "\n", "  [", "]");
+            const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
             std::cout << "A      :\n";
-            std::cout << A.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "C_gpu  :\n";
-            std::cout << C_gpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << C_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "C_cpu  :\n";
-            std::cout << C_cpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << C_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             if (spec.n_temp_ > 0) {
                 const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> tmp_gpu{vec_temp.data(), spec.n_temp_};
                 std::cout << "tmp    :\n";
-                std::cout << tmp_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+                std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             }
         }
 

@@ -254,7 +254,7 @@ class Benchmark_Vector_1Inout {
         auto vec_A_result_cpu{vec_A}; // Copy constructor
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A{vec_A.data(), spec.n_A_};
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A_result_gpu{vec_A_result_gpu.data(), spec.n_A_};
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A_result_cpu{vec_A_result_cpu.data(), spec.n_A_};
+        Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A_result_cpu{vec_A_result_cpu.data(), spec.n_A_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
@@ -304,17 +304,17 @@ class Benchmark_Vector_1Inout {
         }
 
         if (verbose) {
-            const Eigen::IOFormat clean_vector_format(4, 0, ", ", "\n", "  [", "]");
+            const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
             std::cout << "A      :\n";
-            std::cout << A.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "A_result_gpu  :\n";
-            std::cout << A_result_gpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << A_result_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "A_result_cpu  :\n";
-            std::cout << A_result_cpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            std::cout << A_result_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             if (spec.n_temp_ > 0) {
                 const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> tmp_gpu{vec_temp.data(), spec.n_temp_};
                 std::cout << "tmp    :\n";
-                std::cout << tmp_gpu.template cast<Printable_Number>().format(clean_matrix_format) << std::endl;
+                std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             }
         }
 
