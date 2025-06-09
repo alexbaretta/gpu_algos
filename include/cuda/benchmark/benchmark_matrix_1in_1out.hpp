@@ -57,7 +57,7 @@ class Benchmark_Matrix_1In_1Out {
             exit(0);
         }
         if (verbose && (
-            spec.n_rows_A_ > 10000 || spec.n_cols_A_ > 1000
+            (spec.n_rows_A_ > 10000 || spec.n_cols_A_ > 1000)
         )) {
             std::cerr << "WARNING: verbose mode is enabled and the input matrices are large."
             << "This will print the entire matrices to the console." << std::endl;
