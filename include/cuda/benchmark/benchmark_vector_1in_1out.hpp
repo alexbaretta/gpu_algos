@@ -57,7 +57,7 @@ class Benchmark_Vector_1In_1Out {
             exit(0);
         }
         if (verbose && (
-            spec.n_A_ > 1000000
+            (spec.n_A_ > 1000000)
         )) {
             std::cerr << "WARNING: verbose mode is enabled and the input vectors are large."
             << "This will print the entire vectors to the console." << std::endl;
