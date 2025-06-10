@@ -15,6 +15,10 @@ concept TENSOR3D_KERNEL_SPEC_1INOUT = requires (Tensor3d_kernel_spec_1Inout spec
     { spec.n_cols_A_ } -> std::same_as<const long&>;
     { spec.n_sheets_A_ } -> std::same_as<const long&>;
 
+    { spec.n_rows_temp_ } -> std::same_as<const long&>;
+    { spec.n_cols_temp_ } -> std::same_as<const long&>;
+    { spec.n_sheets_temp_ } -> std::same_as<const long&>;
+
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
 
@@ -26,6 +30,10 @@ struct Check_tensor3d_kernel_spec_1Inout {
     static_assert(std::same_as<decltype(std::declval<Tensor3d_kernel_spec_1Inout>().n_rows_A_), const long>);
     static_assert(std::same_as<decltype(std::declval<Tensor3d_kernel_spec_1Inout>().n_cols_A_), const long>);
     static_assert(std::same_as<decltype(std::declval<Tensor3d_kernel_spec_1Inout>().n_sheets_A_), const long>);
+
+    static_assert(std::same_as<decltype(std::declval<Tensor3d_kernel_spec_1Inout>().n_rows_temp_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Tensor3d_kernel_spec_1Inout>().n_cols_temp_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Tensor3d_kernel_spec_1Inout>().n_sheets_temp_), const long>);
 
     static_assert(std::same_as<decltype(std::declval<Tensor3d_kernel_spec_1Inout>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Tensor3d_kernel_spec_1Inout>().grid_dim_), const dim3>);
