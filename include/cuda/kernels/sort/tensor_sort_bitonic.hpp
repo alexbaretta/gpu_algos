@@ -313,12 +313,12 @@ class tensor3d_sort_bitonic_kernel {
                     // Create array of pointers to elements in this column
                     std::vector<Number> column_data(tensor3d.rows_);
                     for (long row = 0; row < tensor3d.rows_; ++row) {
-                        column_data[row] = tensor3d(col, row, sheet);
+                        column_data[row] = tensor3d(row, col, sheet);
                     }
                     std::sort(column_data.begin(), column_data.end());
                     // Write back
                     for (long row = 0; row < tensor3d.rows_; ++row) {
-                        tensor3d(col, row, sheet) = column_data[row];
+                        tensor3d(row, col, sheet) = column_data[row];
                     }
                 }
             }
@@ -326,7 +326,7 @@ class tensor3d_sort_bitonic_kernel {
             // For each (sheet, row), sort all columns
             for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
                 for (long row = 0; row < tensor3d.rows_; ++row) {
-                    Number* const row_start = &tensor3d(0, row, sheet);
+                    Number* const row_start = &tensor3d(row, 0, sheet);
                     std::sort(row_start, row_start + tensor3d.cols_);
                 }
             }
@@ -336,12 +336,12 @@ class tensor3d_sort_bitonic_kernel {
                 for (long col = 0; col < tensor3d.cols_; ++col) {
                     std::vector<Number> sheet_data(tensor3d.sheets_);
                     for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
-                        sheet_data[sheet] = tensor3d(col, row, sheet);
+                        sheet_data[sheet] = tensor3d(row, col, sheet);
                     }
                     std::sort(sheet_data.begin(), sheet_data.end());
                     // Write back
                     for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
-                        tensor3d(col, row, sheet) = sheet_data[sheet];
+                        tensor3d(row, col, sheet) = sheet_data[sheet];
                     }
                 }
             }
