@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <cassert>
+
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -101,14 +103,13 @@ class Benchmark_Vector_1In_1Out {
         }();
 
         std::cout
-            << "Input vector A size         : " << spec.n_A_ << "\n"
-
-            << "Output vector size          : " << spec.n_C_ << "\n"
-            << "Temp vector size            : " << spec.n_temp_ << "\n"
-            << "Input size                  : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
-            << "Output size                 : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
-            << "Temp size                   : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
-            << "Required memory             : " << mem_gb << " GB (" << mem_size_bytes << " bytes)\n"
+            << "Input vector A size : " << spec.n_A_ << "\n"
+            << "Output vector size  : " << spec.n_C_ << "\n"
+            << "Temp vector size    : " << spec.n_temp_ << "\n"
+            << "Input size          : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
+            << "Output size         : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
+            << "Temp size           : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
+            << "Required memory     : " << mem_gb << " GB (" << mem_size_bytes << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
             std::cerr << "[ERROR] GPU memory size is less than the required size" << std::endl;
@@ -309,14 +310,14 @@ class Benchmark_Vector_1In_1Out {
                 if (E(i) != Number(0)) {
                     found_errors = true;
                     std::cout << "(" << i << "): "
-                              << "A=" << static_cast<Printable_Number>(A(i)) << ", "
                               << "C_gpu=" << static_cast<Printable_Number>(C_gpu(i)) << ", "
                               << "C_cpu=" << static_cast<Printable_Number>(C_cpu(i)) << ", "
                               << "E=" << static_cast<Printable_Number>(E(i)) << "\n";
                 }
             }
             if (!found_errors) {
-                std::cout << "No non-zero error elements found.\n";
+                std::cout << "No non-zero error elements found\n";
+                assert(false, "No non-zero error elements found");
             }
         }
 

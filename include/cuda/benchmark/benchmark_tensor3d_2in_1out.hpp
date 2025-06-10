@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <cassert>
+
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -179,14 +181,12 @@ class Benchmark_Tensor3d_2In_1Out {
         const auto gpu_step_1 = "Allocate device memory";
         const Number* const gpu_data_A = nullptr;
         const Number* const gpu_data_B = nullptr;
-        const Number* const gpu_data_C = nullptr;
-        Number* const gpu_data_D = nullptr;
+        Number* const gpu_data_C = nullptr;
         Number* const gpu_data_temp = nullptr;
 
         cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaMallocAsync(&gpu_data_B, size_B_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaMallocAsync(&gpu_data_C, size_C_bytes, stream), "cudaMallocAsync");
-        cuda_check_error(cudaMallocAsync(&gpu_data_D, size_D_bytes, stream), "cudaMallocAsync");
         if (size_temp_bytes > 0) {
             cuda_check_error(cudaMallocAsync(&gpu_data_temp, size_temp_bytes, stream), "cudaMallocAsync");
         }
@@ -202,13 +202,13 @@ class Benchmark_Tensor3d_2In_1Out {
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_3 = "Compute kernel";
-        kernel.run_device_kernel(gpu_data_A, gpu_data_B, gpu_data_C, gpu_data_D, gpu_data_temp, stream);
+        kernel.run_device_kernel(gpu_data_A, gpu_data_B, gpu_data_C, gpu_data_temp, stream);
         cuda_check_error(cudaEventRecord(e3, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp3{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
-        cuda_check_error(cudaMemcpyAsync(tensor3d_D.data(), gpu_data_D, size_D_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(tensor3d_C.data(), gpu_data_C, size_C_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
         if (size_temp_bytes > 0) {
             cuda_check_error(cudaMemcpyAsync(tensor3d_temp.data(), gpu_data_temp, size_temp_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
         }
@@ -220,7 +220,6 @@ class Benchmark_Tensor3d_2In_1Out {
         cuda_check_error(cudaFreeAsync(gpu_data_A, stream), "cudaFreeAsync");
         cuda_check_error(cudaFreeAsync(gpu_data_B, stream), "cudaFreeAsync");
         cuda_check_error(cudaFreeAsync(gpu_data_C, stream), "cudaFreeAsync");
-        cuda_check_error(cudaFreeAsync(gpu_data_D, stream), "cudaFreeAsync");
         if (size_temp_bytes > 0) {
             cuda_check_error(cudaFreeAsync(gpu_data_temp, stream), "cudaFreeAsync");
         }
@@ -292,8 +291,8 @@ class Benchmark_Tensor3d_2In_1Out {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
         const auto cpu_step_2 = "Compute result with CPU";
-        const auto tensor3d_C_cpu = kernel.run_host_kernel(A, B);
-        const auto& tensor3d_result_gpu = tensor3d_C_gpu;
+        const auto tensor3d_C_cpu = kernel.run_host_kernel(tensor3d_A, tensor3d_B);
+        const auto& tensor3d_result_gpu = tensor3d_C;
         const auto& tensor3d_result_Cpu = tensor3d_C_cpu;
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
@@ -347,26 +346,25 @@ class Benchmark_Tensor3d_2In_1Out {
                         if (E(i, j, k) != Number(0)) {
                             found_errors = true;
                             std::cout << "(" << i << ", " << j << "): "
-                                    << "result gpu=" << static_cast<Printable_Number>(tensor3d_result_gpu(i, j, k)) << ", "
-                                    << "result cpu=" << static_cast<Printable_Number>(tensor3d_result_cpu(i, j, k)) << ", "
-                                    << "E=" << static_cast<Printable_Number>(E(i, j, k)) << "\n";
+                                    << "result gpu =" << static_cast<Printable_Number>(tensor3d_result_gpu(i, j, k)) << ", "
+                                    << "result cpu =" << static_cast<Printable_Number>(tensor3d_result_cpu(i, j, k)) << ", "
+                                    << "E          =" << static_cast<Printable_Number>(E(i, j, k)) << "\n";
                         }
                     }
                 }
             }
             if (!found_errors) {
-                std::cout << "No non-zero error elements found.\n";
+                std::cout << "No non-zero error elements found\n";
+                assert(false, "No non-zero error elements found");
             }
         }
 
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A      :\n";
+            std::cout << "A         :\n";
             std::cout << A.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
-            std::cout << "B      :\n";
+            std::cout << "B         :\n";
             std::cout << B.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
-            std::cout << "C      :\n";
-            std::cout << C.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "result gpu:\n";
             std::cout << tensor3d_result_gpu.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "result gpu:\n";

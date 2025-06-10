@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <cassert>
+
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -277,9 +279,9 @@ class Benchmark_Tensor3d_1In_1Out {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
         const auto cpu_step_2 = "Compute result with CPU";
-        const auto tensor3d_C_cpu = kernel.run_host_kernel(A);
-        const auto& tensor3d_result_gpu = tensor3d_C_gpu;
-        const auto& tensor3d_result_Cpu = tensor3d_C_cpu;
+        const auto tensor3d_C_cpu = kernel.run_host_kernel(tensor3d_A);
+        const auto& tensor3d_result_gpu = tensor3d_C;
+        const auto& tensor3d_result_cpu = tensor3d_C_cpu;
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;
@@ -332,21 +334,22 @@ class Benchmark_Tensor3d_1In_1Out {
                         if (E(i, j, k) != Number(0)) {
                             found_errors = true;
                             std::cout << "(" << i << ", " << j << "): "
-                                    << "result gpu=" << static_cast<Printable_Number>(tensor3d_result_gpu(i, j, k)) << ", "
-                                    << "result cpu=" << static_cast<Printable_Number>(tensor3d_result_cpu(i, j, k)) << ", "
-                                    << "E=" << static_cast<Printable_Number>(E(i, j, k)) << "\n";
+                                    << "result gpu =" << static_cast<Printable_Number>(tensor3d_result_gpu(i, j, k)) << ", "
+                                    << "result cpu =" << static_cast<Printable_Number>(tensor3d_result_cpu(i, j, k)) << ", "
+                                    << "E          =" << static_cast<Printable_Number>(E(i, j, k)) << "\n";
                         }
                     }
                 }
             }
             if (!found_errors) {
-                std::cout << "No non-zero error elements found.\n";
+                std::cout << "No non-zero error elements found\n";
+                assert(false, "No non-zero error elements found");
             }
         }
 
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A      :\n";
+            std::cout << "A         :\n";
             std::cout << A.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "result gpu:\n";
             std::cout << tensor3d_result_gpu.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;

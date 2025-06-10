@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <cassert>
+
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -332,13 +334,14 @@ class Benchmark_Tensor3d_1Inout {
                 }
             }
             if (!found_errors) {
-                std::cout << "No non-zero error elements found.\n";
+                std::cout << "No non-zero error elements found\n";
+                assert(false, "No non-zero error elements found");
             }
         }
 
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A        :\n";
+            std::cout << "A         :\n";
             std::cout << A.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "result gpu:\n";
             std::cout << tensor3d_result_gpu.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;

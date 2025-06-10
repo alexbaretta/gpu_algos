@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <cassert>
+
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -96,11 +98,11 @@ class Benchmark_Vector_1Inout {
         }();
 
         std::cout
-            << "Inout vector size           : " << spec.n_A_ << "\n"
-            << "Temp vector size            : " << spec.n_temp_ << "\n"
-            << "Inout size                  : " << inout_size_gb << " GB (" << inout_size_bytes << " bytes)\n"
-            << "Temp size                   : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
-            << "Required memory             : " << mem_gb << " GB (" << mem_size_bytes << " bytes)\n"
+            << "Inout vector A size : " << spec.n_A_ << "\n"
+            << "Temp vector size    : " << spec.n_temp_ << "\n"
+            << "Inout size          : " << inout_size_gb << " GB (" << inout_size_bytes << " bytes)\n"
+            << "Temp size           : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
+            << "Required memory     : " << mem_gb << " GB (" << mem_size_bytes << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
             std::cerr << "[ERROR] GPU memory size is less than the required size" << std::endl;
@@ -278,7 +280,7 @@ class Benchmark_Vector_1Inout {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
 
         const auto cpu_step_3 = "Compute error vector";
-        const auto E = (A_gpu - A_result_cpu).eval();
+        const auto E = (A_result_gpu - A_result_cpu).eval();
         const auto E_pct = E.cwiseAbs().template cast<double>().array() / A_result_cpu.cwiseAbs().template cast<double>().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
@@ -302,13 +304,14 @@ class Benchmark_Vector_1Inout {
                     found_errors = true;
                     std::cout << "(" << i << "): "
                               << "A           =" << static_cast<Printable_Number>(A(i)) << ", "
-                              << "A_result_gpu=" << static_cast<Printable_Number>(A_gpu(i)) << ", "
+                              << "A_result_gpu=" << static_cast<Printable_Number>(A_result_gpu(i)) << ", "
                               << "A_result_cpu=" << static_cast<Printable_Number>(A_result_cpu(i)) << ", "
                               << "E           =" << static_cast<Printable_Number>(E(i)) << "\n";
                 }
             }
             if (!found_errors) {
-                std::cout << "No non-zero error elements found.\n";
+                std::cout << "No non-zero error elements found\n";
+                assert(false, "No non-zero error elements found");
             }
         }
 
