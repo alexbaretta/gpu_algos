@@ -22,11 +22,11 @@
 #include "cuda/cuda_utils.hpp"
 #include "cuda/kernel_api/tensor3d_1inout.hpp"
 
-template <TENSOR3D_KERNEL_1INOUT Tensor3d_Kernel_1Inout>
-class Benchmark_Tensor3d_1Inout {
+template <TENSOR3D_KERNEL_1INOUT Tensor3D_Kernel_1Inout>
+class Benchmark_Tensor3D_1Inout {
     public:
-    using Kernel_spec = typename Tensor3d_Kernel_1Inout::Kernel_spec;
-    using Number = typename Tensor3d_Kernel_1Inout::Number;
+    using Kernel_spec = typename Tensor3D_Kernel_1Inout::Kernel_spec;
+    using Number = typename Tensor3D_Kernel_1Inout::Number;
     using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
 
     const Kernel_spec spec;
@@ -37,10 +37,10 @@ class Benchmark_Tensor3d_1Inout {
     const bool force;
     const std::string init_method;
 
-    Tensor3d_Kernel_1Inout kernel;
+    Tensor3D_Kernel_1Inout kernel;
 
     template <typename... Args>
-    Benchmark_Tensor3d_1Inout(
+    Benchmark_Tensor3D_1Inout(
         const Kernel_spec spec,
         const cxxopts::Options& options,
         const cxxopts::ParseResult& options_parsed,
@@ -158,7 +158,7 @@ class Benchmark_Tensor3d_1Inout {
         std::chrono::duration<double, std::milli> setup_total_dt4 = setup_tp4 - setup_tp0;
         std::cout << setup_step_dt4.count() << " ms (" << setup_total_dt4.count() << " ms total)" << std::endl;
 
-        std::cout << "Tensor3d_Kernel_1Inout:" << std::endl;
+        std::cout << "Tensor3D_Kernel_1Inout:" << std::endl;
         const auto gpu_tp0 = std::chrono::high_resolution_clock::now();
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
