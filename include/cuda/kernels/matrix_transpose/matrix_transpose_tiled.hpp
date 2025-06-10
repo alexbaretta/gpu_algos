@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cmath>
 #include <iostream>
 #include <stdio.h>
 #include <cuda_runtime.h>
@@ -17,13 +18,28 @@
 
 constexpr long TILE_DIM = 32;
 
+
 template <CUDA_scalar CUDA_Number>
 __global__ void matrix_transpose_tiled(
     const CUDA_Number* A,
     CUDA_Number* C,
-    const long m_rows_A_cols_C, // rows of A, cols of C
-    const long n_cols_A_rows_C  // cols of A, rows of C
+    const long A_ncols, // cols of A, rows of C
+    const long A_nrows  // rows of A, cols of C
 ) {
+    constexpr bool debug = (
+    #ifdef DEBUG
+        true
+    #else
+        false
+    #endif
+    );
+
+    /*
+        The key idea of this algorithm is that warps should, as much as possible,
+        work on rows to take advantage of the coalescing of memory operations. So we don't
+        want the same thread to operate first on A(i, j) then on C(j, i), otherwise
+        either the reads or the writes will not be coalesced.
+    */
     /*
         CUDA doesn't immediately 'support' dynamically-allocated shared memory arrays in templated functions, as it (apparently)
         generates actual definitions of those extern's. If you instantiate a templated function for multiple types, the
@@ -33,27 +49,76 @@ __global__ void matrix_transpose_tiled(
 
         As a consequence we need to use a statically-allocated shared memory array with a maximum size of TILE_DIM * TILE_DIM.
     */
-    __shared__ CUDA_Number shared_mem[TILE_DIM][TILE_DIM + 1];
+    __shared__ CUDA_Number shm[TILE_DIM][TILE_DIM + 1];
+    #ifdef DEBUG
+    [[maybe_unused]] const CUDA_Number* __shm = (CUDA_Number*)shm;
+    #endif
+
     // row-major matrix of shape (blockDim.x, blockDim.y)
     // We add one element of padding to each row to avoid bank conflicts
+    // const auto block_size = blockDim.x * blockDim.y;
 
+    const auto A_row = blockIdx.y * blockDim.y + threadIdx.y;
+    const auto A_col = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // const long n_elems = nrows_A * ncols_A;
-
-    const long col_A_row_C = threadIdx.x + blockIdx.x * blockDim.x;
-    const long row_A_col_C = threadIdx.y + blockIdx.y * blockDim.y;
-
-    if (col_A_row_C >= n_cols_A_rows_C || row_A_col_C >= m_rows_A_cols_C) {
-        return;
+    if (A_row < A_nrows && A_col < A_ncols) {
+        // We can read
+        const auto A_idx = long(A_row) * A_ncols + A_col;
+        if constexpr (debug) {
+            const auto n_elems = long(A_ncols)*A_nrows;
+            if (A_idx >= n_elems) {
+                printf("Bad indexing: A_idx=%ld at xy=(%d,%d) when A is %ldx%ld = %ld\n",
+                A_idx, A_row, A_col, A_nrows, A_ncols, n_elems);
+            }
+        }
+        const auto shared_value = A[A_idx];
+        shm[threadIdx.x][threadIdx.y] = shared_value;
+    } else if constexpr(debug) {
+        printf("No can read at xy=(%d,%d)\n", A_row, A_col);
     }
 
-    const long A_idx = col_A_row_C + row_A_col_C * n_cols_A_rows_C;
-    const auto value_to_shm = A[A_idx];
-    shared_mem[threadIdx.y][threadIdx.x] = value_to_shm;
     __syncthreads();
-    const long C_idx = row_A_col_C + col_A_row_C * m_rows_A_cols_C;
-    const auto value_from_shm = shared_mem[threadIdx.x][threadIdx.y];
-    C[C_idx] = value_from_shm;
+
+    #define C_ncols A_nrows
+    #define C_nrows A_ncols
+
+    const auto tid_in_block = threadIdx.y * blockDim.x + threadIdx.x;
+    const auto C_tid_x = tid_in_block % blockDim.y;
+    const auto C_tid_y = tid_in_block / blockDim.y;
+    const auto C_row = (
+        // Transpose the blocks in the grid...
+        blockIdx.x * blockDim.x +
+
+        // ...and rotate each block while maintaining column major order
+        C_tid_y
+    );
+    const auto C_col = (
+        // Transpose the blocks in the grid...
+        blockIdx.y * blockDim.y +
+
+        // ...and rotate each block while maintaining column major order
+        C_tid_x
+    );
+
+    if (C_row < C_nrows && C_col < C_ncols) {
+        // We can write
+        const auto C_idx = long(C_row) * C_ncols + C_col;
+        if constexpr (debug) {
+            const auto n_elems = long(A_ncols)*A_nrows;
+            if (C_idx >= n_elems) {
+                printf("Bad indexing: C_idx=%ld at xy=(%d,%d) when A is %ldx%ld = %ld\n", C_idx, C_row, C_col, C_nrows, C_ncols, n_elems);
+            }
+        }
+
+        // This is where we transpose the tile in shm
+        const auto shared_value = shm[C_tid_y][C_tid_x];
+        if constexpr (debug) {
+            C[C_idx] = shared_value;
+        }
+        C[C_idx] = shared_value;
+    } else if constexpr(debug) {
+        printf("No can write at xy=(%d,%d)\n", C_row, C_col);
+    }
 }
 
 struct Matrix_transpose_tiled_spec {
@@ -124,7 +189,7 @@ struct Matrix_transpose_tiled_spec {
         n_cols_temp_(0),
 
         // Threads per tile
-        block_dim_(TILE_DIM),
+        block_dim_(TILE_DIM, TILE_DIM, 1),
 
         grid_dim_(
             (
@@ -163,18 +228,47 @@ class Matrix_transpose_tiled_kernel {
         Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
+        int max_block_size = 0;
+        int opt_grid_size = 0;
+        int max_active_blocks_per_multiprocessor = 0;
+        cudaOccupancyMaxPotentialBlockSize(
+            &max_block_size,
+            &opt_grid_size,
+            matrix_transpose_tiled<Number>,
+            0,
+            0
+        );
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+            &max_active_blocks_per_multiprocessor,
+            matrix_transpose_tiled<Number>,
+            max_block_size,
+            0
+        );
+        const unsigned nrows_A = spec_.m_, ncols_A = spec_.n_;
+        const unsigned desired_block_size = spec_.block_dim_.x * spec_.block_dim_.y;
+        const auto [block_dim, grid_dim] = [&](){
+            if (int(desired_block_size) <= int(max_block_size)) {
+                return std::make_tuple(spec_.block_dim_, spec_.grid_dim_);
+            } else {
+                const unsigned max_block_dim = unsigned(std::ceil(std::sqrt(max_block_size)));
+                const dim3 constrained_block_dim = {max_block_dim, max_block_dim};
+                const dim3 constrained_grid_dim = {(ncols_A + max_block_dim - 1)/max_block_dim, (nrows_A + max_block_dim - 1)/max_block_dim};
+                return std::make_tuple(constrained_block_dim, constrained_grid_dim);
+            }
+        }();
+
         const auto shared_mem_size = spec_.dynamic_shared_mem_words_ * sizeof(Number);
         std::cout << "[INFO] matrix_transpose_tiled<<<(" <<
-            spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << "), " <<
-            "(" << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << "), " <<
+            grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << "), " <<
+            "(" << block_dim.x << ", " << block_dim.y << ", " << block_dim.z << "), " <<
             shared_mem_size << ">>>(gpu_data_A, gpu_data_C, " << spec_.m_ << ", " << spec_.n_ << ")" <<
             std::endl;
         matrix_transpose_tiled<<<
-            spec_.grid_dim_,
-            spec_.block_dim_,
+            grid_dim,
+            block_dim,
             shared_mem_size,
             stream
-        >>>(gpu_data_A, gpu_data_C, spec_.m_, spec_.n_);
+        >>>(gpu_data_A, gpu_data_C, ncols_A, nrows_A);
     }
 
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
