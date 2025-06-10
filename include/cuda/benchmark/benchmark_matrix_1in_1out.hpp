@@ -217,15 +217,6 @@ class Benchmark_Matrix_1In_1Out {
         // Wait for stream to finish
         cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        // Clean up
-        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
-        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
-
         // Print execution time
         constexpr int row_header_width = 22;
         constexpr int field_name_width = 25;
@@ -266,6 +257,15 @@ class Benchmark_Matrix_1In_1Out {
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt5, e0, e5), "cudaEventElapsedTime");
         std::cout << "5 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_5 << ": " << chrono_step_dt5.count() << " ms (" << chrono_total_dt5.count() << " ms total)" << std::endl;
         std::cout << "5 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_5 << ": " << gpu_step_dt5 << " ms (" << gpu_total_dt5 << " ms total)" << std::endl;
+
+        // Clean up
+        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
+        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
 
         const auto cpu_tp0 = std::chrono::high_resolution_clock::now();
 
