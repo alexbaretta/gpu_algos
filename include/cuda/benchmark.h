@@ -42,7 +42,7 @@ class Benchmark_2In_1Out {
     Kernel_2In_1Out kernel;
 
     template <typename... Args>
-    Benchmark_2In_1Out(
+    Benchmark_Matrix_2In_1Out(
         const Kernel_spec spec,
         const cxxopts::Options& options,
         const cxxopts::ParseResult& options_parsed,
@@ -110,7 +110,7 @@ class Benchmark_2In_1Out {
             << "Required memory             : " << mem_gb << " GB (" << mem_size_bytes << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
-            std::cerr << "[ERROR] GPU memory size is less than the matrix size" << std::endl;
+            std::cerr << "[ERROR] GPU memory size is less than the required size" << std::endl;
             return 1;
         }
 
@@ -316,7 +316,7 @@ class Benchmark_2In_1Out {
                 }
             }
             if (!found_errors) {
-                std::cout << "No non-zero error elements found.\n";
+                std::cout << "No non-zero error elements found\n";
             }
         }
 
@@ -353,7 +353,7 @@ class Benchmark_2In_1Out {
 
 
 template <KERNEL_1IN_1OUT Kernel_1In_1Out>
-class Benchmark_1In_1Out {
+class Benchmark_Matrix_1In_1Out {
     public:
     using Kernel_spec = typename Kernel_1In_1Out::Kernel_spec;
     using Number = typename Kernel_1In_1Out::Number;
@@ -437,7 +437,7 @@ class Benchmark_1In_1Out {
             << "Required memory           : " << mem_gb << " GB (" << (input_size_bytes + output_size_bytes) << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
-            std::cerr << "[ERROR] GPU memory size is less than the matrix size" << std::endl;
+            std::cerr << "[ERROR] GPU memory size is less than the required size" << std::endl;
             return 1;
         }
 
@@ -635,7 +635,7 @@ class Benchmark_1In_1Out {
                 }
             }
             if (!found_errors) {
-                std::cout << "No non-zero error elements found.\n";
+                std::cout << "No non-zero error elements found\n";
             }
         }
 

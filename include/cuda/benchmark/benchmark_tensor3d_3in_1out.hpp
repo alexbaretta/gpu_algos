@@ -145,13 +145,13 @@ class Benchmark_Tensor3D_3In_1Out {
             tensor3d_B.randomize(seed+1);
             tensor3d_C.randomize(seed+2);
         } else if (is_increasing) {
-            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector[i] = Number(i);
-            for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector[i] = Number(i);
-            for (size_t i = 0; i < size_C; ++i) tensor3d_C.vector[i] = Number(i);
+            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(i);
+            for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector_[i] = Number(i);
+            for (size_t i = 0; i < size_C; ++i) tensor3d_C.vector_[i] = Number(i);
         } else if (is_decreasing) {
-            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector[i] = Number(size_A - i);
-            for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector[i] = Number(size_B - i);
-            for (size_t i = 0; i < size_C; ++i) tensor3d_C.vector[i] = Number(size_C - i);
+            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(size_A - i);
+            for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector_[i] = Number(size_B - i);
+            for (size_t i = 0; i < size_C; ++i) tensor3d_C.vector_[i] = Number(size_C - i);
         } else {
             std::cerr << "[ERROR] Invalid initialization method" << std::endl;
             exit(1);
@@ -318,7 +318,7 @@ class Benchmark_Tensor3D_3In_1Out {
         long E_pct_max_row = 0, E_pct_max_col = 0, E_pct_max_sheet = 0;
 
         // row-major representation: innermost loop should iterate over elements of the same sheet/row
-        const long e_rows = tensor3d_result_cpu.rows_, e_cols = tensor3d_result_cpu.cols_, e_sheets = tensor3d_result_cpu.sheets;
+        const long e_rows = tensor3d_result_cpu.rows_, e_cols = tensor3d_result_cpu.cols_, e_sheets = tensor3d_result_cpu.sheets_;
         Tensor3D<double> tensor3d_E(e_rows, e_cols, e_sheets, 0);
         for (long sheet = 0; sheet < e_sheets; ++sheet) {
             for (long row = 0; row < e_rows; ++row) {
@@ -355,7 +355,7 @@ class Benchmark_Tensor3D_3In_1Out {
             for (int i = 0; i < tensor3d_E.rows(); ++i) {
                 for (int j = 0; j < tensor3d_E.cols(); ++j) {
                     for (int k = 0; k < tensor3d_E.sheets(); ++k) {
-                        if (tensor3d_E(i, j, k) != Number(0)) {
+                        if (tensor3d_E(i, j, k) != 0.0) {
                             found_errors = true;
                             std::cout << "(" << i << ", " << j << ", " << k << "): "
                                     << "result gpu =" << static_cast<Printable_Number>(tensor3d_result_gpu(i, j, k)) << ", "
@@ -373,18 +373,18 @@ class Benchmark_Tensor3D_3In_1Out {
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
             std::cout << "A    :\n";
-            std::cout << tensor3d_A.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            tensor3d_A.print(std::cout);
             std::cout << "B    :\n";
-            std::cout << tensor3d_B.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            tensor3d_B.print(std::cout);
             std::cout << "C    :\n";
-            std::cout << tensor3d_C.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            tensor3d_C.print(std::cout);
             std::cout << "D_gpu:\n";
-            std::cout << tensor3d_result_gpu.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            tensor3d_result_gpu.print(std::cout);
             std::cout << "D_cpu:\n";
-            std::cout << tensor3d_result_cpu.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            tensor3d_result_cpu.print(std::cout);
             if ((spec.n_rows_temp_ > 0) && (spec.n_cols_temp_ > 0) && (spec.n_sheets_temp_)) {
                 std::cout << "tmp  :\n";
-                std::cout << tensor3d_temp.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+                tensor3d_temp.print(std::cout);
             }
         }
 

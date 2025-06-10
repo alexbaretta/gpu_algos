@@ -125,9 +125,9 @@ class Benchmark_Tensor3D_1Inout {
             std::cout << "  - Randomizing tensors: ";
             tensor3d_A.randomize(seed);
         } else if (is_increasing) {
-            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector[i] = Number(i);
+            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(i);
         } else if (is_decreasing) {
-            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector[i] = Number(size_A - i);
+            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(size_A - i);
         } else {
             std::cerr << "[ERROR] Invalid initialization method" << std::endl;
             exit(1);
@@ -270,8 +270,8 @@ class Benchmark_Tensor3D_1Inout {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
         const auto cpu_step_2 = "Compute result with CPU";
-        const auto void_result = kernel.run_host_kernel(tensor3d_result_cpu);
-        static_assert(std::is_same_v<decltype(void_result), void>);
+        kernel.run_host_kernel(tensor3d_result_cpu);
+        static_assert(std::is_same_v<decltype(kernel.run_host_kernel(tensor3d_result_cpu)), void>);
         const auto& tensor3d_result_gpu = tensor3d_A_gpu;
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
@@ -285,7 +285,7 @@ class Benchmark_Tensor3D_1Inout {
         long E_pct_max_row = 0, E_pct_max_col = 0, E_pct_max_sheet = 0;
 
         // row-major representation: innermost loop should iterate over elements of the same sheet/row
-        const long e_rows = tensor3d_result_cpu.rows_, e_cols = tensor3d_result_cpu.cols_, e_sheets = tensor3d_result_cpu.sheets;
+        const long e_rows = tensor3d_result_cpu.rows_, e_cols = tensor3d_result_cpu.cols_, e_sheets = tensor3d_result_cpu.sheets_;
         Tensor3D<double> tensor3d_E(e_rows, e_cols, e_sheets, 0);
         for (long sheet = 0; sheet < e_sheets; ++sheet) {
             for (long row = 0; row < e_rows; ++row) {
@@ -322,7 +322,7 @@ class Benchmark_Tensor3D_1Inout {
             for (int i = 0; i < tensor3d_E.rows(); ++i) {
                 for (int j = 0; j < tensor3d_E.cols(); ++j) {
                     for (int k = 0; k < tensor3d_E.sheets(); ++k) {
-                        if (tensor3d_E(i, j, k) != Number(0)) {
+                        if (tensor3d_E(i, j, k) != 0.0) {
                             found_errors = true;
                             std::cout << "(" << i << ", " << j << ", " << k << "): "
                                     << "result gpu =" << static_cast<Printable_Number>(tensor3d_result_gpu(i, j, k)) << ", "
@@ -338,16 +338,16 @@ class Benchmark_Tensor3D_1Inout {
         }
 
         if (verbose) {
-            const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
+            // const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
             std::cout << "A    :\n";
-            std::cout << tensor3d_A.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            tensor3d_A.print(std::cout);
             std::cout << "A_gpu:\n";
-            std::cout << tensor3d_result_gpu.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            tensor3d_result_gpu.print(std::cout);
             std::cout << "A_cpu:\n";
-            std::cout << tensor3d_result_cpu.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            tensor3d_result_cpu.print(std::cout);
             if ((spec.n_rows_temp_ > 0) && (spec.n_cols_temp_ > 0) && (spec.n_sheets_temp_)) {
                 std::cout << "tmp  :\n";
-                std::cout << tensor3d_temp.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+                tensor3d_temp.print(std::cout);
             }
         }
 

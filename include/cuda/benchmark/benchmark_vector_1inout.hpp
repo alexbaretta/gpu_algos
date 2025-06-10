@@ -272,8 +272,8 @@ class Benchmark_Vector_1Inout {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
         const auto cpu_step_2 = "Compute result with Eigen";
-        const auto void_result = kernel.run_host_kernel(A_result_cpu);
-        static_assert(std::is_same_v<decltype(void_result), void>);
+        kernel.run_host_kernel(A_result_cpu);
+        static_assert(std::is_same_v<decltype(kernel.run_host_kernel(tensor3d_result_cpu)), void>);
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;

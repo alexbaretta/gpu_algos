@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/sort/tensor_sort_bitonic.hpp
+// source path: include/cuda/kernels/sort/tensor3d.sort__bitonic.hpp
 
 #pragma once
 #include <cuda_runtime.h>
@@ -120,7 +120,7 @@ __global__ void bitonic_compare_and_swap_3d(
     }
 }
 
-struct tensor_sort_bitonic_spec {
+struct tensor3d_sort_bitonic_spec {
     const std::string type_;
     const std::string sort_dimension_;
 
@@ -162,7 +162,7 @@ struct tensor_sort_bitonic_spec {
         ;
     }
 
-    inline static tensor_sort_bitonic_spec make(
+    inline static tensor3d_sort_bitonic_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
         // Validate the type option
@@ -197,7 +197,7 @@ struct tensor_sort_bitonic_spec {
             *target_dim = next_pow2;
         }
 
-        return tensor_sort_bitonic_spec(
+        return tensor3d_sort_bitonic_spec(
             type,
             sort_dim,
             m, n, k,
@@ -207,7 +207,7 @@ struct tensor_sort_bitonic_spec {
         );
     }
 
-    inline tensor_sort_bitonic_spec(
+    inline tensor3d_sort_bitonic_spec(
         const std::string& type,
         const std::string& sort_dimension,
         const long m,
@@ -240,14 +240,14 @@ struct tensor_sort_bitonic_spec {
 };
 
 template <CUDA_scalar Number_>
-class tensor_sort_bitonic_kernel {
+class tensor3d_sort_bitonic_kernel {
     public:
     using Number = Number_;
-    using Kernel_spec = tensor_sort_bitonic_spec;
+    using Kernel_spec = tensor3d_sort_bitonic_spec;
 
     const Kernel_spec spec_;
 
-    tensor_sort_bitonic_kernel(
+    tensor3d_sort_bitonic_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {}
 
@@ -303,45 +303,45 @@ class tensor_sort_bitonic_kernel {
     }
 
     void run_host_kernel(
-        Tensor3D<Number>& tensor
+        Tensor3D<Number>& tensor3d
     ) {
         // Sort along the specified dimension using std::sort
         if (spec_.sort_dimension_ == "rows") {
             // For each (sheet, col), sort all rows
-            for (long s = 0; s < tensor.sheets; ++s) {
-                for (long c = 0; c < tensor.cols; ++c) {
+            for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
+                for (long col = 0; col < tensor3d.cols_; ++col) {
                     // Create array of pointers to elements in this column
-                    std::vector<Number> column_data(tensor.rows);
-                    for (long r = 0; r < tensor.rows; ++r) {
-                        column_data[r] = tensor.data[s * tensor.rows * tensor.cols + r * tensor.cols + c];
+                    std::vector<Number> column_data(tensor3d.rows_);
+                    for (long row = 0; row < tensor3d.rows_; ++row) {
+                        column_data[row] = tensor3d(col, row, sheet);
                     }
                     std::sort(column_data.begin(), column_data.end());
                     // Write back
-                    for (long r = 0; r < tensor.rows; ++r) {
-                        tensor.data[s * tensor.rows * tensor.cols + r * tensor.cols + c] = column_data[r];
+                    for (long row = 0; row < tensor3d.rows_; ++row) {
+                        tensor3d(col, row, sheet) = column_data[row];
                     }
                 }
             }
         } else if (spec_.sort_dimension_ == "cols") {
             // For each (sheet, row), sort all columns
-            for (long s = 0; s < tensor.sheets; ++s) {
-                for (long r = 0; r < tensor.rows; ++r) {
-                    Number* row_start = &tensor.data[s * tensor.rows * tensor.cols + r * tensor.cols];
-                    std::sort(row_start, row_start + tensor.cols);
+            for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
+                for (long row = 0; row < tensor3d.rows_; ++row) {
+                    Number* const row_start = &tensor3d(0, row, sheet);
+                    std::sort(row_start, row_start + tensor3d.cols_);
                 }
             }
         } else {
             // For each (row, col), sort all sheets
-            for (long r = 0; r < tensor.rows; ++r) {
-                for (long c = 0; c < tensor.cols; ++c) {
-                    std::vector<Number> sheet_data(tensor.sheets);
-                    for (long s = 0; s < tensor.sheets; ++s) {
-                        sheet_data[s] = tensor.data[s * tensor.rows * tensor.cols + r * tensor.cols + c];
+            for (long row = 0; row < tensor3d.rows_; ++row) {
+                for (long col = 0; col < tensor3d.cols_; ++col) {
+                    std::vector<Number> sheet_data(tensor3d.sheets_);
+                    for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
+                        sheet_data[sheet] = tensor3d(col, row, sheet);
                     }
                     std::sort(sheet_data.begin(), sheet_data.end());
                     // Write back
-                    for (long s = 0; s < tensor.sheets; ++s) {
-                        tensor.data[s * tensor.rows * tensor.cols + r * tensor.cols + c] = sheet_data[s];
+                    for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
+                        tensor3d(col, row, sheet) = sheet_data[sheet];
                     }
                 }
             }
