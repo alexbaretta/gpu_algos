@@ -73,19 +73,18 @@ public:
     // Direct print method that avoids Eigen streaming issues in CUDA
     template<typename OSTREAM>
     void print(OSTREAM& os) const {
-    for (long sheet = 0; sheet < sheets_; ++sheet) {
-        os << sheet << ": [\n";
-        for (long row = 0; row < rows_; ++row) {
-            os << "(" << sheet << "," << row << "): [\n";
-            for (long col = 0; col < cols_; ++col) {
-                using PrintableType = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
-                os << static_cast<PrintableType>(at(row, col, sheet)) << " ";
+        for (long sheet = 0; sheet < sheets_; ++sheet) {
+            // os << sheet << ": [\n";
+            for (long row = 0; row < rows_; ++row) {
+                os << "(" << sheet << "," << row << "): [ ";
+                for (long col = 0; col < cols_; ++col) {
+                    using PrintableType = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
+                    os << static_cast<PrintableType>(at(row, col, sheet)) << " ";
+                }
+                os << "]\n";
             }
-            os << "]\n";
+            // os << "]\n";
         }
-        os << "]\n";
-    }
-
     }
 
 };
