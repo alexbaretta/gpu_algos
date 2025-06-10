@@ -272,8 +272,8 @@ class GPUAlgoTest:
     def __init__(self, bin_dir: Path, cmake_root: Optional[Path] = None, preset: str = "debug",
                  verbose: bool = False, selected_executables: Optional[Set[str]] = None,
                  selected_sizes: Optional[Set[int]] = None, selected_types: Optional[Set[str]] = None,
-                 dry_run: bool = False, float_tol: Optional[float] = None, float_rtol: float = 1e-6,
-                 int_tol: float = 0.0, int_rtol: float = 1e-6):
+                 dry_run: bool = False, float_abs_tol: Optional[float] = None, float_pct_tol: Optional[float] = None,
+                 int_abs_tol: float = 0.0, int_pct_tol: float = 0.0):
         """Initialize the GPU algorithm tester.
 
         Args:
@@ -285,10 +285,10 @@ class GPUAlgoTest:
             selected_sizes: Set of problem sizes to test (None for all)
             selected_types: Set of data types to test (None for all)
             dry_run: Only check executable existence, don't run tests
-            float_tol: Absolute tolerance for floating point types (None for no default)
-            float_rtol: Relative tolerance for floating point types
-            int_tol: Absolute tolerance for integer types
-            int_rtol: Relative tolerance for integer types
+            float_abs_tol: Absolute tolerance for floating point types (None for no absolute check)
+            float_pct_tol: Percent tolerance for floating point types (None for type-specific defaults)
+            int_abs_tol: Absolute tolerance for integer types (default: 0.0 - perfect accuracy required)
+            int_pct_tol: Percent tolerance for integer types (default: 0.0 - perfect accuracy required)
         """
         self.bin_dir = Path(bin_dir)
         self.cmake_root = cmake_root
@@ -299,11 +299,20 @@ class GPUAlgoTest:
         self.selected_types = selected_types or set(DATA_TYPES)
         self.dry_run = dry_run
 
-        # Tolerance values
-        self.float_tol = float_tol
-        self.float_rtol = float_rtol
-        self.int_tol = int_tol
-        self.int_rtol = int_rtol
+        # Tolerance values with IEEE 754-based defaults
+        self.float_abs_tol = float_abs_tol
+        self.int_abs_tol = int_abs_tol
+        self.int_pct_tol = int_pct_tol
+
+        # Set type-specific percent tolerances based on IEEE 754 precision
+        # Assuming 4 bits of precision loss in algorithms:
+        # float32: 24-4=20 bits → 2^(-20) ≈ 9.54e-7 relative → 9.54e-5%
+        # float64: 53-4=49 bits → 2^(-49) ≈ 1.78e-15 relative → 1.78e-13%
+        if float_pct_tol is not None:
+            self.float_pct_tol = float_pct_tol
+        else:
+            # Use type-specific defaults - will be determined per data type in _check_correctness
+            self.float_pct_tol = None
 
         if not self.bin_dir.exists():
             raise FileNotFoundError(f"Binary directory not found: {self.bin_dir}")
@@ -483,22 +492,39 @@ class GPUAlgoTest:
 
         # Determine appropriate tolerances based on data type
         if self._is_integer_type(data_type):
-            tol = self.int_tol
-            rtol = self.int_rtol
+            abs_tol = self.int_abs_tol
+            pct_tol = self.int_pct_tol
         elif self._is_floating_type(data_type):
-            tol = self.float_tol
-            rtol = self.float_rtol
+            abs_tol = self.float_abs_tol
+
+            # Use IEEE 754-based percent tolerance if not explicitly set
+            if self.float_pct_tol is not None:
+                pct_tol = self.float_pct_tol
+            else:
+                # Type-specific defaults based on IEEE 754 precision with 4 bits of precision loss
+                if data_type == "half":
+                    # half precision: 10-bit significand + 1 implicit → 11-4=7 bits → 2^(-7) ≈ 0.0078 → 0.78%
+                    pct_tol = 0.78
+                elif data_type in ["float", "single"]:
+                    # float32: 23-bit significand + 1 implicit → 24-4=20 bits → 2^(-20) ≈ 9.54e-7 → 9.54e-5%
+                    pct_tol = 9.54e-5
+                elif data_type == "double":
+                    # float64: 52-bit significand + 1 implicit → 53-4=49 bits → 2^(-49) ≈ 1.78e-15 → 1.78e-13%
+                    pct_tol = 1.78e-13
+                else:
+                    # Unknown floating type, use float32 default
+                    pct_tol = 9.54e-5
         else:
             # Unknown type, use floating point tolerances as default
-            tol = self.float_tol
-            rtol = self.float_rtol
+            abs_tol = self.float_abs_tol
+            pct_tol = self.float_pct_tol if self.float_pct_tol is not None else 9.54e-5
 
         # Check absolute tolerance (if specified)
-        if tol is not None and max_error > tol:
+        if abs_tol is not None and max_error > abs_tol:
             return False
 
-        # Check relative tolerance
-        if rtol is not None and max_error_pct > rtol:
+        # Check percent tolerance
+        if pct_tol is not None and max_error_pct > pct_tol:
             return False
 
         return True
@@ -522,8 +548,24 @@ class GPUAlgoTest:
         }
 
         try:
-            # Build command
-            cmd = [str(executable), data_type, str(size)]
+            # Build command arguments using helper methods
+            cmd = [str(executable)]
+
+            # Add size argument
+            size_option = self._get_size_option(executable)
+            if size_option:
+                cmd.extend([size_option, str(size)])
+            else:
+                # Fallback to positional argument if no size option found
+                cmd.append(str(size))
+
+            # Add data type argument
+            if self._supports_data_type(executable, data_type):
+                cmd.extend(["--type", data_type])
+            else:
+                # Fallback to positional argument if --type not supported
+                cmd.append(data_type)
+
             self.logger.debug(f"Running: {' '.join(cmd)}")
 
             # Execute the command
@@ -599,7 +641,8 @@ class GPUAlgoTest:
                     results.append(result)
 
                     if not result["run_success"] and (self.verbose or self.dry_run):
-                        self.logger.warning(f"    Failed: {result['error']}")
+                        error_msg = result.get("error", f"Exit code: {result.get('return_code', 'unknown')}")
+                        self.logger.warning(f"    Failed: {error_msg}")
 
         return results
 
@@ -616,8 +659,10 @@ class GPUAlgoTest:
                 results = self.test_all_sizes_and_types(executable)
                 all_results[executable.name] = results
             except Exception as e:
-                self.logger.error(f"Error testing {executable.name}: {e}")
-                all_results[executable.name] = [{"error": str(e)}]
+                import traceback
+                error_details = f"Exception: {type(e).__name__}: {str(e)}\nTraceback:\n{traceback.format_exc()}"
+                self.logger.error(f"Error testing {executable.name}: {error_details}")
+                all_results[executable.name] = [{"error": str(e), "error_details": error_details}]
 
         return all_results
 
@@ -725,30 +770,29 @@ def main():
     )
 
     parser.add_argument(
-        "--tol",
+        "--abs-tol",
         type=float,
-        help="Absolute tolerance for floating point types (no default)",
+        help="Absolute tolerance for floating point types (no default - only percent tolerance used)",
     )
 
     parser.add_argument(
-        "--rtol",
+        "--pct-tol",
         type=float,
-        default=1e-6,
-        help="Relative tolerance for floating point types (default: 1e-6)",
+        help="Percent tolerance for floating point types (default: IEEE 754-based per type)",
     )
 
     parser.add_argument(
-        "--int-tol",
+        "--int-abs-tol",
         type=float,
         default=0.0,
-        help="Absolute tolerance for integer types (default: 0.0)",
+        help="Absolute tolerance for integer types (default: 0.0 - perfect accuracy required)",
     )
 
     parser.add_argument(
-        "--int-rtol",
+        "--int-pct-tol",
         type=float,
-        default=1e-6,
-        help="Relative tolerance for integer types (default: 1e-6)",
+        default=0.0,
+        help="Percent tolerance for integer types (default: 0.0 - perfect accuracy required)",
     )
 
     args = parser.parse_args()
@@ -800,10 +844,10 @@ def main():
             selected_sizes,
             selected_types,
             args.dryrun,
-            args.tol,
-            args.rtol,
-            args.int_tol,
-            args.int_rtol,
+            args.abs_tol,
+            args.pct_tol,
+            args.int_abs_tol,
+            args.int_pct_tol,
         )
 
         # Run all tests
