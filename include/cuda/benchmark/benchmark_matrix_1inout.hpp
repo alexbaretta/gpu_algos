@@ -21,11 +21,11 @@
 #include "cuda/cuda_utils.hpp"
 #include "cuda/kernel_api/matrix_1inout.hpp"
 
-template <MATRIX_KERNEL_1INOUT Matrix_Kernel_11Inout>
-class Benchmark_Matrix_11Inout {
+template <MATRIX_KERNEL_1INOUT Matrix_Kernel_1Inout>
+class Benchmark_Matrix_1Inout {
     public:
-    using Kernel_spec = typename Matrix_Kernel_11Inout::Kernel_spec;
-    using Number = typename Matrix_Kernel_11Inout::Number;
+    using Kernel_spec = typename Matrix_Kernel_1Inout::Kernel_spec;
+    using Number = typename Matrix_Kernel_1Inout::Number;
     using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
 
     const Kernel_spec spec;
@@ -157,13 +157,13 @@ class Benchmark_Matrix_11Inout {
         std::chrono::duration<double, std::milli> setup_total_dt4 = setup_tp4 - setup_tp0;
         std::cout << setup_step_dt4.count() << " ms (" << setup_total_dt4.count() << " ms total)" << std::endl;
 
-        std::cout << "Matrix_Kernel_11Inout:" << std::endl;
+        std::cout << "Matrix_Kernel_1Inout:" << std::endl;
         const auto gpu_tp0 = std::chrono::high_resolution_clock::now();
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number* const gpu_data_A = nullptr;
-        Number* const gpu_data_temp = nullptr;
+        Number* gpu_data_A = nullptr;
+        Number* gpu_data_temp = nullptr;
 
         cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
         if (size_temp_bytes > 0) {
@@ -312,21 +312,20 @@ class Benchmark_Matrix_11Inout {
             }
             if (!found_errors) {
                 std::cout << "No non-zero error elements found\n";
-                assert(false, "No non-zero error elements found");
             }
         }
 
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A      :\n";
+            std::cout << "A    :\n";
             std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
-            std::cout << "A_result_gpu  :\n";
+            std::cout << "A_gpu:\n";
             std::cout << A_result_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
-            std::cout << "A_result_cpu  :\n";
+            std::cout << "A_cpu:\n";
             std::cout << A_result_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
-            if (spec.n_temp_ > 0) {
+            if ((spec.n_rows_temp_ > 0) && (spec.n_cols_temp_ > 0)) {
                 const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> tmp_gpu{vec_temp.data(), spec.n_temp_};
-                std::cout << "tmp    :\n";
+                std::cout << "tmp  :\n";
                 std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             }
         }

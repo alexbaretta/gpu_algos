@@ -186,11 +186,11 @@ class Benchmark_Vector_3In_1Out {
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        const Number* const gpu_data_A = nullptr;
-        const Number* const gpu_data_B = nullptr;
-        const Number* const gpu_data_C = nullptr;
-        Number* const gpu_data_D = nullptr;
-        Number* const gpu_data_temp = nullptr;
+        Number* gpu_data_A = nullptr;
+        Number* gpu_data_B = nullptr;
+        Number* gpu_data_C = nullptr;
+        Number* gpu_data_D = nullptr;
+        Number* gpu_data_temp = nullptr;
 
         cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaMallocAsync(&gpu_data_B, size_B_bytes, stream), "cudaMallocAsync");
@@ -296,10 +296,10 @@ class Benchmark_Vector_3In_1Out {
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Eigen";
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A{vec_A.data(), spec.n_A_};
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> B{vec_B.data(), spec.n_B_};
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> C{vec_C.data(), spec.n_C_};
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> D_gpu{vec_D.data(), spec.n_D_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic, 1>> A{vec_A.data(), spec.n_A_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic, 1>> B{vec_B.data(), spec.n_B_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic, 1>> C{vec_C.data(), spec.n_C_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic, 1>> D_gpu{vec_D.data(), spec.n_D_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
@@ -343,25 +343,24 @@ class Benchmark_Vector_3In_1Out {
             }
             if (!found_errors) {
                 std::cout << "No non-zero error elements found\n";
-                assert(false, "No non-zero error elements found");
             }
         }
 
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A      :\n";
+            std::cout << "A    :\n";
             std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
-            std::cout << "B      :\n";
+            std::cout << "B    :\n";
             std::cout << B.template cast<Printable_Number>().format(eigen_format) << std::endl;
-            std::cout << "C      :\n";
+            std::cout << "C    :\n";
             std::cout << C.template cast<Printable_Number>().format(eigen_format) << std::endl;
-            std::cout << "D_gpu  :\n";
+            std::cout << "D_gpu:\n";
             std::cout << D_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
-            std::cout << "D_cpu  :\n";
+            std::cout << "D_cpu:\n";
             std::cout << D_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             if (spec.n_temp_ > 0) {
-                const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> tmp_gpu{vec_temp.data(), spec.n_temp_};
-                std::cout << "tmp    :\n";
+                const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic, 1>> tmp_gpu{vec_temp.data(), spec.n_temp_};
+                std::cout << "tmp  :\n";
                 std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             }
         }

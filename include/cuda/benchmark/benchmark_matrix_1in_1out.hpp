@@ -170,9 +170,9 @@ class Benchmark_Matrix_1In_1Out {
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        const Number* const gpu_data_A = nullptr;
-        Number* const gpu_data_C = nullptr;
-        Number* const gpu_data_temp = nullptr;
+        Number* gpu_data_A = nullptr;
+        Number* gpu_data_C = nullptr;
+        Number* gpu_data_temp = nullptr;
 
         cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaMallocAsync(&gpu_data_C, size_C_bytes, stream), "cudaMallocAsync");
@@ -319,23 +319,22 @@ class Benchmark_Matrix_1In_1Out {
             }
             if (!found_errors) {
                 std::cout << "No non-zero error elements found\n";
-                assert(false, "No non-zero error elements found");
             }
         }
 
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A      :\n";
+            std::cout << "A    :\n";
             std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
-            std::cout << "C_gpu  :\n";
+            std::cout << "C_gpu:\n";
             std::cout << C_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
-            std::cout << "C_cpu  :\n";
+            std::cout << "C_cpu:\n";
             std::cout << C_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
-            if (spec.n_cols_temp_ > 0) {
+            if ((spec.n_rows_temp_ > 0) && (spec.n_cols_temp_ > 0)) {
                 const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> tmp_gpu{
                     vec_temp.data(), spec.n_rows_temp_, spec.n_cols_temp_
                 };
-                std::cout << "tmp    :\n";
+                std::cout << "tmp  :\n";
                 std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             }
         }
