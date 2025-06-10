@@ -250,7 +250,7 @@ class Benchmark_Vector_1Inout {
 
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
-        const auto cpu_step_1 = "Convert data to Eigen";
+        const auto cpu_step_1 = "Convert data to Eigen, call copy constructor on A";
         auto vec_A_result_cpu{vec_A}; // Copy constructor
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A{vec_A.data(), spec.n_A_};
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> A_result_gpu{vec_A_result_gpu.data(), spec.n_A_};

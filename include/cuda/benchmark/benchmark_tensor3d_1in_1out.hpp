@@ -8,6 +8,7 @@
 #include <iostream>
 #include <chrono>
 #include <iomanip>
+#include <vector>
 #include <Eigen/Dense>
 
 #include <cuda_runtime.h>
@@ -19,11 +20,11 @@
 #include "cuda/cuda_utils.hpp"
 #include "cuda/kernel_api/tensor3d_1in_1out.hpp"
 
-template <TENSOR3D_KERNEL_1IN_1OUT Tensor3d_kernel_1In_1Out>
-class Benchmark_Tensor3D_1In_1Out {
+template <TENSOR3D_KERNEL_1IN_1OUT Tensor3d_Kernel_1In_1Out>
+class Benchmark_Tensor3d_1In_1Out {
     public:
-    using Kernel_spec = typename Tensor3d_kernel_1In_1Out::Kernel_spec;
-    using Number = typename Tensor3d_kernel_1In_1Out::Number;
+    using Kernel_spec = typename Tensor3d_Kernel_1In_1Out::Kernel_spec;
+    using Number = typename Tensor3d_Kernel_1In_1Out::Number;
     using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
 
     const Kernel_spec spec;
@@ -34,10 +35,10 @@ class Benchmark_Tensor3D_1In_1Out {
     const bool force;
     const std::string init_method;
 
-    Tensor3d_kernel_1In_1Out kernel;
+    Tensor3d_Kernel_1In_1Out kernel;
 
     template <typename... Args>
-    Benchmark_Tensor3D_1In_1Out(
+    Benchmark_Tensor3d_1In_1Out(
         const Kernel_spec spec,
         const cxxopts::Options& options,
         const cxxopts::ParseResult& options_parsed,
@@ -56,13 +57,14 @@ class Benchmark_Tensor3D_1In_1Out {
             std::cout << options.help() << std::endl;
             exit(0);
         }
-        const long total_elements = spec.n_rows_A_ * spec.n_cols_A_ * spec.n_sheets_A_;
-        if (verbose && total_elements > 10000) {
-            std::cerr << "WARNING: verbose mode is enabled and the input tensor is large."
-            << "This will print the entire tensor to the console." << std::endl;
+        if (verbose && (
+            (spec.n_rows_A_ > 10000 || spec.n_cols_A_ * spec.n_sheets_A_ > 1000)
+        )) {
+            std::cerr << "WARNING: verbose mode is enabled and the input tensors are large."
+            << "This will print the entire tensors to the console." << std::endl;
             if (!force) {
                 std::cerr << "Use --force to override." << std::endl
-                          << "[ERROR] tensor too big for verbose mode" << std::endl;
+                          << "[ERROR] tensors too big for verbose mode" << std::endl;
                 exit(1);
             }
         }
@@ -99,16 +101,16 @@ class Benchmark_Tensor3D_1In_1Out {
         }();
 
         std::cout
-            << "Input tensor dimensions     : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << "x" << spec.n_sheets_A_ << "\n"
-            << "Output tensor dimensions    : " << spec.n_rows_C_ << "x" << spec.n_cols_C_ << "x" << spec.n_sheets_C_ << "\n"
-            << "Temp tensor dimensions      : " << spec.n_rows_temp_ << "x" << spec.n_cols_temp_ << "x" << spec.n_sheets_temp_ << "\n"
+            << "Input tensor3d A dimensions : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << "x" << spec.n_sheets_A_ << "\n"
+            << "Output tensor3d dimensions  : " << spec.n_rows_C_ << "x" << spec.n_cols_C_ << "x" << spec.n_sheets_C_ << "\n"
+            << "Temp tensor3d dimensions    : " << spec.n_rows_temp_ << "x" << spec.n_cols_temp_ << "x" << spec.n_sheets_temp_ << "\n"
             << "Input size                  : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
             << "Output size                 : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
             << "Temp size                   : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
             << "Required memory             : " << mem_gb << " GB (" << mem_size_bytes << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
-            std::cerr << "[ERROR] GPU memory size is less than the tensor size" << std::endl;
+            std::cerr << "[ERROR] GPU memory size is less than the required size" << std::endl;
             return 1;
         }
 
@@ -116,20 +118,24 @@ class Benchmark_Tensor3D_1In_1Out {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        Tensor3D<Number> A(spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, 0);
-        Tensor3D<Number> C(spec.n_rows_C_, spec.n_cols_C_, spec.n_sheets_C_, 0);
-        Tensor3D<Number> temp(spec.n_rows_temp_, spec.n_cols_temp_, spec.n_sheets_temp_, 0);
+        Tensor3D<Number> tensor3d_A(spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, 0);
+        Tensor3D<Number> tensor3d_C(spec.n_rows_C_, spec.n_cols_C_, spec.n_sheets_C_, 0);
+        Tensor3D<Number> tensor3d_temp(spec.n_rows_temp_, spec.n_cols_temp_, spec.n_sheets_temp_, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Initializing tensor: ";
+        std::cout << "  - Initializing tensors: ";
         if (is_random) {
-            randomize_vector(A.data, seed);
+            std::cout << "  - Randomizing tensors: ";
+            tensor3d_A.randomize(seed);
         } else if (is_increasing) {
-            for (size_t i = 0; i < size_A; ++i) A.data[i] = Number(i);
+            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector[i] = Number(i);
         } else if (is_decreasing) {
-            for (size_t i = 0; i < size_A; ++i) A.data[i] = Number(size_A - i);
+            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector[i] = Number(size_A - i);
+        } else {
+            std::cerr << "[ERROR] Invalid initialization method" << std::endl;
+            exit(1);
         }
         const auto setup_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_step_dt2 = setup_tp2 - setup_tp1;
@@ -157,12 +163,15 @@ class Benchmark_Tensor3D_1In_1Out {
         std::chrono::duration<double, std::milli> setup_total_dt4 = setup_tp4 - setup_tp0;
         std::cout << setup_step_dt4.count() << " ms (" << setup_total_dt4.count() << " ms total)" << std::endl;
 
-        std::cout << "TENSOR3D_KERNEL_1IN_1OUT:" << std::endl;
+        std::cout << "Tensor3d_Kernel_1In_1Out:" << std::endl;
         const auto gpu_tp0 = std::chrono::high_resolution_clock::now();
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number *gpu_data_A = nullptr, *gpu_data_C = nullptr, *gpu_data_temp = nullptr;
+        const Number* const gpu_data_A = nullptr;
+        Number* const gpu_data_C = nullptr;
+        Number* const gpu_data_temp = nullptr;
+
         cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaMallocAsync(&gpu_data_C, size_C_bytes, stream), "cudaMallocAsync");
         if (size_temp_bytes > 0) {
@@ -173,7 +182,7 @@ class Benchmark_Tensor3D_1In_1Out {
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_2 = "Copy data to device";
-        cuda_check_error(cudaMemcpyAsync(gpu_data_A, A.data.data(), size_A_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(gpu_data_A, tensor3d_A.data(), size_A_bytes, cudaMemcpyHostToDevice, stream), "cudaMemcpyAsync");
         cuda_check_error(cudaEventRecord(e2, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS), "cudaStreamAddCallback");
@@ -185,9 +194,9 @@ class Benchmark_Tensor3D_1In_1Out {
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
-        cuda_check_error(cudaMemcpyAsync(C.data.data(), gpu_data_C, size_C_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+        cuda_check_error(cudaMemcpyAsync(tensor3d_C.data(), gpu_data_C, size_C_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
         if (size_temp_bytes > 0) {
-            cuda_check_error(cudaMemcpyAsync(temp.data.data(), gpu_data_temp, size_temp_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
+            cuda_check_error(cudaMemcpyAsync(tensor3d_temp.data(), gpu_data_temp, size_temp_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
         }
         cuda_check_error(cudaEventRecord(e4, stream), "cudaEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp4{};
@@ -216,73 +225,85 @@ class Benchmark_Tensor3D_1In_1Out {
         std::chrono::duration<double, std::milli> chrono_total_dt1 = gpu_tp1 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt1, e0, e1), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt1, e0, e1), "cudaEventElapsedTime");
-        std::cout << "1 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_1 << ": " << chrono_step_dt1.count() << " ms (" << chrono_total_dt1.count() << " ms total)" << std::endl;
+        std::cout << "1 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_1 << ": " << chrono_step_dt1.count() << " ms (" << chrono_total_dt1.count() << " ms total)" << std::endl;
+        std::cout << "1 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_1 << ": " << gpu_step_dt1 << " ms (" << gpu_total_dt1 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> chrono_step_dt2 = gpu_tp2 - gpu_tp1;
         std::chrono::duration<double, std::milli> chrono_total_dt2 = gpu_tp2 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt2, e1, e2), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt2, e0, e2), "cudaEventElapsedTime");
-        std::cout << "2 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_2 << ": " << chrono_step_dt2.count() << " ms (" << chrono_total_dt2.count() << " ms total)" << std::endl;
+        std::cout << "2 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_2 << ": " << chrono_step_dt2.count() << " ms (" << chrono_total_dt2.count() << " ms total)" << std::endl;
+        std::cout << "2 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_2 << ": " << gpu_step_dt2 << " ms (" << gpu_total_dt2 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> chrono_step_dt3 = gpu_tp3 - gpu_tp2;
         std::chrono::duration<double, std::milli> chrono_total_dt3 = gpu_tp3 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt3, e2, e3), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt3, e0, e3), "cudaEventElapsedTime");
-        std::cout << "3 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_3 << ": " << chrono_step_dt3.count() << " ms (" << chrono_total_dt3.count() << " ms total)" << std::endl;
+        std::cout << "3 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_3 << ": " << chrono_step_dt3.count() << " ms (" << chrono_total_dt3.count() << " ms total)" << std::endl;
+        std::cout << "3 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_3 << ": " << gpu_step_dt3 << " ms (" << gpu_total_dt3 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> chrono_step_dt4 = gpu_tp4 - gpu_tp3;
         std::chrono::duration<double, std::milli> chrono_total_dt4 = gpu_tp4 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt4, e3, e4), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt4, e0, e4), "cudaEventElapsedTime");
-        std::cout << "4 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_4 << ": " << chrono_step_dt4.count() << " ms (" << chrono_total_dt4.count() << " ms total)" << std::endl;
+        std::cout << "4 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_4 << ": " << chrono_step_dt4.count() << " ms (" << chrono_total_dt4.count() << " ms total)" << std::endl;
+        std::cout << "4 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_4 << ": " << gpu_step_dt4 << " ms (" << gpu_total_dt4 << " ms total)" << std::endl;
 
         std::chrono::duration<double, std::milli> chrono_step_dt5 = gpu_tp5 - gpu_tp4;
         std::chrono::duration<double, std::milli> chrono_total_dt5 = gpu_tp5 - gpu_tp0;
         cuda_check_error(cudaEventElapsedTime(&gpu_step_dt5, e4, e5), "cudaEventElapsedTime");
         cuda_check_error(cudaEventElapsedTime(&gpu_total_dt5, e0, e5), "cudaEventElapsedTime");
-        std::cout << "5 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_5 << ": " << chrono_step_dt5.count() << " ms (" << chrono_total_dt5.count() << " ms total)" << std::endl;
+        std::cout << "5 - " << std::setw(row_header_width) << "cudaEventElapsedTime " << std::setw(field_name_width) << gpu_step_5 << ": " << chrono_step_dt5.count() << " ms (" << chrono_total_dt5.count() << " ms total)" << std::endl;
+        std::cout << "5 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_5 << ": " << gpu_step_dt5 << " ms (" << gpu_total_dt5 << " ms total)" << std::endl;
 
         const auto cpu_tp0 = std::chrono::high_resolution_clock::now();
 
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
-        const auto cpu_step_1 = "Convert data to Tensor3D";
+        const auto cpu_step_1 = "Convert data to Eigen (skipped for Tensor3D)";
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
         const auto cpu_step_2 = "Compute result with CPU";
-        const auto C_cpu = kernel.run_host_kernel(A);
+        const auto tensor3d_C_cpu = kernel.run_host_kernel(A);
+        const auto& tensor3d_result_gpu = tensor3d_C_gpu;
+        const auto& tensor3d_result_Cpu = tensor3d_C_cpu;
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
 
-        const auto cpu_step_3 = "Compute error tensor";
-        double max_error = 0.0;
-        double max_error_pct = 0.0;
-        long max_error_row = 0, max_error_col = 0, max_error_sheet = 0;
-        long max_error_pct_row = 0, max_error_pct_col = 0, max_error_pct_sheet = 0;
+        const auto cpu_step_3 = "Compute error tensor3d and find max error";
+        double E_max = 0;
+        long E_max_row = 0, E_max_col = 0, E_max_sheet = 0;
+        double E_max_pct = 0;
+        long E_pct_max_row = 0, E_pct_max_col = 0, E_pct_max_sheet = 0;
 
-        for (long s = 0; s < spec.n_sheets_C_; ++s) {
-            for (long r = 0; r < spec.n_rows_C_; ++r) {
-                for (long c = 0; c < spec.n_cols_C_; ++c) {
-                    const long idx = s * spec.n_rows_C_ * spec.n_cols_C_ + r * spec.n_cols_C_ + c;
-                    const double error = std::abs(static_cast<double>(C.data[idx]) - static_cast<double>(C_cpu.data[idx]));
-                    const double error_pct = error / std::abs(static_cast<double>(C_cpu.data[idx]));
-
-                    if (error > max_error) {
-                        max_error = error;
-                        max_error_row = r;
-                        max_error_col = c;
-                        max_error_sheet = s;
+        // row-major representation: innermost loop should iterate over elements of the same sheet/row
+        const long e_rows = tensor3d_result_cpu.rows_, e_cols = tensor3d_result_cpu.cols_, e_sheets = tensor3d_result_cpu.sheets;
+        Tensor3D<double> tensor3d_E(e_rows, e_cols_, e_sheets, 0);
+        for (long sheet = 0; sheet < e_sheets; ++sheet) {
+            for (long row = 0; row < e_rows; ++row) {
+                for (long col = 0; col < e_cols; ++col) {
+                    const double e = double(tensor3d_result_gpu(row, col, sheet)) - double(tensor3d_result_cpu(row, col, sheet));
+                    tensor3d_E(row, col, sheet) = e;
+                    const double e_abs = std::abs(e);
+                    const double e_ref = double(tensor3d_result_cpu(row, col, sheet));
+                    const double e_ref_abs = std::abs(e_ref);
+                    const double e_pct = e_ref_abs > 0 ? 100.0 * e_abs / e_ref_abs : 0.0;
+                    if (e_abs > E_max) {
+                        E_max = e_abs;
+                        E_max_row = row;
+                        E_max_col = col;
+                        E_max_sheet = sheet;
                     }
-                    if (error_pct > max_error_pct) {
-                        max_error_pct = error_pct;
-                        max_error_pct_row = r;
-                        max_error_pct_col = c;
-                        max_error_pct_sheet = s;
+                    if (e_pct > E_max_pct) {
+                        E_max_pct = e_pct;
+                        E_pct_max_row = row;
+                        E_pct_max_col = col;
+                        E_pct_max_sheet = sheet;
                     }
                 }
             }
@@ -295,17 +316,15 @@ class Benchmark_Tensor3D_1In_1Out {
         if (errors) {
             std::cout << "Non-zero error elements:\n";
             bool found_errors = false;
-            for (long s = 0; s < spec.n_sheets_C_; ++s) {
-                for (long r = 0; r < spec.n_rows_C_; ++r) {
-                    for (long c = 0; c < spec.n_cols_C_; ++c) {
-                        const long idx = s * spec.n_rows_C_ * spec.n_cols_C_ + r * spec.n_cols_C_ + c;
-                        const double error = std::abs(static_cast<double>(C.data[idx]) - static_cast<double>(C_cpu.data[idx]));
-                        if (error != 0.0) {
+            for (int i = 0; i < E.rows(); ++i) {
+                for (int j = 0; j < E.cols(); ++j) {
+                    for (int k = 0; k < E.sheets(); ++k) {
+                        if (E(i, j, k) != Number(0)) {
                             found_errors = true;
-                            std::cout << "(" << r << ", " << c << ", " << s << "): "
-                                      << "C_gpu=" << static_cast<Printable_Number>(C.data[idx]) << ", "
-                                      << "C_cpu=" << static_cast<Printable_Number>(C_cpu.data[idx]) << ", "
-                                      << "E=" << error << "\n";
+                            std::cout << "(" << i << ", " << j << "): "
+                                    << "result gpu=" << static_cast<Printable_Number>(tensor3d_result_gpu(i, j, k)) << ", "
+                                    << "result cpu=" << static_cast<Printable_Number>(tensor3d_result_cpu(i, j, k)) << ", "
+                                    << "E=" << static_cast<Printable_Number>(E(i, j, k)) << "\n";
                         }
                     }
                 }
@@ -316,58 +335,35 @@ class Benchmark_Tensor3D_1In_1Out {
         }
 
         if (verbose) {
-            std::cout << "A_gpu tensor:\n";
-            for (long s = 0; s < spec.n_sheets_A_; ++s) {
-                std::cout << "  Sheet " << s << ":\n";
-                for (long r = 0; r < spec.n_rows_A_; ++r) {
-                    std::cout << "    [";
-                    for (long c = 0; c < spec.n_cols_A_; ++c) {
-                        const long idx = s * spec.n_rows_A_ * spec.n_cols_A_ + r * spec.n_cols_A_ + c;
-                        std::cout << static_cast<Printable_Number>(A.data[idx]);
-                        if (c < spec.n_cols_A_ - 1) std::cout << ", ";
-                    }
-                    std::cout << "]\n";
-                }
-            }
-
-            std::cout << "C_gpu tensor:\n";
-            for (long s = 0; s < spec.n_sheets_C_; ++s) {
-                std::cout << "  Sheet " << s << ":\n";
-                for (long r = 0; r < spec.n_rows_C_; ++r) {
-                    std::cout << "    [";
-                    for (long c = 0; c < spec.n_cols_C_; ++c) {
-                        const long idx = s * spec.n_rows_C_ * spec.n_cols_C_ + r * spec.n_cols_C_ + c;
-                        std::cout << static_cast<Printable_Number>(C.data[idx]);
-                        if (c < spec.n_cols_C_ - 1) std::cout << ", ";
-                    }
-                    std::cout << "]\n";
-                }
-            }
-
-            std::cout << "C_cpu tensor:\n";
-            for (long s = 0; s < spec.n_sheets_C_; ++s) {
-                std::cout << "  Sheet " << s << ":\n";
-                for (long r = 0; r < spec.n_rows_C_; ++r) {
-                    std::cout << "    [";
-                    for (long c = 0; c < spec.n_cols_C_; ++c) {
-                        const long idx = s * spec.n_rows_C_ * spec.n_cols_C_ + r * spec.n_cols_C_ + c;
-                        std::cout << static_cast<Printable_Number>(C_cpu.data[idx]);
-                        if (c < spec.n_cols_C_ - 1) std::cout << ", ";
-                    }
-                    std::cout << "]\n";
-                }
+            const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
+            std::cout << "A      :\n";
+            std::cout << A.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << "result gpu:\n";
+            std::cout << tensor3d_result_gpu.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << "result gpu:\n";
+            std::cout << tensor3d_result_cpu.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
+            if (spec.n_cols_temp_ > 0) {
+                std::cout << "tmp       :\n";
+                std::cout << tmp_gpu.as_eigen_tensor().template cast<Printable_Number>().format(eigen_format) << std::endl;
             }
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
-        std::cout << "Max error     : " << max_error << " at (" << max_error_row << ", " << max_error_col << ", " << max_error_sheet << ")" << std::endl;
-        std::cout << "Max error pct : " << max_error_pct << " at (" << max_error_pct_row << ", " << max_error_pct_col << ", " << max_error_pct_sheet << ")" << std::endl;
+        std::cout << "Max error     : " << E_max << " at (" << E_max_row << ", " << E_max_col << ", " << E_max_sheet << ")" << std::endl;
+        std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ", " << E_pct_max_sheet << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
 
-        // No manual cleanup needed - std::vector manages its own memory
+        // Clean up
+        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
+        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
 
         return 0;
     }

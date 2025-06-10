@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <chrono>
+#include <iomanip>
 #include <vector>
 #include <Eigen/Dense>
 
@@ -300,8 +301,8 @@ class Benchmark_Vector_3In_1Out {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
 
         const auto cpu_step_3 = "Compute error vector";
-        const auto E = (C_gpu - C_cpu).eval();
-        const auto E_pct = E.cwiseAbs().template cast<double>().array() / C_cpu.cwiseAbs().template cast<double>().array();
+        const auto E = (D_gpu - D_cpu).eval();
+        const auto E_pct = E.cwiseAbs().template cast<double>().array() / D_cpu.cwiseAbs().template cast<double>().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
@@ -323,9 +324,6 @@ class Benchmark_Vector_3In_1Out {
                 if (E(i) != Number(0)) {
                     found_errors = true;
                     std::cout << "(" << i << "): "
-                              << "A=" << static_cast<Printable_Number>(A(i)) << ", "
-                              << "B=" << static_cast<Printable_Number>(B(i)) << ", "
-                              << "C=" << static_cast<Printable_Number>(C(i)) << ", "
                               << "D_gpu=" << static_cast<Printable_Number>(D_gpu(i)) << ", "
                               << "D_cpu=" << static_cast<Printable_Number>(D_cpu(i)) << ", "
                               << "E=" << static_cast<Printable_Number>(E(i)) << "\n";

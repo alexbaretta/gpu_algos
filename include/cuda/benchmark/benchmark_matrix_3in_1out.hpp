@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <chrono>
+#include <iomanip>
 #include <vector>
 #include <Eigen/Dense>
 
@@ -293,15 +294,15 @@ class Benchmark_Matrix_3In_1Out {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
         const auto cpu_step_2 = "Compute result with Eigen";
-        const auto C_cpu = kernel.run_host_kernel(A, B, C);
+        const auto D_cpu = kernel.run_host_kernel(A, B, C);
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
 
         const auto cpu_step_3 = "Compute error matrix";
-        const auto E = (C_gpu - C_cpu).eval();
-        const auto E_pct = E.cwiseAbs().template cast<double>().array() / C_cpu.cwiseAbs().template cast<double>().array();
+        const auto E = (D_gpu - D_cpu).eval();
+        const auto E_pct = E.cwiseAbs().template cast<double>().array() / D_cpu.cwiseAbs().template cast<double>().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
@@ -324,10 +325,8 @@ class Benchmark_Matrix_3In_1Out {
                     if (E(i, j) != Number(0)) {
                         found_errors = true;
                         std::cout << "(" << i << ", " << j << "): "
-                                  << "A=" << static_cast<Printable_Number>(A(i, j)) << ", "
-                                  << "B=" << static_cast<Printable_Number>(B(i, j)) << ", "
-                                  << "C_gpu=" << static_cast<Printable_Number>(C_gpu(i, j)) << ", "
-                                  << "C_cpu=" << static_cast<Printable_Number>(C_cpu(i, j)) << ", "
+                                  << "D_gpu=" << static_cast<Printable_Number>(D_gpu(i, j)) << ", "
+                                  << "D_cpu=" << static_cast<Printable_Number>(D_cpu(i, j)) << ", "
                                   << "E=" << static_cast<Printable_Number>(E(i, j)) << "\n";
                     }
                 }
