@@ -285,7 +285,8 @@ class Benchmark_Matrix_3In_1Out {
         const auto cpu_step_1 = "Convert data to Eigen";
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A{vec_A.data(), spec.n_rows_A_, spec.n_cols_A_};
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> B{vec_B.data(), spec.n_rows_B_, spec.n_cols_B_};
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> C_gpu{vec_C.data(), spec.n_rows_C_, spec.n_cols_C_};
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> C{vec_C.data(), spec.n_rows_C_, spec.n_cols_C_};
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> D_gpu{vec_D.data(), spec.n_rows_D_, spec.n_cols_D_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
@@ -364,6 +365,16 @@ class Benchmark_Matrix_3In_1Out {
         std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
+
+        // Clean up
+        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
+        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
+
         return 0;
     }
 };
