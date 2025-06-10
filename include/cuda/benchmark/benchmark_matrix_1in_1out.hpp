@@ -58,6 +58,7 @@ class Benchmark_Matrix_1In_1Out {
         }
         if (verbose && (
             (spec.n_rows_A_ > 10000 || spec.n_cols_A_ > 1000)
+            || (spec.n_rows_C_ > 10000 || spec.n_cols_C_ > 1000)
         )) {
             std::cerr << "WARNING: verbose mode is enabled and the input matrices are large."
             << "This will print the entire matrices to the console." << std::endl;
@@ -101,7 +102,6 @@ class Benchmark_Matrix_1In_1Out {
 
         std::cout
             << "Input matrix A dimensions   : " << spec.n_rows_A_ << "x" << spec.n_cols_A_ << "\n"
-
             << "Output matrix dimensions    : " << spec.n_rows_C_ << "x" << spec.n_cols_C_ << "\n"
             << "Temp matrix dimensions      : " << spec.n_rows_temp_ << "x" << spec.n_cols_temp_ << "\n"
             << "Input size                  : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
@@ -215,6 +215,15 @@ class Benchmark_Matrix_1In_1Out {
         // Wait for stream to finish
         cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
+        // Clean up
+        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
+        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
+
         // Print execution time
         constexpr int row_header_width = 22;
         constexpr int field_name_width = 25;
@@ -300,7 +309,6 @@ class Benchmark_Matrix_1In_1Out {
                     if (E(i, j) != Number(0)) {
                         found_errors = true;
                         std::cout << "(" << i << ", " << j << "): "
-                                  << "A=" << static_cast<Printable_Number>(A(i, j)) << ", "
                                   << "C_gpu=" << static_cast<Printable_Number>(C_gpu(i, j)) << ", "
                                   << "C_cpu=" << static_cast<Printable_Number>(C_cpu(i, j)) << ", "
                                   << "E=" << static_cast<Printable_Number>(E(i, j)) << "\n";
@@ -336,15 +344,6 @@ class Benchmark_Matrix_1In_1Out {
         std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
-
-        // Clean up
-        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
-        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
 
         return 0;
     }

@@ -205,6 +205,15 @@ class Benchmark_Matrix_11Inout {
         // Wait for stream to finish
         cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
+        // Clean up
+        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
+        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
+
         // Print execution time
         constexpr int row_header_width = 22;
         constexpr int field_name_width = 25;
@@ -253,8 +262,8 @@ class Benchmark_Matrix_11Inout {
         const auto cpu_step_1 = "Convert data to Eigen, call copy constructor on A";
         auto vec_A_result_cpu{vec_A}; // Copy constructor
         const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A{vec_A.data(), spec.n_rows_A_, spec.n_cols_A_};
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_result_gpu{vec_A_result_gpu.data(), spec.n_rows_C_, spec.n_cols_C_};
-        Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_result_cpu{vec_A_result_cpu.data(), spec.n_rows_C_, spec.n_cols_C_};
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_result_gpu{vec_A_result_gpu.data(), spec.n_rows_A_, spec.n_cols_A_};
+        Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_result_cpu{vec_A_result_cpu.data(), spec.n_rows_A_, spec.n_cols_A_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
@@ -269,7 +278,7 @@ class Benchmark_Matrix_11Inout {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
 
         const auto cpu_step_3 = "Compute error matrix";
-        const auto E = (A_gpu - A_result_cpu).eval();
+        const auto E = (A_result_gpu - A_result_cpu).eval();
         const auto E_pct = E.cwiseAbs().template cast<double>().array() / A_result_cpu.cwiseAbs().template cast<double>().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
@@ -293,8 +302,8 @@ class Benchmark_Matrix_11Inout {
                     if (E(i, j) != Number(0)) {
                         found_errors = true;
                         std::cout << "(" << i << ", " << j << "): "
-                                  << "A_gpu=" << static_cast<Printable_Number>(C_gpu(i, j)) << ", "
-                                  << "A_cpu=" << static_cast<Printable_Number>(C_cpu(i, j)) << ", "
+                                  << "result gpu=" << static_cast<Printable_Number>(A_result_gpu(i, j)) << ", "
+                                  << "result cpu=" << static_cast<Printable_Number>(A_result_cpu(i, j)) << ", "
                                   << "E=" << static_cast<Printable_Number>(E(i, j)) << "\n";
                     }
                 }
@@ -326,15 +335,6 @@ class Benchmark_Matrix_11Inout {
         std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
-
-        // Clean up
-        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
-        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
 
         return 0;
     }

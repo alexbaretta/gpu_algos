@@ -60,6 +60,7 @@ class Benchmark_Vector_3In_1Out {
             (spec.n_A_ > 1000000)
             || (spec.n_B_ > 1000000)
             || (spec.n_C_ > 1000000)
+            || (spec.n_D_ > 1000000)
         )) {
             std::cerr << "WARNING: verbose mode is enabled and the input vectors are large."
             << "This will print the entire vectors to the console." << std::endl;
@@ -238,6 +239,15 @@ class Benchmark_Vector_3In_1Out {
         // Wait for stream to finish
         cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
+        // Clean up
+        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
+        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
+
         // Print execution time
         constexpr int row_header_width = 22;
         constexpr int field_name_width = 25;
@@ -360,15 +370,6 @@ class Benchmark_Vector_3In_1Out {
         std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_idx << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
-
-        // Clean up
-        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
-        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
 
         return 0;
     }

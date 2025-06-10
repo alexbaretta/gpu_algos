@@ -57,9 +57,10 @@ class Benchmark_Matrix_3In_1Out {
             exit(0);
         }
         if (verbose && (
-            spec.n_rows_A_ > 10000 || spec.n_cols_A_ > 1000
-            || spec.n_rows_B_ > 10000 || spec.n_cols_B_ > 1000
-            || spec.n_rows_C_ > 10000 || spec.n_cols_C_ > 1000
+            (spec.n_rows_A_ > 10000 || spec.n_cols_A_ > 1000)
+            || (spec.n_rows_B_ > 10000 || spec.n_cols_B_ > 1000)
+            || (spec.n_rows_C_ > 10000 || spec.n_cols_C_ > 1000)
+            || (spec.n_rows_D_ > 10000 || spec.n_cols_D_ > 1000)
         )) {
             std::cerr << "WARNING: verbose mode is enabled and the input matrices are large."
             << "This will print the entire matrices to the console." << std::endl;
@@ -238,6 +239,15 @@ class Benchmark_Matrix_3In_1Out {
         // Wait for stream to finish
         cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
+        // Clean up
+        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
+        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
+        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
+
         // Print execution time
         constexpr int row_header_width = 22;
         constexpr int field_name_width = 25;
@@ -364,15 +374,6 @@ class Benchmark_Matrix_3In_1Out {
         std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
-
-        // Clean up
-        cuda_check_error(cudaEventDestroy(e0), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e1), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e2), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e3), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e4), "cudaEventDestroy");
-        cuda_check_error(cudaEventDestroy(e5), "cudaEventDestroy");
-        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
 
         return 0;
     }
