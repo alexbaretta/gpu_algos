@@ -57,10 +57,6 @@ template <CUDA_floating_point CUDA_FLOAT>
 using CUDA_vector2_t = CUDA_vector2<CUDA_FLOAT>::vector_t;
 
 
-template <> struct CUDA_vector2<__half> { using vector_t = __half2; };
-template <> struct CUDA_vector2<float> { using vector_t = float2; };
-template <> struct CUDA_vector2<double> { using vector_t = double2; };
-
 #include <Eigen/Dense>
 template<typename MATRIX_LIKE>
 concept is_matrix_like = (
