@@ -22,7 +22,7 @@ concept HIP_integer = is_HIP_integer_v<T>;
 
 template <typename T>
 using is_HIP_floating_point = std::bool_constant<
-    std::is_floating_point_v<T> || std::is_same_v<T, _Float16>
+    std::is_floating_point_v<T> || std::is_same_v<T, __half>
 >;
 
 template <typename T>

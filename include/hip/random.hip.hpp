@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/random.hpp
+// source path: include/hip/random.hip.hpp
 
 #pragma once
 
@@ -9,7 +9,7 @@
 #include "common/random.hpp"
 
 inline void randomize_vector(
-    std::vector<_Float16>& data,
+    std::vector<__half>& data,
     int seed
 ) {
     constexpr float min = 0.0;
