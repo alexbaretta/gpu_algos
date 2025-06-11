@@ -1,0 +1,8 @@
+# Copyright (c) 2025 Alessandro Baretta
+# All rights reserved.
+
+# source path: src/hip/benchmarks/gradient/CMakeLists.txt
+
+add_hip_executable(hip_gradient_leastsquares_elasticnet_naive gradient_leastsquares_elasticnet_naive.hip.cpp)
+add_hip_executable(hip_gradient_leastsquares_elasticnet_tensor gradient_leastsquares_elasticnet_tensor.hip.cpp)
+add_hip_executable(hip_gradient_leastsquares_elasticnet_optimizer gradient_leastsquares_elasticnet_optimizer.hip.cpp)
