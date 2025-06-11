@@ -8,7 +8,6 @@
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
-#include <cassert>
 
 #include "cxxopts.hpp"
 #include "cuda/kernel_api/matrix_2in_1out.hpp"
