@@ -13,6 +13,7 @@
 #include "cuda/cuda_utils.hpp"
 #include "cuda/kernel_api/vector_1in_1out.hpp"
 #include "cuda/type_traits.hpp"
+#include "cuda/check_errors.hpp"
 
 constexpr static long MAX_BLOCK_SIZE = 1024;
 constexpr static long WARP_SIZE = 32;
@@ -295,19 +296,19 @@ class Vector_cumsum_cooperative_kernel {
     Vector_cumsum_cooperative_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {
-        cudaOccupancyMaxPotentialBlockSize(
+        cuda_check_error(cudaOccupancyMaxPotentialBlockSize(
             &max_block_size,
             &opt_grid_size,
             vector_cumsum_cooperative_kernel<Number>,
             0,
             0
-        );
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        ), "cudaOccupancyMaxPotentialBlockSize");
+        cuda_check_error(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
             &max_active_blocks_per_multiprocessor,
             vector_cumsum_cooperative_kernel<Number>,
             max_block_size,
             0
-        );
+        ), "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
         block_dim_ = dim3(max_block_size);
         grid_dim_ = dim3(opt_grid_size);
     }

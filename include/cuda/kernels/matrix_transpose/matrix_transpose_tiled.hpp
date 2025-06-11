@@ -15,6 +15,7 @@
 
 #include "cuda/kernel_api/matrix_1in_1out.hpp"
 #include "cuda/type_traits.hpp"
+#include "cuda/check_errors.hpp"
 
 constexpr long TILE_DIM = 32;
 
@@ -231,19 +232,19 @@ class Matrix_transpose_tiled_kernel {
         int max_block_size = 0;
         int opt_grid_size = 0;
         int max_active_blocks_per_multiprocessor = 0;
-        cudaOccupancyMaxPotentialBlockSize(
+        cuda_check_error(cudaOccupancyMaxPotentialBlockSize(
             &max_block_size,
             &opt_grid_size,
             matrix_transpose_tiled<Number>,
             0,
             0
-        );
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        ), "cudaOccupancyMaxPotentialBlockSize");
+        cuda_check_error(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
             &max_active_blocks_per_multiprocessor,
             matrix_transpose_tiled<Number>,
             max_block_size,
             0
-        );
+        ), "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
         const unsigned nrows_A = spec_.m_, ncols_A = spec_.n_;
         const unsigned desired_block_size = spec_.block_dim_.x * spec_.block_dim_.y;
         const auto [block_dim, grid_dim] = [&](){

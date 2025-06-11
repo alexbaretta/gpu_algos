@@ -15,6 +15,7 @@
 #include "cuda/kernel_api/vector_1in_1out.hpp"
 #include "cuda/cuda_utils.hpp"
 #include "cuda/type_traits.hpp"
+#include "cuda/check_errors.hpp"
 
 constexpr static long MAX_BLOCK_SIZE = 1024;
 constexpr static long WARP_SIZE = 32;
@@ -346,19 +347,19 @@ class Vector_scan_parallel_kernel {
         int max_block_size = 0;
         int opt_grid_size = 0;
         int max_active_blocks_per_multiprocessor = 0;
-        cudaOccupancyMaxPotentialBlockSize(
+        cuda_check_error(cudaOccupancyMaxPotentialBlockSize(
             &max_block_size,
             &opt_grid_size,
             vector_scan_by_blocks_parallel<Number, Operation>,
             0,
             0
-        );
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        ), "cudaOccupancyMaxPotentialBlockSize");
+        cuda_check_error(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
             &max_active_blocks_per_multiprocessor,
             vector_scan_by_blocks_parallel<Number, Operation>,
             max_block_size,
             0
-        );
+        ), "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
         // block_dim_ = dim3(max_block_size);
         // grid_dim_ = dim3(opt_grid_size);
 
