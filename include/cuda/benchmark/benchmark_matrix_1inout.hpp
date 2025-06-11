@@ -272,7 +272,7 @@ class Benchmark_Matrix_1Inout {
 
         const auto cpu_step_2 = "Compute result with Eigen";
         kernel.run_host_kernel(A_result_cpu);
-        static_assert(std::is_same_v<decltype(kernel.run_host_kernel(tensor3d_result_cpu)), void>);
+        static_assert(std::is_same_v<decltype(kernel.run_host_kernel(A_result_cpu)), void>);
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;

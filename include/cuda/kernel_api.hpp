@@ -17,5 +17,5 @@
 
 #include "cuda/kernel_api/tensor3d_1inout.hpp"
 #include "cuda/kernel_api/tensor3d_1in_1out.hpp"
-#include "cuda/kernel_api/tensor3d_1in_2out.hpp"
+#include "cuda/kernel_api/tensor3d_2in_1out.hpp"
 #include "cuda/kernel_api/tensor3d_3in_1out.hpp"
