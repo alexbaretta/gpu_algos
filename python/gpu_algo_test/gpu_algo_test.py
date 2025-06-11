@@ -88,6 +88,24 @@ PROBLEM_SIZES = {
     "several_blocks_partial": [1025, 1500, 2500],
 }
 
+# Executable-specific data type support mapping
+# Key: executable name pattern (supports fnmatch wildcards)
+# Value: set of supported data types
+EXECUTABLE_TYPE_SUPPORT = {
+    # cuBLAS-based implementations only support float and double
+    "*cublas*": {"float", "double"},
+
+    # rocBLAS-based implementations only support float and double
+    "*rocblas*": {"float", "double"},
+
+    # Cooperative kernels might have limitations (can be updated as issues are discovered)
+    "*cooperative*": set(DATA_TYPES),  # Assume full support for now
+
+    # Default: all implementations support all types unless specified otherwise
+    # Note: This catch-all pattern must be last
+    "*": set(DATA_TYPES),
+}
+
 
 def find_cmake_binary_directory(cmake_root: Path, preset_name: str) -> Path:
     """Find the binary directory for a given CMake preset.
@@ -406,6 +424,44 @@ class GPUAlgoTest:
 
         return None
 
+    def _get_supported_data_types(self, executable: Path) -> Set[str]:
+        """Get the set of data types supported by a specific executable.
+
+        Args:
+            executable: Path to the executable
+
+        Returns:
+            Set of supported data type names
+        """
+        exe_name = executable.name
+
+        # Check patterns in order (more specific patterns should come first)
+        for pattern, supported_types in EXECUTABLE_TYPE_SUPPORT.items():
+            if fnmatch.fnmatch(exe_name, pattern):
+                return supported_types.copy()
+
+        # Default fallback (should not happen due to "*" pattern)
+        return set(DATA_TYPES)
+
+    def _get_filtered_data_types(self, executable: Path) -> Set[str]:
+        """Get data types filtered by both user selection and executable support.
+
+        Args:
+            executable: Path to the executable
+
+        Returns:
+            Set of data types that are both selected by user and supported by executable
+        """
+        supported_types = self._get_supported_data_types(executable)
+        filtered_types = self.selected_types.intersection(supported_types)
+
+        # Log skipped types if verbose mode and some types were filtered out
+        skipped_types = self.selected_types - supported_types
+        if skipped_types and (self.verbose or self.dry_run):
+            self.logger.info(f"  Skipping unsupported data types for {executable.name}: {sorted(skipped_types)}")
+
+        return filtered_types
+
     def _run_executable(
         self, executable: Path, args: List[str], timeout: int = 30
     ) -> Tuple[bool, str, str]:
@@ -626,13 +682,19 @@ class GPUAlgoTest:
 
         self.logger.info(f"Testing {executable.name}")
 
+        # Get data types filtered by both user selection and executable support
+        filtered_data_types = self._get_filtered_data_types(executable)
+        if not filtered_data_types:
+            self.logger.warning(f"  No supported data types for {executable.name}, skipping")
+            return results
+
         problem_sizes = self._get_filtered_problem_sizes()
 
         for category, sizes in problem_sizes.items():
             self.logger.debug(f"  Testing {category}")
 
             for size in sizes:
-                for data_type in self.selected_types:
+                for data_type in filtered_data_types:
                     if self.verbose or self.dry_run:
                         self.logger.debug(f"    Testing size={size}, type={data_type}")
 
