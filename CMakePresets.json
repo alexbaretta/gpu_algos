@@ -26,8 +26,8 @@
         "binaryDir": "${sourceDir}/builds/debug",
         "cacheVariables": {
           "CMAKE_BUILD_TYPE": "Debug",
-          "CMAKE_CXX_FLAGS": "-O0 -g -Werror -Wall",
-          "DEFAULT_CUDA_FLAGS": "-O0 -g -G"
+          "CMAKE_CXX_FLAGS": "-O0 -g -Werror -Wall -DDEBUG",
+          "DEFAULT_CUDA_FLAGS": "-O0 -g -G -DDEBUG"
         }
       }
     ],
