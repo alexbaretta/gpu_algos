@@ -291,7 +291,7 @@ class GPUAlgoTest:
                  verbose: bool = False, selected_executables: Optional[Set[str]] = None,
                  selected_sizes: Optional[Set[int]] = None, selected_types: Optional[Set[str]] = None,
                  dry_run: bool = False, float_abs_tol: Optional[float] = None, float_pct_tol: Optional[float] = None,
-                 int_abs_tol: float = 0.0, int_pct_tol: float = 0.0):
+                 int_abs_tol: float = 0.0, int_pct_tol: float = 0.0, output_file: Optional[str] = None):
         """Initialize the GPU algorithm tester.
 
         Args:
@@ -307,6 +307,7 @@ class GPUAlgoTest:
             float_pct_tol: Percent tolerance for floating point types (None for type-specific defaults)
             int_abs_tol: Absolute tolerance for integer types (default: 0.0 - perfect accuracy required)
             int_pct_tol: Percent tolerance for integer types (default: 0.0 - perfect accuracy required)
+            output_file: Output file for detailed results (None for no output)
         """
         self.bin_dir = Path(bin_dir)
         self.cmake_root = cmake_root
@@ -316,6 +317,7 @@ class GPUAlgoTest:
         self.selected_sizes = selected_sizes
         self.selected_types = selected_types or set(DATA_TYPES)
         self.dry_run = dry_run
+        self.output_file = output_file
 
         # Tolerance values with IEEE 754-based defaults
         self.float_abs_tol = float_abs_tol
@@ -359,6 +361,25 @@ class GPUAlgoTest:
                 self.logger.info(
                     f"  {exe.name}: {abs_path} (exists={exists}, executable={executable})"
                 )
+
+        # Open output file if specified
+        self.output_handle = None
+        if self.output_file:
+            self.output_handle = open(self.output_file, 'w')
+
+    def _write_streaming_result(self, result: Dict) -> None:
+        """Write a single test result to the streaming output file as a JSON Lines entry."""
+        if self.output_handle:
+            # Write each result as a single JSON object on its own line
+            json.dump(result, self.output_handle, separators=(',', ':'))
+            self.output_handle.write('\n')
+            self.output_handle.flush()
+
+    def _close_streaming_output(self) -> None:
+        """Close the streaming output file."""
+        if self.output_handle:
+            self.output_handle.close()
+            self.output_handle = None
 
     def _discover_executables(self) -> List[Path]:
         """Discover all executable files in the bin directory."""
@@ -702,6 +723,9 @@ class GPUAlgoTest:
                     result["category"] = category
                     results.append(result)
 
+                    # Write result immediately for streaming output
+                    self._write_streaming_result(result)
+
                     if not result["run_success"] and (self.verbose or self.dry_run):
                         error_msg = result.get("error", f"Exit code: {result.get('return_code', 'unknown')}")
                         self.logger.warning(f"    Failed: {error_msg}")
@@ -714,17 +738,29 @@ class GPUAlgoTest:
         Returns:
             Dictionary mapping executable names to their test results
         """
+        if self.output_file:
+            self.logger.info(f"Detailed results streaming to: {self.output_file}")
+
         all_results = {}
 
         for executable in self.executables:
             try:
                 results = self.test_all_sizes_and_types(executable)
                 all_results[executable.name] = results
+
+                # Note: Individual results are now written immediately in test_all_sizes_and_types
             except Exception as e:
                 import traceback
                 error_details = f"Exception: {type(e).__name__}: {str(e)}\nTraceback:\n{traceback.format_exc()}"
                 self.logger.error(f"Error testing {executable.name}: {error_details}")
-                all_results[executable.name] = [{"error": str(e), "error_details": error_details}]
+
+                # Write error result to streaming output
+                error_result = {"error": str(e), "error_details": error_details, "executable": executable.name}
+                self._write_streaming_result(error_result)
+                all_results[executable.name] = [error_result]
+
+        # Close streaming output
+        self._close_streaming_output()
 
         return all_results
 
@@ -783,12 +819,14 @@ def main():
     )
 
     parser.add_argument(
-        "--bin-path", help="Direct path to bin directory (overrides CMake preset logic)"
+        "--bin-path", help="Direct path to bin directory (overrides CMake preset logic)",
     )
 
     parser.add_argument(
         "--cmake-root",
         help="Path to CMake root directory (defaults to current directory)",
+        type=Path,
+        default=None,
     )
 
     parser.add_argument(
@@ -910,6 +948,7 @@ def main():
             args.pct_tol,
             args.int_abs_tol,
             args.int_pct_tol,
+            args.output,
         )
 
         # Run all tests
@@ -923,12 +962,6 @@ def main():
         # Generate and print report
         report = tester.generate_report(results)
         print(report)
-
-        # Save detailed results if requested
-        if args.output:
-            with open(args.output, "w") as f:
-                json.dump(results, f, indent=2)
-            print(f"\nDetailed results saved to: {args.output}")
 
         # Return exit code based on results
         total_tests = sum(len(exe_results) for exe_results in results.values())
