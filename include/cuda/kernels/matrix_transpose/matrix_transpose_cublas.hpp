@@ -139,11 +139,7 @@ class Matrix_transpose_cublas_kernel {
         // For row-major matrices: A is m×n, C is n×m
         // cuBLAS expects column-major, so we need to account for this
 
-        if constexpr (std::is_same_v<Number, __half>) {
-            // cuBLAS doesn't provide cublasHgeam function for half precision
-            std::cerr << "Error: Half precision matrix transpose is not supported with cuBLAS geam" << std::endl;
-            throw std::runtime_error("Half precision not supported in cuBLAS geam operations");
-        } else if constexpr (std::is_same_v<Number, float>) {
+        if constexpr (std::is_same_v<Number, float>) {
             // For single precision, use cublasSgeam
             // C = alpha * A^T + beta * 0
             // Since we're working with row-major data but cuBLAS expects column-major:
@@ -168,6 +164,10 @@ class Matrix_transpose_cublas_kernel {
                        &beta,
                        gpu_data_A, spec_.n_,        // dummy (beta=0)
                        gpu_data_C, spec_.m_);       // C with leading dimension m
+        } else {
+            // cuBLAS doesn't provide cublasHgeam function for half precision
+            std::cerr << "Error: " << spec_.type_ << " is not supported by cuBLAS geam" << std::endl;
+            throw std::runtime_error(spec_.type_ + " is not supported by cuBLAS geam");
         }
     }
 
