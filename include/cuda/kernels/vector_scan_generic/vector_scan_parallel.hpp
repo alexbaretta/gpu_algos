@@ -381,11 +381,11 @@ class Vector_scan_parallel_kernel {
             1
         );
 
-        auto prev_result = gpu_data_C;
-        auto curr_result = gpu_data_temp;
-        auto prev_n_elems = spec_.n_;
+        auto& prev_result = gpu_data_C;
+        auto& curr_result = gpu_data_temp;
+        auto& prev_n_elems = spec_.n_;
         if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
-            block_strided_pass(gpu_data_C, 0, spec_.n_, gpu_data_temp, 0, stream);
+            block_strided_pass(prev_result, 0, spec_.n_, curr_result, 0, stream);
         }
     }
 

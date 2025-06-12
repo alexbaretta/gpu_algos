@@ -378,11 +378,11 @@ class Vector_cumsum_parallel_kernel {
             1
         );
 
-        auto prev_result = gpu_data_C;
-        auto curr_result = gpu_data_temp;
-        auto prev_n_elems = spec_.n_;
+        auto& prev_result = gpu_data_C;
+        auto& curr_result = gpu_data_temp;
+        auto& prev_n_elems = spec_.n_;
         if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
-            strided_pass(gpu_data_temp, prev_result, prev_n_elems, 0, stream);
+            strided_pass(curr_result, prev_result, prev_n_elems, 0, stream);
         }
     }
 
