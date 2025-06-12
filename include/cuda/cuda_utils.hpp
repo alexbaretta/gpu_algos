@@ -7,9 +7,48 @@
 
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
+
+#include "check_errors.hpp"
 #include "type_traits.hpp"
 
 constexpr size_t NULL_FLAGS = 0;
+constexpr static long MAX_BLOCK_SIZE = 1024;
+constexpr static int FULL_MASK = -1;
+
+#define WARP_SIZE warpSize
+#define MAX_N_WARPS (MAX_BLOCK_SIZE / WARP_SIZE)
+#define LAST_LANE (WARP_SIZE - 1)
+
+__host__
+int get_warp_size() {
+    cudaDeviceProp props;
+    cuda_check_error(cudaGetDeviceProperties(&props, 0), "cudaGetDeviceProperties");
+    return props.warpSize;
+}
+__host__
+long compute_n_threads_per_block(const dim3 block_dim) {
+    return long(block_dim.x) * long(block_dim.y) * long(block_dim.z);
+}
+__device__
+long compute_n_threads_per_block() {
+    return long(blockDim.x) * long(blockDim.y) * long(blockDim.z);
+}
+__host__ __device__
+long compute_n_warps_per_block(const long n_threads_per_block, const int warp_size) {
+    return (n_threads_per_block + warp_size - 1) / warp_size;
+}
+__host__
+long compute_n_warps_per_block(const dim3 block_dim, const int warp_size = get_warp_size()) {
+    return compute_n_warps_per_block(compute_n_threads_per_block(block_dim), warp_size);
+}
+__device__
+long compute_n_warps_per_block(const long n_threads_per_block) {
+    return (n_threads_per_block + warpSize - 1) / warpSize;
+}
+__device__
+long compute_n_warps_per_block() {
+    return (compute_n_threads_per_block() + warpSize - 1) / warpSize;
+}
 
 
 template <CUDA_scalar Number>
