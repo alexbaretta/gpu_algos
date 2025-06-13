@@ -15,11 +15,6 @@
 #include "cuda/type_traits.hpp"
 #include "cuda/check_errors.hpp"
 
-constexpr static long MAX_BLOCK_SIZE = 1024;
-constexpr static long WARP_SIZE = 32;
-constexpr static long MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
-constexpr static long LAST_LANE = WARP_SIZE - 1;
-
 template <CUDA_scalar CUDA_Number, long MAX_RECURSION_DEPTH=3>
 __device__ void vector_cumsum_cooperative(
     const CUDA_Number* A,
@@ -27,7 +22,8 @@ __device__ void vector_cumsum_cooperative(
     const long n,  // size of vector
     const long n_blocks
 ) {
-    __shared__ CUDA_Number shm[MAX_N_WARPS]; // for writing, index this using `wid_block` (warp id)
+    // for writing, index this using `wid_block` (warp id)
+    CUDA_Number* shm = static_cast<CUDA_Number*>(get_dynamic_shared_memory(alignof(CUDA_Number)));
 
     auto grid = cooperative_groups::this_grid();
     grid.sync();
@@ -75,7 +71,7 @@ __device__ void vector_cumsum_cooperative(
 
         long offset = 1, subtree_id = tid_warp;
         for (long scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
-            const CUDA_Number received_value = __shfl_down_sync(0xFFFFFFFF, value, offset);
+            const CUDA_Number received_value = __shfl_down_sync(FULL_MASK, value, offset);
             if (subtree_id % 2 == 1) {
                 value += received_value;
                 offset *= 2;
@@ -100,15 +96,15 @@ __device__ void vector_cumsum_cooperative(
 
             // Now the warp totals live in shm. We need to scan shm to compute
             // We use the same algorithm as above, but we execute with only one warp,
-            // as the shared memory size is equal to warpSize (1024/32 == 32)
-            static_assert(MAX_N_WARPS == WARP_SIZE, "MAX_N_WARPS != WARP_SIZE (at compile time)");
+            // as the shared memory size is equal to blockSize / warpSize < warpSize
+            assert(compute_n_warps_per_block() <= warpSize);
             CUDA_Number shm_value = 0;
             if (wid_block == 0) {
                 // We pick warp 0 to perform the warp-shuffle scan on shared memory.
                 int offset = 1, subtree_id = tid_warp;
                 shm_value = shm[tid_warp];
                 for (long scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
-                    const CUDA_Number received_value = __shfl_down_sync(0xFFFFFFFF, value, offset);
+                    const CUDA_Number received_value = __shfl_down_sync(FULL_MASK, value, offset);
                     if (subtree_id % 2 == 1) {
                         shm_value += received_value;
                         offset *= 2;
@@ -123,10 +119,10 @@ __device__ void vector_cumsum_cooperative(
                 const CUDA_Number updated_value = shm[wid_block];
                 const CUDA_Number warp_delta_value = updated_value - value;
                 value = updated_value; // only for the last lane!
-                __shfl_sync(0xFFFFFFFF, warp_delta_value, 0);
+                __shfl_sync(FULL_MASK, warp_delta_value, 0);
             } else {
                 // All the other lanes
-                value += __shfl_sync(0xFFFFFFFF, 0, LAST_LANE);
+                value += __shfl_sync(FULL_MASK, 0, LAST_LANE);
             }
 
             if (n_blocks > 1) {

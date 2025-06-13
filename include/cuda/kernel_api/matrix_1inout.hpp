@@ -18,8 +18,6 @@ concept MATRIX_KERNEL_SPEC_1INOUT = requires (Matrix_kernel_spec_1Inout spec) {
 
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
-
-    { spec.dynamic_shared_mem_words_ } -> std::same_as<const size_t&>;
 };
 
 template <typename Matrix_kernel_spec_1Inout>
@@ -32,8 +30,6 @@ struct Check_matrix_kernel_spec_1Inout {
 
     static_assert(std::same_as<decltype(std::declval<Matrix_kernel_spec_1Inout>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Matrix_kernel_spec_1Inout>().grid_dim_), const dim3>);
-
-    static_assert(std::same_as<decltype(std::declval<Matrix_kernel_spec_1Inout>().dynamic_shared_mem_words_), const size_t>);
 
     static_assert(MATRIX_KERNEL_SPEC_1INOUT<Matrix_kernel_spec_1Inout>, "not a valid MATRIX_KERNEL_SPEC_1INOUT");
 

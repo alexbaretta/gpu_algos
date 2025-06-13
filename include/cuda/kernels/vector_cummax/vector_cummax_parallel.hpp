@@ -16,11 +16,6 @@
 #include "cuda/type_traits.hpp"
 #include "cuda/check_errors.hpp"
 
-constexpr static long MAX_BLOCK_SIZE = 1024;
-constexpr static long WARP_SIZE = 32;
-constexpr static long MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
-constexpr static long LAST_LANE = WARP_SIZE - 1;
-
 
 template <CUDA_scalar Number>
 __global__ void vector_cummax_write_back_parallel(
@@ -57,7 +52,6 @@ __global__ void vector_cummax_write_back_parallel(
 }
 
 
-
 template <CUDA_scalar Number>
 __global__ void vector_cummax_by_blocks_parallel(
     const Number* A,
@@ -66,7 +60,8 @@ __global__ void vector_cummax_by_blocks_parallel(
     const int stride_A,
     const int source_array_size = -1  // size of source array for bounds checking
 ) {
-    __shared__ Number shm[MAX_N_WARPS+1]; // for writing, index this using `wid_block` (warp id)
+    // for writing, index this using `wid_block` (warp id)
+    Number* shm = static_cast<Number*>(get_dynamic_shared_memory(alignof(Number)));
 
     // const long n_blocks = gridDim.x;
 
@@ -114,7 +109,7 @@ __global__ void vector_cummax_by_blocks_parallel(
             subtree_size < WARP_SIZE;
             subtree_size <<= 1, subtree_id /= 2) {
         const int from_lane = max(0, subtree_id * subtree_size - 1);
-        const Number received_value = __shfl_sync(0xFFFFFFFF, value, from_lane);
+        const Number received_value = __shfl_sync(FULL_MASK, value, from_lane);
         if (subtree_id % 2 == 1) {
             value = cuda_max(value, received_value);
         }
@@ -140,8 +135,8 @@ __global__ void vector_cummax_by_blocks_parallel(
 
         // Now the warp totals live in shm. We need to scan shm to compute the block-level scan.
         // We use the same algorithm as above, but we execute with only one warp,
-        // as the shared memory size is equal to warpSize (1024/32 == 32)
-        static_assert(MAX_N_WARPS == WARP_SIZE, "MAX_N_WARPS != WARP_SIZE (at compile time)");
+        // as the shared memory size is equal to blockSize / warpSize < warpSize
+        assert(compute_n_warps_per_block() <= warpSize);
         if (wid_block == 0) {
             // We pick warp 0 to perform the warp-shuffle scan on shared memory.
             Number shm_value = 0;
@@ -152,7 +147,7 @@ __global__ void vector_cummax_by_blocks_parallel(
                 subtree_size < WARP_SIZE;
                 subtree_size <<= 1, subtree_id /= 2) {
                 const int from_lane = max(0, subtree_id * subtree_size - 1);
-                const Number received_value = __shfl_sync(0xFFFFFFFF, shm_value, from_lane);
+                const Number received_value = __shfl_sync(FULL_MASK, shm_value, from_lane);
                 if (subtree_id % 2 == 1) {
                     shm_value = cuda_max(shm_value, received_value);
                 }
@@ -221,7 +216,8 @@ struct Vector_cummax_parallel_spec {
         }
         const auto n = options_parsed["n"].as<long>();
         const auto block_dim_option = options_parsed["block_dim"].as<long>();
-        const auto block_size = (std::min(n, block_dim_option)  + WARP_SIZE - 1) / WARP_SIZE * WARP_SIZE;
+        const auto warp_size = get_warp_size();
+        const auto block_size = (std::min(n, block_dim_option)  + warp_size - 1) / warp_size * warp_size;
         return Vector_cummax_parallel_spec(
             type,
             n,
@@ -272,8 +268,6 @@ class Vector_cummax_parallel_kernel {
     using Kernel_spec = Vector_cummax_parallel_spec;
 
     const Kernel_spec spec_;
-    dim3 block_dim_;
-    dim3 grid_dim_;
 
     Vector_cummax_parallel_kernel(
         const Kernel_spec spec
@@ -293,7 +287,8 @@ class Vector_cummax_parallel_kernel {
         Number* const curr_result = output_buffer + curr_result_index;
         const int curr_n_elems = prev_n_blocks;
         const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
-        vector_cummax_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, 0, stream>>>(
+        const size_t shared_mem_size = (compute_n_warps_per_block(spec_.block_dim_)+1) * sizeof(Number);
+        vector_cummax_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, shared_mem_size, stream>>>(
             prev_result,
             curr_result,
             curr_n_elems,

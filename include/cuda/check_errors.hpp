@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <iostream>
+
 #define cuda_check_error(cuda_err, step_name) \
     do { \
         if (cuda_err != cudaSuccess) { \

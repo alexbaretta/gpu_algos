@@ -212,9 +212,6 @@ __global__ void gradient_leastsquares_elasticnet_tensor_optimized(
     }
 }
 
-constexpr int WARP_SIZE = 32;
-constexpr int MAX_THREADS_PER_BLOCK = 1024;
-constexpr int MAX_WARPS_PER_BLOCK = MAX_THREADS_PER_BLOCK / WARP_SIZE;
 
 // Warp-reduction based gradient kernel for better parallelization
 template <CUDA_scalar CUDA_Number>
@@ -238,7 +235,7 @@ __global__ void gradient_leastsquares_elasticnet_tensor_warp_reduce(
 
     if (feature_idx >= n || output_idx >= k) return;
 
-    __shared__ CUDA_Number shm[MAX_WARPS_PER_BLOCK];
+    CUDA_Number* shm = static_cast<CUDA_Number*>(get_dynamic_shared_memory(alignof(CUDA_Number)));
 
     CUDA_Number local_sum = 0;
 

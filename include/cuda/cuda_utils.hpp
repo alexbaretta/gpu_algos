@@ -13,41 +13,59 @@
 
 constexpr size_t NULL_FLAGS = 0;
 constexpr static long MAX_BLOCK_SIZE = 1024;
-constexpr static int FULL_MASK = -1;
+constexpr static unsigned FULL_MASK = std::numeric_limits<unsigned>::max();
 
 #define WARP_SIZE warpSize
 #define MAX_N_WARPS (MAX_BLOCK_SIZE / WARP_SIZE)
 #define LAST_LANE (WARP_SIZE - 1)
 
-__host__
+__host__ __inline__
 int get_warp_size() {
     cudaDeviceProp props;
     cuda_check_error(cudaGetDeviceProperties(&props, 0), "cudaGetDeviceProperties");
     return props.warpSize;
 }
-__host__
+__host__ __inline__
 long compute_n_threads_per_block(const dim3 block_dim) {
     return long(block_dim.x) * long(block_dim.y) * long(block_dim.z);
 }
-__device__
+__device__ __inline__
 long compute_n_threads_per_block() {
     return long(blockDim.x) * long(blockDim.y) * long(blockDim.z);
 }
-__host__ __device__
+__host__ __device__ __inline__
 long compute_n_warps_per_block(const long n_threads_per_block, const int warp_size) {
     return (n_threads_per_block + warp_size - 1) / warp_size;
 }
-__host__
+__host__ __inline__
 long compute_n_warps_per_block(const dim3 block_dim, const int warp_size = get_warp_size()) {
     return compute_n_warps_per_block(compute_n_threads_per_block(block_dim), warp_size);
 }
-__device__
+__device__ __inline__
 long compute_n_warps_per_block(const long n_threads_per_block) {
     return (n_threads_per_block + warpSize - 1) / warpSize;
 }
-__device__
+__device__ __inline__
 long compute_n_warps_per_block() {
     return (compute_n_threads_per_block() + warpSize - 1) / warpSize;
+}
+
+__host__ __device__ __inline__
+void* align_pointer(void *ptr, const std::size_t alignment) {
+    const std::size_t ptr_value = reinterpret_cast<size_t>(ptr);
+    const std::size_t aligned_ptr_value = (ptr_value + (alignment - 1)) & ~(alignment - 1);
+    void* const aligned_ptr = reinterpret_cast<void*>(aligned_ptr_value);
+    return aligned_ptr;
+}
+
+// Device function to get dynamic shared memory pointer - non-template to avoid symbol issues
+// We cannot declare dynamic_shm aligned with __aligned__(alignof(T)) because this would require
+// templatizing this function, which causes linker errors.
+__device__ __inline__
+void* get_dynamic_shared_memory(const std::size_t alignment) {
+    extern __shared__ void* dynamic_shm[];
+    void* aligned_shm = align_pointer(dynamic_shm, alignment);
+    return aligned_shm;
 }
 
 
