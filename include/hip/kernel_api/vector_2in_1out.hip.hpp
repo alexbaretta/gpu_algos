@@ -17,8 +17,6 @@ concept VECTOR_KERNEL_SPEC_2IN_1OUT = requires (Vector_kernel_spec_2In_1Out spec
 
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
-
-    { spec.dynamic_shared_mem_words_ } -> std::same_as<const size_t&>;
 };
 
 template <typename Vector_kernel_spec_2In_1Out>
@@ -30,8 +28,6 @@ struct Check_vector_kernel_spec_2In_1Out {
 
     static_assert(std::same_as<decltype(std::declval<Vector_kernel_spec_2In_1Out>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Vector_kernel_spec_2In_1Out>().grid_dim_), const dim3>);
-
-    static_assert(std::same_as<decltype(std::declval<Vector_kernel_spec_2In_1Out>().dynamic_shared_mem_words_), const size_t>);
 
     static_assert(VECTOR_KERNEL_SPEC_2IN_1OUT<Vector_kernel_spec_2In_1Out>, "not a valid VECTOR_KERNEL_SPEC_2IN_1OUT");
 
@@ -80,7 +76,7 @@ struct Check_vector_kernel_2In_1Out {
     constexpr static bool check_passed = true;
 };
 
-template <template <CUDA_scalar CUDA_Number> class Vector_kernel_2In_1Out>
+template <template <HIP_scalar HIP_Number> class Vector_kernel_2In_1Out>
 struct Check_vector_kernel_2In_1Out_template {
     static_assert(Check_vector_kernel_2In_1Out<Vector_kernel_2In_1Out<__half>>::check_passed);
     static_assert(Check_vector_kernel_2In_1Out<Vector_kernel_2In_1Out<float>>::check_passed);

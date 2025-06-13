@@ -1,19 +1,19 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/gradient_leastsquares_elasticnet_tensor.hip.hpp
+// source path: include/hip/kernels/matrix/gradient_leastsquares_elasticnet_tensor.hpp
 
 #pragma once
 #include <hip/hip_runtime.h>
-#include <mma.h>
-#include <hip_fp16.h>
+#include <rocwmma/rocwmma.hpp>
+#include <hip/hip_fp16.h>
 #include <cxxopts.hpp>
 #include <iostream>
 #include <Eigen/Dense>
 
-#include "hip/kernel_api/matrix_3in_1out.hpp"
-#include "hip/type_traits.hpp"
-#include "common/type_traits.hpp"
+#include "hip/kernel_api/matrix_3in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
 /*
 This kernel computes the gradient of the loss of a linear regression
@@ -67,14 +67,14 @@ __device__ void wmma_matrix_multiply_device(
     const int col_base = block_col * WMMA_N;
 
     if constexpr (std::is_same_v<Number, __half>) {
-        using namespace nvhip::wmma;
+        using namespace rocwmma;
 
         if (warpId == 0) {
             fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, __half, row_major> a_frag;
             fragment<matrix_b, WMMA_M, WMMA_N, WMMA_K, __half, row_major> b_frag;
             fragment<accumulator, WMMA_M, WMMA_N, WMMA_K, __half> c_frag;
 
-            fill_fragment(c_frag, 0.0f);
+            fill_fragment(c_frag, Number(0.0));
 
             for (int i = 0; i < n; i += WMMA_K) {
                 if (row_base < m && col_base < k &&
@@ -212,10 +212,6 @@ __global__ void gradient_leastsquares_elasticnet_tensor_optimized(
     }
 }
 
-constexpr int WARP_SIZE = 32;
-constexpr int MAX_THREADS_PER_BLOCK = 1024;
-constexpr int MAX_WARPS_PER_BLOCK = MAX_THREADS_PER_BLOCK / WARP_SIZE;
-
 // Warp-reduction based gradient kernel for better parallelization
 template <HIP_scalar HIP_Number>
 __global__ void gradient_leastsquares_elasticnet_tensor_warp_reduce(
@@ -238,7 +234,7 @@ __global__ void gradient_leastsquares_elasticnet_tensor_warp_reduce(
 
     if (feature_idx >= n || output_idx >= k) return;
 
-    __shared__ HIP_Number shm[MAX_WARPS_PER_BLOCK];
+    HIP_Number* shm = static_cast<HIP_Number*>(get_dynamic_shared_memory(alignof(HIP_Number)));
 
     HIP_Number local_sum = 0;
 
@@ -263,7 +259,7 @@ __global__ void gradient_leastsquares_elasticnet_tensor_warp_reduce(
 
     // Reduce within warp using shuffle operations
     for (int offset = 16; offset > 0; offset /= 2) {
-        local_sum += __shfl_down_sync(0xffffffff, local_sum, offset);
+        local_sum += __shfl_down_sync(__activemask(), local_sum, offset);
     }
 
     // First thread in each warp writes to shared memory
@@ -278,7 +274,7 @@ __global__ void gradient_leastsquares_elasticnet_tensor_warp_reduce(
         local_sum = (lane_id < num_warps) ? shm[lane_id] : HIP_Number(0);
 
         for (int offset = 16; offset > 0; offset /= 2) {
-            local_sum += __shfl_down_sync(0xffffffff, local_sum, offset);
+            local_sum += __shfl_down_sync(__activemask(), local_sum, offset);
         }
 
         // First thread writes final result

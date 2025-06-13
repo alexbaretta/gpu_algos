@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_transpose_naive.hip.hpp
+// source path: include/hip/kernels/matrix/matrix_transpose_naive.hpp
 
 #pragma once
 #include <iostream>
@@ -9,8 +9,8 @@
 #include <hip/hip_runtime.h>
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
-#include "hip/kernel_api/matrix_1in_1out.hpp"
-#include "hip/type_traits.hpp"
+#include "hip/kernel_api/matrix_1in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
 template <HIP_scalar HIP_Number>
 __global__ void matrix_transpose_naive(

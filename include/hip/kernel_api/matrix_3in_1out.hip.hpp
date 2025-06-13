@@ -27,8 +27,6 @@ concept MATRIX_KERNEL_SPEC_3IN_1OUT = requires (Matrix_kernel_spec_3In_1Out spec
 
     { spec.block_dim_ } -> std::same_as<const dim3&>;
     { spec.grid_dim_ } -> std::same_as<const dim3&>;
-
-    { spec.dynamic_shared_mem_words_ } -> std::same_as<const size_t&>;
 };
 
 template <typename Matrix_kernel_spec_3In_1Out>
@@ -50,8 +48,6 @@ struct Check_matrix_kernel_spec_3In_1Out {
 
     static_assert(std::same_as<decltype(std::declval<Matrix_kernel_spec_3In_1Out>().block_dim_), const dim3>);
     static_assert(std::same_as<decltype(std::declval<Matrix_kernel_spec_3In_1Out>().grid_dim_), const dim3>);
-
-    static_assert(std::same_as<decltype(std::declval<Matrix_kernel_spec_3In_1Out>().dynamic_shared_mem_words_), const size_t>);
 
     static_assert(MATRIX_KERNEL_SPEC_3IN_1OUT<Matrix_kernel_spec_3In_1Out>, "not a valid MATRIX_KERNEL_SPEC_3IN_1OUT");
 
@@ -104,7 +100,7 @@ struct Check_matrix_kernel_3In_1Out {
     constexpr static bool check_passed = true;
 };
 
-template <template <CUDA_scalar CUDA_Number> class Matrix_kernel_3In_1Out>
+template <template <HIP_scalar HIP_Number> class Matrix_kernel_3In_1Out>
 struct Check_matrix_kernel_3In_1Out_template {
     static_assert(Check_matrix_kernel_3In_1Out<Matrix_kernel_3In_1Out<__half>>::check_passed);
     static_assert(Check_matrix_kernel_3In_1Out<Matrix_kernel_3In_1Out<float>>::check_passed);

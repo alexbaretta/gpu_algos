@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/vector_cumsum_cooperative.hip.hpp
+// source path: include/hip/kernels/matrix/vector_cumsum_cooperative.hpp
 
 #pragma once
 #include <iostream>
@@ -10,14 +10,10 @@
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 
-#include "hip/hip_utils.hpp"
-#include "hip/kernel_api/vector_1in_1out.hpp"
-#include "hip/type_traits.hpp"
-
-constexpr static long MAX_BLOCK_SIZE = 1024;
-constexpr static long WARP_SIZE = 32;
-constexpr static long MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
-constexpr static long LAST_LANE = WARP_SIZE - 1;
+#include "hip/hip_utils.hip.hpp"
+#include "hip/kernel_api/vector_1in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
+#include "hip/check_errors.hip.hpp"
 
 template <HIP_scalar HIP_Number, long MAX_RECURSION_DEPTH=3>
 __device__ void vector_cumsum_cooperative(
@@ -74,7 +70,7 @@ __device__ void vector_cumsum_cooperative(
 
         long offset = 1, subtree_id = tid_warp;
         for (long scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
-            const HIP_Number received_value = __shfl_down_sync(0xFFFFFFFF, value, offset);
+            const HIP_Number received_value = __shfl_down_sync(__activemask(), value, offset);
             if (subtree_id % 2 == 1) {
                 value += received_value;
                 offset *= 2;
@@ -99,15 +95,15 @@ __device__ void vector_cumsum_cooperative(
 
             // Now the warp totals live in shm. We need to scan shm to compute
             // We use the same algorithm as above, but we execute with only one warp,
-            // as the shared memory size is equal to warpSize (1024/32 == 32)
-            static_assert(MAX_N_WARPS == WARP_SIZE, "MAX_N_WARPS != WARP_SIZE (at compile time)");
+            // as the shared memory size is equal to blockSize / warpSize < warpSize
+            assert(compute_n_warps_per_block() <= warpSize);
             HIP_Number shm_value = 0;
             if (wid_block == 0) {
                 // We pick warp 0 to perform the warp-shuffle scan on shared memory.
                 int offset = 1, subtree_id = tid_warp;
                 shm_value = shm[tid_warp];
                 for (long scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
-                    const HIP_Number received_value = __shfl_down_sync(0xFFFFFFFF, value, offset);
+                    const HIP_Number received_value = __shfl_down_sync(__activemask(), value, offset);
                     if (subtree_id % 2 == 1) {
                         shm_value += received_value;
                         offset *= 2;
@@ -122,10 +118,10 @@ __device__ void vector_cumsum_cooperative(
                 const HIP_Number updated_value = shm[wid_block];
                 const HIP_Number warp_delta_value = updated_value - value;
                 value = updated_value; // only for the last lane!
-                __shfl_sync(0xFFFFFFFF, warp_delta_value, 0);
+                __shfl_sync(__activemask(), warp_delta_value, 0);
             } else {
                 // All the other lanes
-                value += __shfl_sync(0xFFFFFFFF, 0, LAST_LANE);
+                value += __shfl_sync(__activemask(), 0, LAST_LANE);
             }
 
             if (n_blocks > 1) {
@@ -209,7 +205,7 @@ __global__ void vector_cumsum_cooperative_kernel(
 
 
 struct Vector_cumsum_cooperative_spec {
-    const hipDeviceProp device_prop_;
+    const hipDeviceProp_t device_prop_;
 
     const std::string type_;
 
@@ -295,19 +291,19 @@ class Vector_cumsum_cooperative_kernel {
     Vector_cumsum_cooperative_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {
-        hipOccupancyMaxPotentialBlockSize(
+        hip_check_error(hipOccupancyMaxPotentialBlockSize(
             &max_block_size,
             &opt_grid_size,
             vector_cumsum_cooperative_kernel<Number>,
             0,
             0
-        );
-        hipOccupancyMaxActiveBlocksPerMultiprocessor(
+        ), "hipOccupancyMaxPotentialBlockSize");
+        hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
             &max_active_blocks_per_multiprocessor,
             vector_cumsum_cooperative_kernel<Number>,
             max_block_size,
             0
-        );
+        ), "hipOccupancyMaxActiveBlocksPerMultiprocessor");
         block_dim_ = dim3(max_block_size);
         grid_dim_ = dim3(opt_grid_size);
     }

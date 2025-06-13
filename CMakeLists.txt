@@ -124,7 +124,10 @@ find_package(OpenMP REQUIRED)
 set(REQUIRED_CUDA_FLAGS "${REQUIRED_CUDA_FLAGS} -Xcompiler=-fopenmp,-Wall,-Werror -diag-suppress 20012,20013 --expt-relaxed-constexpr")
 set(CMAKE_CUDA_FLAGS "${REQUIRED_CUDA_FLAGS}")
 set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS}")
-set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp -xhip")
+
+# We need to disable GPU support in Eigen in HIP mode because Eigen uses 4-byte masks,
+# which in CUDA is allowed but in HIP fails.
+set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp -xhip -DHIP_ENABLE_WARP_SYNC_BUILTINS -DEIGEN_NO_CUDA")
 set(DEFAULT_LINK_FLAGS "${DEFAULT_LINK_FLAGS} -fopenmp")
 
 

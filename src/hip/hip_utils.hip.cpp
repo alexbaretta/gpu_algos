@@ -8,22 +8,6 @@
 #include <random>
 #include "hip/hip_utils.hip.hpp"
 
-// Template specializations for _Float16
-template <>
-__host__ __device__ _Float16 hip_max<_Float16>(_Float16 a, _Float16 b) {
-    return fmaxf(float(a), float(b));
-}
-
-template <>
-__host__ __device__ _Float16 hip_min<_Float16>(_Float16 a, _Float16 b) {
-    return fminf(float(a), float(b));
-}
-
-template <>
-__host__ __device__ _Float16 device_nan<_Float16>() {
-    return std::numeric_limits<_Float16>::quiet_NaN();
-}
-
 void report_completion_time_callback(hipStream_t stream, hipError_t status, void* userData) {
     auto* time_point = static_cast<std::chrono::high_resolution_clock::time_point*>(userData);
     *time_point = std::chrono::high_resolution_clock::now();
@@ -71,8 +55,8 @@ template void randomize_vector<uint16_t>(std::vector<uint16_t>& data, int seed);
 template void randomize_vector<uint32_t>(std::vector<uint32_t>& data, int seed);
 template void randomize_vector<uint64_t>(std::vector<uint64_t>& data, int seed);
 
-// Specialization for _Float16
-void randomize_vector(std::vector<_Float16>& data, int seed) {
+// Specialization for __half
+void randomize_vector(std::vector<__half>& data, int seed) {
     std::mt19937 gen(seed);
     std::uniform_real_distribution<float> dis(-1.0f, 1.0f);
     for (auto& element : data) {

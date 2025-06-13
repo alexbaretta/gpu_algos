@@ -1,22 +1,22 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_product_tensor.hip.hpp
+// source path: include/hip/kernels/matrix/matrix_product_tensor.hpp
 
 #pragma once
 
 #include <iostream>
 
 #include <hip/hip_runtime.h>
-#include <mma.h>
+#include <rocwmma/rocwmma.hpp>
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 #include <type_traits>
 #include <cstdint>
-#include <hip_fp16.h>
+#include <hip/hip_fp16.h>
 
-#include "hip/kernel_api/matrix_2in_1out.hpp"
-#include "hip/type_traits.hpp"
+#include "hip/kernel_api/matrix_2in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
 struct Matrix_product_tensor_spec {
     const std::string type_;
@@ -37,7 +37,7 @@ struct Matrix_product_tensor_spec {
     const long n_rows_temp_;
     const long n_cols_temp_;
 
-    // Note: block_dim and grid_dim are not used with cuBLAS but kept for compatibility
+    // Note: block_dim and grid_dim are not used with rocBLAS but kept for compatibility
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
@@ -101,15 +101,15 @@ struct Matrix_product_tensor_spec {
         n_cols_temp_(0),
         block_dim_(block_dim_x, block_dim_y),
         grid_dim_(
-            (k_ + 15) / 16,  // Each warp handles 16 columns for WMMA
-            (m_ + 15) / 16   // Each warp handles 16 rows for WMMA
+            (k_ + 15) / 16,  // Each wave handles 16 columns for WMMA
+            (m_ + 15) / 16   // Each wave handles 16 rows for WMMA
         )
     {}
 };
 
 static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_tensor_spec>::check_passed, "Matrix_product_tensor_spec is not a valid kernel spec");
 
-// WMMA tensor core matrix multiplication kernel
+// ROCWMMA tensor core matrix multiplication kernel
 template <typename Number>
 __global__ void matrix_product_tensor_wmma(
     const Number* A,
@@ -119,12 +119,12 @@ __global__ void matrix_product_tensor_wmma(
     const int n,
     const int k
 ) {
-    // WMMA fragment dimensions
+    // ROCWMMA fragment dimensions
     const int WMMA_M = 16;
     const int WMMA_N = 16;
     const int WMMA_K = 16;
 
-    // Shared memory for int8 conversion
+    // Shared memory for conversion operations
     __shared__ int shared_temp[WMMA_M * WMMA_N];
 
     // Calculate which 16x16 tile this block handles
@@ -136,14 +136,14 @@ __global__ void matrix_product_tensor_wmma(
     const int col_base = block_col * WMMA_N;
 
     if constexpr (std::is_same_v<Number, __half>) {
-        using namespace nvhip::wmma;
+        using namespace rocwmma;
 
-        // Get warp ID within the block
-        const int warpId = (threadIdx.y * blockDim.x + threadIdx.x) / warpSize;
+        // Get wave ID within the block
+        const int waveId = __builtin_amdgcn_readfirstlane(__builtin_amdgcn_mbcnt_hi(~0u, __builtin_amdgcn_mbcnt_lo(~0u, 0u))) / warpSize;
 
-        // Only first warp per block performs WMMA operations
-        if (warpId == 0) {
-            // Declare WMMA fragments
+        // Only first wave per block performs WMMA operations
+        if (waveId == 0) {
+            // Declare ROCWMMA fragments
             fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, __half, row_major> a_frag;
             fragment<matrix_b, WMMA_M, WMMA_N, WMMA_K, __half, row_major> b_frag;
             fragment<accumulator, WMMA_M, WMMA_N, WMMA_K, __half> c_frag;
@@ -174,17 +174,17 @@ __global__ void matrix_product_tensor_wmma(
             }
         }
     } else if constexpr (std::is_same_v<Number, std::int8_t>) {
-        using namespace nvhip::wmma;
+        using namespace rocwmma;
 
-        // Get warp ID within the block
-        const int warpId = (threadIdx.y * blockDim.x + threadIdx.x) / warpSize;
+        // Get wave ID within the block
+        const int waveId = __builtin_amdgcn_readfirstlane(__builtin_amdgcn_mbcnt_hi(~0u, __builtin_amdgcn_mbcnt_lo(~0u, 0u))) / warpSize;
 
-        // Only first warp per block performs WMMA operations
-        if (warpId == 0) {
-            // Declare WMMA fragments for INT8 inputs with INT32 accumulation
-            fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, signed char, row_major> a_frag;
-            fragment<matrix_b, WMMA_M, WMMA_N, WMMA_K, signed char, row_major> b_frag;
-            fragment<accumulator, WMMA_M, WMMA_N, WMMA_K, int> c_frag;
+        // Only first wave per block performs WMMA operations
+        if (waveId == 0) {
+            // Declare ROCWMMA fragments for INT8 inputs with INT32 accumulation
+            fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, int8_t, row_major> a_frag;
+            fragment<matrix_b, WMMA_M, WMMA_N, WMMA_K, int8_t, row_major> b_frag;
+            fragment<accumulator, WMMA_M, WMMA_N, WMMA_K, int32_t> c_frag;
 
             // Initialize accumulator to zero
             fill_fragment(c_frag, 0);
@@ -197,10 +197,8 @@ __global__ void matrix_product_tensor_wmma(
                     i + WMMA_K <= n) {
 
                     // Load fragments from global memory
-                    load_matrix_sync(a_frag,
-                        reinterpret_cast<const signed char*>(A) + row_base * n + i, n);
-                    load_matrix_sync(b_frag,
-                        reinterpret_cast<const signed char*>(B) + i * k + col_base, k);
+                    load_matrix_sync(a_frag, A + row_base * n + i, n);
+                    load_matrix_sync(b_frag, B + i * k + col_base, k);
 
                     // Perform tensor core matrix multiplication
                     mma_sync(c_frag, a_frag, b_frag, c_frag);

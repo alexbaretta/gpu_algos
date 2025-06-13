@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <iostream>
+
 #define hip_check_error(hip_err, step_name) \
     do { \
         if (hip_err != hipSuccess) { \

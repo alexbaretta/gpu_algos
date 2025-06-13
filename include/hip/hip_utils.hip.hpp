@@ -12,60 +12,83 @@
 
 constexpr size_t NULL_FLAGS = 0;
 constexpr static long MAX_BLOCK_SIZE = 1024;
-constexpr static int FULL_MASK = -1;
+constexpr static unsigned long FULL_MASK = std::numeric_limits<unsigned>::max();
 
 #define WARP_SIZE warpSize
 #define MAX_N_WARPS (MAX_BLOCK_SIZE / WARP_SIZE)
 #define LAST_LANE (WARP_SIZE - 1)
 
-__host__
+__host__ __inline__
 int get_warp_size() {
     hipDeviceProp_t props;
     hip_check_error(hipGetDeviceProperties(&props, 0), "hipGetDeviceProperties");
     return props.warpSize;
 }
-__host__
+__host__ __inline__
 long compute_n_threads_per_block(const dim3 block_dim) {
     return long(block_dim.x) * long(block_dim.y) * long(block_dim.z);
 }
-__device__
+__device__ __inline__
 long compute_n_threads_per_block() {
     return long(blockDim.x) * long(blockDim.y) * long(blockDim.z);
 }
-__host__ __device__
+__host__ __device__ __inline__
 long compute_n_warps_per_block(const long n_threads_per_block, const int warp_size) {
     return (n_threads_per_block + warp_size - 1) / warp_size;
 }
-__host__
+__host__ __inline__
 long compute_n_warps_per_block(const dim3 block_dim, const int warp_size = get_warp_size()) {
     return compute_n_warps_per_block(compute_n_threads_per_block(block_dim), warp_size);
 }
-__device__
+__device__ __inline__
 long compute_n_warps_per_block(const long n_threads_per_block) {
     return (n_threads_per_block + warpSize - 1) / warpSize;
 }
-__device__
+__device__ __inline__
 long compute_n_warps_per_block() {
     return (compute_n_threads_per_block() + warpSize - 1) / warpSize;
 }
+
+__host__ __device__ __inline__
+void* align_pointer(void *ptr, const std::size_t alignment) {
+    const std::size_t ptr_value = reinterpret_cast<size_t>(ptr);
+    const std::size_t aligned_ptr_value = (ptr_value + (alignment - 1)) & ~(alignment - 1);
+    void* const aligned_ptr = reinterpret_cast<void*>(aligned_ptr_value);
+    return aligned_ptr;
+}
+
+// Device function to get dynamic shared memory pointer - non-template to avoid symbol issues
+// We cannot declare dynamic_shm aligned with __aligned__(alignof(T)) because this would require
+// templatizing this function, which causes linker errors.
+__device__ __inline__
+void* get_dynamic_shared_memory(const std::size_t alignment) {
+    extern __shared__ void* dynamic_shm[];
+    void* aligned_shm = align_pointer(dynamic_shm, alignment);
+    return aligned_shm;
+}
+
 
 template <HIP_scalar Number>
 __host__ __device__ Number hip_max(Number a, Number b) {
     return max(a, b);
 }
 
-// Template specialization declarations (defined in hip_utils.hip.cpp)
+// Template specialization definition (inline to avoid linker issues)
 template <>
-__host__ __device__ __half hip_max<__half>(__half a, __half b);
+__host__ __device__ inline __half hip_max<__half>(__half a, __half b) {
+    return fmaxf(float(a), float(b));
+}
 
 template <HIP_scalar Number>
 __host__ __device__ Number hip_min(Number a, Number b) {
     return min(a, b);
 }
 
-// Template specialization declarations (defined in hip_utils.hip.cpp)
+// Template specialization definition (inline to avoid linker issues)
 template <>
-__host__ __device__ __half hip_min<__half>(__half a, __half b);
+__host__ __device__ inline __half hip_min<__half>(__half a, __half b) {
+    return fminf(float(a), float(b));
+}
 
 template <HIP_scalar Number>
 __host__ __device__ Number hip_sum(Number a, Number b) {
@@ -81,16 +104,18 @@ template <HIP_scalar Number>
 __host__ __device__ Number device_nan() {
     static_assert(std::is_floating_point_v<Number>, "device_nan only supports floating point types");
     if constexpr (std::is_same_v<Number, float>) {
-        return nanf(nullptr);
+        return nanf("");
     } else if constexpr (std::is_same_v<Number, double>) {
-        return nan(nullptr);
+        return nan("");
     }
-    // __half specialization is defined in hip_utils.hip.cpp
+    // __half specialization is defined below
 }
 
-// Template specialization declaration (defined in hip_utils.hip.cpp)
+// Template specialization definition (inline to avoid linker issues)
 template <>
-__host__ __device__ __half device_nan<__half>();
+__host__ __device__ inline __half device_nan<__half>() {
+    return nanf("");
+}
 
 void report_completion_time_callback(hipStream_t stream, hipError_t status, void* userData);
 

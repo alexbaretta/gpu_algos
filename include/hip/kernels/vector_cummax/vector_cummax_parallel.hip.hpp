@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/vector_cummax_parallel.hip.hpp
+// source path: include/hip/kernels/matrix/vector_cummax_parallel.hpp
 
 #pragma once
 #include <iostream>
@@ -11,14 +11,10 @@
 #include <algorithm>
 #include <cassert>
 
-#include "hip/hip_utils.hpp"
-#include "hip/kernel_api/vector_1in_1out.hpp"
-#include "hip/type_traits.hpp"
-
-constexpr static long MAX_BLOCK_SIZE = 1024;
-constexpr static long WARP_SIZE = 32;
-constexpr static long MAX_N_WARPS = MAX_BLOCK_SIZE / WARP_SIZE;
-constexpr static long LAST_LANE = WARP_SIZE - 1;
+#include "hip/hip_utils.hip.hpp"
+#include "hip/kernel_api/vector_1in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
+#include "hip/check_errors.hip.hpp"
 
 
 template <HIP_scalar Number>
@@ -56,7 +52,6 @@ __global__ void vector_cummax_write_back_parallel(
 }
 
 
-
 template <HIP_scalar Number>
 __global__ void vector_cummax_by_blocks_parallel(
     const Number* A,
@@ -65,7 +60,8 @@ __global__ void vector_cummax_by_blocks_parallel(
     const int stride_A,
     const int source_array_size = -1  // size of source array for bounds checking
 ) {
-    __shared__ Number shm[MAX_N_WARPS+1]; // for writing, index this using `wid_block` (warp id)
+    // for writing, index this using `wid_block` (warp id)
+    Number* shm = static_cast<Number*>(get_dynamic_shared_memory(alignof(Number)));
 
     // const long n_blocks = gridDim.x;
 
@@ -113,7 +109,7 @@ __global__ void vector_cummax_by_blocks_parallel(
             subtree_size < WARP_SIZE;
             subtree_size <<= 1, subtree_id /= 2) {
         const int from_lane = max(0, subtree_id * subtree_size - 1);
-        const Number received_value = __shfl_sync(0xFFFFFFFF, value, from_lane);
+        const Number received_value = __shfl_sync(__activemask(), value, from_lane);
         if (subtree_id % 2 == 1) {
             value = hip_max(value, received_value);
         }
@@ -139,8 +135,8 @@ __global__ void vector_cummax_by_blocks_parallel(
 
         // Now the warp totals live in shm. We need to scan shm to compute the block-level scan.
         // We use the same algorithm as above, but we execute with only one warp,
-        // as the shared memory size is equal to warpSize (1024/32 == 32)
-        static_assert(MAX_N_WARPS == WARP_SIZE, "MAX_N_WARPS != WARP_SIZE (at compile time)");
+        // as the shared memory size is equal to blockSize / warpSize < warpSize
+        assert(compute_n_warps_per_block() <= warpSize);
         if (wid_block == 0) {
             // We pick warp 0 to perform the warp-shuffle scan on shared memory.
             Number shm_value = 0;
@@ -151,7 +147,7 @@ __global__ void vector_cummax_by_blocks_parallel(
                 subtree_size < WARP_SIZE;
                 subtree_size <<= 1, subtree_id /= 2) {
                 const int from_lane = max(0, subtree_id * subtree_size - 1);
-                const Number received_value = __shfl_sync(0xFFFFFFFF, shm_value, from_lane);
+                const Number received_value = __shfl_sync(__activemask(), shm_value, from_lane);
                 if (subtree_id % 2 == 1) {
                     shm_value = hip_max(shm_value, received_value);
                 }
@@ -178,7 +174,7 @@ __global__ void vector_cummax_by_blocks_parallel(
 }
 
 struct Vector_cummax_parallel_spec {
-    const hipDeviceProp device_prop_;
+    const hipDeviceProp_t device_prop_;
 
     const std::string type_;
 
@@ -271,8 +267,6 @@ class Vector_cummax_parallel_kernel {
     using Kernel_spec = Vector_cummax_parallel_spec;
 
     const Kernel_spec spec_;
-    dim3 block_dim_;
-    dim3 grid_dim_;
 
     Vector_cummax_parallel_kernel(
         const Kernel_spec spec
@@ -292,14 +286,15 @@ class Vector_cummax_parallel_kernel {
         Number* const curr_result = output_buffer + curr_result_index;
         const int curr_n_elems = prev_n_blocks;
         const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
-        vector_cummax_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, 0, stream>>>(
+        const size_t shared_mem_size = (compute_n_warps_per_block(spec_.block_dim_)+1) * sizeof(Number);
+        vector_cummax_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, shared_mem_size, stream>>>(
             prev_result,
             curr_result,
             curr_n_elems,
             spec_.block_dim_.x,
             prev_n_elems
         );
-        if (prev_n_elems > spec_.block_dim_.x) {
+        if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
             const auto next_result_index = curr_result_index + curr_n_elems;
             block_strided_pass(output_buffer, curr_result_index, curr_n_elems, output_buffer, next_result_index, stream);
             // By the powers of recursion, curr_result is fully scanned
@@ -326,19 +321,19 @@ class Vector_cummax_parallel_kernel {
         int max_block_size = 0;
         int opt_grid_size = 0;
         int max_active_blocks_per_multiprocessor = 0;
-        hipOccupancyMaxPotentialBlockSize(
+        hip_check_error(hipOccupancyMaxPotentialBlockSize(
             &max_block_size,
             &opt_grid_size,
             vector_cummax_by_blocks_parallel<Number>,
             0,
             0
-        );
-        hipOccupancyMaxActiveBlocksPerMultiprocessor(
+        ), "hipOccupancyMaxPotentialBlockSize");
+        hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
             &max_active_blocks_per_multiprocessor,
             vector_cummax_by_blocks_parallel<Number>,
             max_block_size,
             0
-        );
+        ), "hipOccupancyMaxActiveBlocksPerMultiprocessor");
         // block_dim_ = dim3(max_block_size);
         // grid_dim_ = dim3(opt_grid_size);
 
@@ -360,11 +355,11 @@ class Vector_cummax_parallel_kernel {
             1
         );
 
-        auto prev_result = gpu_data_C;
-        auto curr_result = gpu_data_temp;
-        auto prev_n_elems = spec_.n_;
-        if (prev_n_elems > spec_.block_dim_.x) {
-            block_strided_pass(gpu_data_C, 0, spec_.n_, gpu_data_temp, 0, stream);
+        auto& prev_result = gpu_data_C;
+        auto& curr_result = gpu_data_temp;
+        auto& prev_n_elems = spec_.n_;
+        if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
+            block_strided_pass(prev_result, 0, spec_.n_, curr_result, 0, stream);
         }
     }
 

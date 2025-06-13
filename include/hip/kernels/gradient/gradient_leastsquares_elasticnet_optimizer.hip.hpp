@@ -1,20 +1,21 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/gradient/gradient_leastsquares_elasticnet_optimizer.hip.hpp
+// source path: include/hip/kernels/gradient/gradient_leastsquares_elasticnet_optimizer.hpp
 
 #pragma once
 #include <hip/hip_runtime.h>
-#include <mma.h>
-#include <hip_fp16.h>
+#include <rocwmma/rocwmma.hpp>
+#include <hip/hip_fp16.h>
 #include <cxxopts.hpp>
 #include <iostream>
 #include <Eigen/Dense>
 
-#include "hip/kernel_api/matrix_3in_1out.hpp"
-#include "hip/type_traits.hpp"
-#include "common/type_traits.hpp"
-#include "hip/kernels/gradient/gradient_leastsquares_elasticnet_tensor.hpp"
+#include "hip/check_errors.hip.hpp"
+#include "hip/kernel_api/matrix_3in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
+#include "hip/type_traits.hip.hpp"
+#include "hip/kernels/gradient/gradient_leastsquares_elasticnet_tensor.hip.hpp"
 
 /*
 This kernel performs gradient descent optimization for linear regression
@@ -363,9 +364,14 @@ class Gradient_leastsquares_elasticnet_optimizer_kernel {
         // 3. Convergence checking
 
         // For now, placeholder implementation
-        hipMemcpyAsync(gpu_data_result, gpu_data_M,
-                       spec_.n_ * spec_.k_ * sizeof(Number),
-                       hipMemcpyDeviceToDevice, stream);
+        hip_check_error(
+            hipMemcpyAsync(
+                gpu_data_result, gpu_data_M,
+                spec_.n_ * spec_.k_ * sizeof(Number),
+                hipMemcpyDeviceToDevice, stream
+            ),
+            "hipMemcpyAsync"
+        );
     }
 
     template<typename Matrix_like_A, typename Matrix_like_B, typename Matrix_like_M>

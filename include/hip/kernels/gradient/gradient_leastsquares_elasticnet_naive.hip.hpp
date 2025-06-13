@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/gradient_leastsquares_elasticnet_naive.hip.hpp
+// source path: include/hip/kernels/matrix/gradient_leastsquares_elasticnet_naive.hpp
 
 #pragma once
 #include <hip/hip_runtime.h>
@@ -9,9 +9,9 @@
 #include <iostream>
 #include <Eigen/Dense>
 
-#include "hip/kernel_api/matrix_3in_1out.hpp"
-#include "hip/type_traits.hpp"
-#include "common/type_traits.hpp"
+#include "hip/kernel_api/matrix_3in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
 /*
 This kernel computes the gradient of the loss of a linear regression

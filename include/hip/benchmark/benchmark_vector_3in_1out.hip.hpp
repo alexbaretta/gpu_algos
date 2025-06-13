@@ -7,11 +7,11 @@
 
 #include <iostream>
 #include <chrono>
+#include <iomanip>
 #include <vector>
 #include <Eigen/Dense>
 
 #include <hip/hip_runtime.h>
-#include <hip/hip_fp16.h>
 #include <cxxopts.hpp>
 
 #include "hip/random.hip.hpp"
@@ -19,12 +19,12 @@
 #include "hip/hip_utils.hip.hpp"
 #include "hip/kernel_api/vector_3in_1out.hip.hpp"
 
-template <VECTOR_KERNEL_3IN_1OUT Vector_kernel_3In_1Out>
+template <VECTOR_KERNEL_3IN_1OUT Vector_Kernel_3In_1Out>
 class Benchmark_Vector_3In_1Out {
     public:
-    using Kernel_spec = typename Vector_kernel_3In_1Out::Kernel_spec;
-    using Number = typename Vector_kernel_3In_1Out::Number;
-    using Printable_Number = std::conditional_t<std::is_same_v<Number, _Float16>, float, Number>;
+    using Kernel_spec = typename Vector_Kernel_3In_1Out::Kernel_spec;
+    using Number = typename Vector_Kernel_3In_1Out::Number;
+    using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
 
     const Kernel_spec spec;
     const int seed;
@@ -34,7 +34,7 @@ class Benchmark_Vector_3In_1Out {
     const bool force;
     const std::string init_method;
 
-    Vector_kernel_3In_1Out kernel;
+    Vector_Kernel_3In_1Out kernel;
 
     template <typename... Args>
     Benchmark_Vector_3In_1Out(
@@ -56,12 +56,17 @@ class Benchmark_Vector_3In_1Out {
             std::cout << options.help() << std::endl;
             exit(0);
         }
-        if (verbose && (spec.n_rows_A_ > 100000 || spec.n_cols_A_ > 100000 || spec.n_rows_B_ > 100000 || spec.n_cols_B_ > 100000 || spec.n_rows_C_ > 100000 || spec.n_cols_C_ > 100000)) {
-            std::cerr << "WARNING: verbose mode is enabled and the input matrices are large."
-            << "This will print the entire matrices to the console." << std::endl;
+        if (verbose && (
+            (spec.n_A_ > 1000000)
+            || (spec.n_B_ > 1000000)
+            || (spec.n_C_ > 1000000)
+            || (spec.n_D_ > 1000000)
+        )) {
+            std::cerr << "WARNING: verbose mode is enabled and the input vectors are large."
+            << "This will print the entire vectors to the console." << std::endl;
             if (!force) {
                 std::cerr << "Use --force to override." << std::endl
-                          << "[ERROR] matrices too big for verbose mode" << std::endl;
+                          << "[ERROR] vectors too big for verbose mode" << std::endl;
                 exit(1);
             }
         }
@@ -102,16 +107,18 @@ class Benchmark_Vector_3In_1Out {
         }();
 
         std::cout
-            << "Input vectors size   : " << spec.n_A_ << ", " << spec.n_B_ << ", " << spec.n_C_ << "\n"
-            << "Output vector size    : " << spec.n_D_ << "\n"
-            << "Temp vector size      : " << spec.n_temp_ << "\n"
-            << "Input size                  : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
-            << "Output size                 : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
-            << "Temp size                   : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
-            << "Required memory             : " << mem_gb << " GB (" << mem_size_bytes << " bytes)\n"
+            << "Input vector A size : " << spec.n_A_ << "\n"
+            << "Input vector B size : " << spec.n_B_ << "\n"
+            << "Input vector C size : " << spec.n_C_ << "\n"
+            << "Output vector size  : " << spec.n_D_ << "\n"
+            << "Temp vector size    : " << spec.n_temp_ << "\n"
+            << "Input size          : " << input_size_gb << " GB (" << input_size_bytes << " bytes)\n"
+            << "Output size         : " << output_size_gb << " GB (" << output_size_bytes << " bytes)\n"
+            << "Temp size           : " << temp_size_gb << " GB (" << temp_size_bytes << " bytes)\n"
+            << "Required memory     : " << mem_gb << " GB (" << mem_size_bytes << " bytes)\n"
             << std::endl;
         if (mem_gb > gpu_mem) {
-            std::cerr << "[ERROR] GPU memory size is less than the vector size" << std::endl;
+            std::cerr << "[ERROR] GPU memory size is less than the required size" << std::endl;
             return 1;
         }
 
@@ -128,8 +135,9 @@ class Benchmark_Vector_3In_1Out {
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Initializing matrices: ";
+        std::cout << "  - Initializing vectors: ";
         if (is_random) {
+            std::cout << "  - Randomizing vectors: ";
             randomize_vector(vec_A, seed);
             randomize_vector(vec_B, seed+1);
             randomize_vector(vec_C, seed+2);
@@ -141,6 +149,9 @@ class Benchmark_Vector_3In_1Out {
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
             for (size_t i = 0; i < size_B; ++i) vec_B[i] = Number(size_B - i);
             for (size_t i = 0; i < size_C; ++i) vec_C[i] = Number(size_C - i);
+        } else {
+            std::cerr << "[ERROR] Invalid initialization method" << std::endl;
+            exit(1);
         }
         const auto setup_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_step_dt2 = setup_tp2 - setup_tp1;
@@ -168,12 +179,17 @@ class Benchmark_Vector_3In_1Out {
         std::chrono::duration<double, std::milli> setup_total_dt4 = setup_tp4 - setup_tp0;
         std::cout << setup_step_dt4.count() << " ms (" << setup_total_dt4.count() << " ms total)" << std::endl;
 
-        std::cout << "VECTOR_KERNEL_3IN_1OUT:" << std::endl;
+        std::cout << "Vector_Kernel_3In_1Out:" << std::endl;
         const auto gpu_tp0 = std::chrono::high_resolution_clock::now();
         hip_check_error(hipEventRecord(e0, stream), "hipEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number *gpu_data_A = nullptr, *gpu_data_B = nullptr, *gpu_data_C = nullptr, *gpu_data_D = nullptr, *gpu_data_temp = nullptr;
+        Number* gpu_data_A = nullptr;
+        Number* gpu_data_B = nullptr;
+        Number* gpu_data_C = nullptr;
+        Number* gpu_data_D = nullptr;
+        Number* gpu_data_temp = nullptr;
+
         hip_check_error(hipMallocAsync(&gpu_data_A, size_A_bytes, stream), "hipMallocAsync");
         hip_check_error(hipMallocAsync(&gpu_data_B, size_B_bytes, stream), "hipMallocAsync");
         hip_check_error(hipMallocAsync(&gpu_data_C, size_C_bytes, stream), "hipMallocAsync");
@@ -183,7 +199,7 @@ class Benchmark_Vector_3In_1Out {
         }
         hip_check_error(hipEventRecord(e1, stream), "hipEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp1{};
-        hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS);
+        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp1, NULL_FLAGS), "hipStreamAddCallback");
 
         const auto gpu_step_2 = "Copy data to device";
         hip_check_error(hipMemcpyAsync(gpu_data_A, vec_A.data(), size_A_bytes, hipMemcpyHostToDevice, stream), "hipMemcpyAsync");
@@ -191,7 +207,7 @@ class Benchmark_Vector_3In_1Out {
         hip_check_error(hipMemcpyAsync(gpu_data_C, vec_C.data(), size_C_bytes, hipMemcpyHostToDevice, stream), "hipMemcpyAsync");
         hip_check_error(hipEventRecord(e2, stream), "hipEventRecord");
         std::chrono::high_resolution_clock::time_point gpu_tp2{};
-        hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS);
+        hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp2, NULL_FLAGS), "hipStreamAddCallback");
 
         const auto gpu_step_3 = "Compute kernel";
         kernel.run_device_kernel(gpu_data_A, gpu_data_B, gpu_data_C, gpu_data_D, gpu_data_temp, stream);
@@ -220,107 +236,141 @@ class Benchmark_Vector_3In_1Out {
         std::chrono::high_resolution_clock::time_point gpu_tp5{};
         hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp5, NULL_FLAGS), "hipStreamAddCallback");
 
+        // Wait for stream to finish
         hip_check_error(hipStreamSynchronize(stream), "hipStreamSynchronize");
 
-        float gpu_step_dt1, gpu_step_dt2, gpu_step_dt3, gpu_step_dt4, gpu_step_dt5;
+        // Print execution time
+        constexpr int row_header_width = 22;
+        constexpr int field_name_width = 25;
+        float gpu_step_dt1 = 0.0f, gpu_step_dt2 = 0.0f, gpu_step_dt3 = 0.0f, gpu_step_dt4 = 0.0f, gpu_step_dt5 = 0.0f;
+        float gpu_total_dt1 = 0.0f, gpu_total_dt2 = 0.0f, gpu_total_dt3 = 0.0f, gpu_total_dt4 = 0.0f, gpu_total_dt5 = 0.0f;
+
+        std::chrono::duration<double, std::milli> chrono_step_dt1 = gpu_tp1 - gpu_tp0;
+        std::chrono::duration<double, std::milli> chrono_total_dt1 = gpu_tp1 - gpu_tp0;
         hip_check_error(hipEventElapsedTime(&gpu_step_dt1, e0, e1), "hipEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_total_dt1, e0, e1), "hipEventElapsedTime");
+        std::cout << "1 - " << std::setw(row_header_width) << "hipEventElapsedTime " << std::setw(field_name_width) << gpu_step_1 << ": " << chrono_step_dt1.count() << " ms (" << chrono_total_dt1.count() << " ms total)" << std::endl;
+        std::cout << "1 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_1 << ": " << gpu_step_dt1 << " ms (" << gpu_total_dt1 << " ms total)" << std::endl;
+
+        std::chrono::duration<double, std::milli> chrono_step_dt2 = gpu_tp2 - gpu_tp1;
+        std::chrono::duration<double, std::milli> chrono_total_dt2 = gpu_tp2 - gpu_tp0;
         hip_check_error(hipEventElapsedTime(&gpu_step_dt2, e1, e2), "hipEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_total_dt2, e0, e2), "hipEventElapsedTime");
+        std::cout << "2 - " << std::setw(row_header_width) << "hipEventElapsedTime " << std::setw(field_name_width) << gpu_step_2 << ": " << chrono_step_dt2.count() << " ms (" << chrono_total_dt2.count() << " ms total)" << std::endl;
+        std::cout << "2 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_2 << ": " << gpu_step_dt2 << " ms (" << gpu_total_dt2 << " ms total)" << std::endl;
+
+        std::chrono::duration<double, std::milli> chrono_step_dt3 = gpu_tp3 - gpu_tp2;
+        std::chrono::duration<double, std::milli> chrono_total_dt3 = gpu_tp3 - gpu_tp0;
         hip_check_error(hipEventElapsedTime(&gpu_step_dt3, e2, e3), "hipEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_total_dt3, e0, e3), "hipEventElapsedTime");
+        std::cout << "3 - " << std::setw(row_header_width) << "hipEventElapsedTime " << std::setw(field_name_width) << gpu_step_3 << ": " << chrono_step_dt3.count() << " ms (" << chrono_total_dt3.count() << " ms total)" << std::endl;
+        std::cout << "3 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_3 << ": " << gpu_step_dt3 << " ms (" << gpu_total_dt3 << " ms total)" << std::endl;
+
+        std::chrono::duration<double, std::milli> chrono_step_dt4 = gpu_tp4 - gpu_tp3;
+        std::chrono::duration<double, std::milli> chrono_total_dt4 = gpu_tp4 - gpu_tp0;
         hip_check_error(hipEventElapsedTime(&gpu_step_dt4, e3, e4), "hipEventElapsedTime");
+        hip_check_error(hipEventElapsedTime(&gpu_total_dt4, e0, e4), "hipEventElapsedTime");
+        std::cout << "4 - " << std::setw(row_header_width) << "hipEventElapsedTime " << std::setw(field_name_width) << gpu_step_4 << ": " << chrono_step_dt4.count() << " ms (" << chrono_total_dt4.count() << " ms total)" << std::endl;
+        std::cout << "4 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_4 << ": " << gpu_step_dt4 << " ms (" << gpu_total_dt4 << " ms total)" << std::endl;
+
+        std::chrono::duration<double, std::milli> chrono_step_dt5 = gpu_tp5 - gpu_tp4;
+        std::chrono::duration<double, std::milli> chrono_total_dt5 = gpu_tp5 - gpu_tp0;
         hip_check_error(hipEventElapsedTime(&gpu_step_dt5, e4, e5), "hipEventElapsedTime");
-        const float gpu_total_dt5 = gpu_step_dt1 + gpu_step_dt2 + gpu_step_dt3 + gpu_step_dt4 + gpu_step_dt5;
+        hip_check_error(hipEventElapsedTime(&gpu_total_dt5, e0, e5), "hipEventElapsedTime");
+        std::cout << "5 - " << std::setw(row_header_width) << "hipEventElapsedTime " << std::setw(field_name_width) << gpu_step_5 << ": " << chrono_step_dt5.count() << " ms (" << chrono_total_dt5.count() << " ms total)" << std::endl;
+        std::cout << "5 - " << std::setw(row_header_width) << "std::chrono::duration " << std::setw(field_name_width) << gpu_step_5 << ": " << gpu_step_dt5 << " ms (" << gpu_total_dt5 << " ms total)" << std::endl;
 
-        std::cout << "  - " << gpu_step_1 << ": " << gpu_step_dt1 << " ms" << std::endl;
-        std::cout << "  - " << gpu_step_2 << ": " << gpu_step_dt2 << " ms" << std::endl;
-        std::cout << "  - " << gpu_step_3 << ": " << gpu_step_dt3 << " ms" << std::endl;
-        std::cout << "  - " << gpu_step_4 << ": " << gpu_step_dt4 << " ms" << std::endl;
-        std::cout << "  - " << gpu_step_5 << ": " << gpu_step_dt5 << " ms" << std::endl;
-        std::cout << "  - Total GPU time: " << gpu_total_dt5 << " ms" << std::endl;
+        // Clean up
+        hip_check_error(hipEventDestroy(e0), "hipEventDestroy");
+        hip_check_error(hipEventDestroy(e1), "hipEventDestroy");
+        hip_check_error(hipEventDestroy(e2), "hipEventDestroy");
+        hip_check_error(hipEventDestroy(e3), "hipEventDestroy");
+        hip_check_error(hipEventDestroy(e4), "hipEventDestroy");
+        hip_check_error(hipEventDestroy(e5), "hipEventDestroy");
+        hip_check_error(hipStreamDestroy(stream), "hipStreamDestroy");
 
-        std::cout << "CPU:" << std::endl;
         const auto cpu_tp0 = std::chrono::high_resolution_clock::now();
 
-        std::cout << "  - Create Eigen maps: ";
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> A{vec_A.data(), spec.n_rows_A_, spec.n_cols_A_};
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> B{vec_B.data(), spec.n_rows_B_, spec.n_cols_B_};
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> C{vec_C.data(), spec.n_rows_C_, spec.n_cols_C_};
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> D_gpu{vec_D.data(), spec.n_rows_D_, spec.n_cols_D_};
+        constexpr int check_field_width = 26;
+        std::cout << "CHECK WITH CPU:" << std::endl;
+        const auto cpu_step_1 = "Convert data to Eigen";
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> A{vec_A.data(), spec.n_A_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> B{vec_B.data(), spec.n_B_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> C{vec_C.data(), spec.n_C_};
+        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> D_gpu{vec_D.data(), spec.n_D_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
-        std::cout << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
+        std::cout << " - " << std::setw(check_field_width) << cpu_step_1 << ": " << cpu_step_dt1.count() << " ms (" << cpu_total_dt1.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Computing reference: ";
+        const auto cpu_step_2 = "Compute result with Eigen";
         const auto D_cpu = kernel.run_host_kernel(A, B, C);
         const auto cpu_tp2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt2 = cpu_tp2 - cpu_tp1;
         std::chrono::duration<double, std::milli> cpu_total_dt2 = cpu_tp2 - cpu_tp0;
-        std::cout << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
+        std::cout << " - " << std::setw(check_field_width) << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Computing error: ";
-        const auto E = (D_gpu.template cast<double>() - D_cpu.template cast<double>()).template cast<Number>();
+        const auto cpu_step_3 = "Compute error vector";
+        const auto E = (D_gpu - D_cpu).eval();
+        const auto E_pct = E.cwiseAbs().template cast<double>().array() / D_cpu.cwiseAbs().template cast<double>().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
-        std::cout << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
+        std::cout << " - " << std::setw(check_field_width) << cpu_step_3 << ": " << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Computing max error: ";
-        double E_max = 0;
-        long E_max_row = 0, E_max_col = 0;
-        double E_max_pct = 0;
-        long E_pct_max_row = 0, E_pct_max_col = 0;
-        for (int i = 0; i < E.rows(); ++i) {
-            for (int j = 0; j < E.cols(); ++j) {
-                const double e = double(E(i, j));
-                const double e_abs = std::abs(e);
-                const double e_ref = double(D_cpu(i, j));
-                const double e_ref_abs = std::abs(e_ref);
-                const double e_pct = e_ref_abs > 0 ? 100.0 * e_abs / e_ref_abs : 0.0;
-                if (e_abs > E_max) {
-                    E_max = e_abs;
-                    E_max_row = i;
-                    E_max_col = j;
-                }
-                if (e_pct > E_max_pct) {
-                    E_max_pct = e_pct;
-                    E_pct_max_row = i;
-                    E_pct_max_col = j;
-                }
-            }
-        }
+        const auto cpu_step_4 = "Compute max error";
+        size_t E_max_idx, E_pct_max_idx;
+        const double E_max = E.cwiseAbs().maxCoeff(&E_max_idx);
+        const auto E_max_pct = E_pct.maxCoeff(&E_pct_max_idx);
         const auto cpu_tp4 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt4 = cpu_tp4 - cpu_tp3;
         std::chrono::duration<double, std::milli> cpu_total_dt4 = cpu_tp4 - cpu_tp0;
-        std::cout << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
+        std::cout << " - " << std::setw(check_field_width) << cpu_step_4 << ": " << cpu_step_dt4.count() << " ms (" << cpu_total_dt4.count() << " ms total)" << std::endl;
+
+        if (errors) {
+            std::cout << "Non-zero error elements:\n";
+            bool found_errors = false;
+            for (int i = 0; i < E.size(); ++i) {
+                if (E(i) != Number(0)) {
+                    found_errors = true;
+                    std::cout << "(" << i << "): "
+                              << "D_gpu=" << static_cast<Printable_Number>(D_gpu(i)) << ", "
+                              << "D_cpu=" << static_cast<Printable_Number>(D_cpu(i)) << ", "
+                              << "E=" << static_cast<Printable_Number>(E(i)) << "\n";
+                }
+            }
+            if (!found_errors) {
+                std::cout << "No non-zero error elements found\n";
+            }
+        }
 
         if (verbose) {
-            const Eigen::IOFormat clean_vector_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A      :\n";
-            std::cout << A.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
-            std::cout << "B      :\n";
-            std::cout << B.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
-            std::cout << "C      :\n";
-            std::cout << C.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
-            std::cout << "D_gpu  :\n";
-            std::cout << D_gpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
-            std::cout << "D_cpu  :\n";
-            std::cout << D_cpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
-            if (spec.n_cols_temp_ > 0) {
-                const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> tmp_gpu{
-                    vec_temp.data(), spec.n_rows_temp_, spec.n_cols_temp_
-                };
-                std::cout << "tmp    :\n";
-                std::cout << tmp_gpu.template cast<Printable_Number>().format(clean_vector_format) << std::endl;
+            const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
+            std::cout << "A    :\n";
+            std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << "B    :\n";
+            std::cout << B.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << "C    :\n";
+            std::cout << C.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << "D_gpu:\n";
+            std::cout << D_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << "D_cpu:\n";
+            std::cout << D_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            if (spec.n_temp_ > 0) {
+                const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> tmp_gpu{vec_temp.data(), spec.n_temp_};
+                std::cout << "tmp  :\n";
+                std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
             }
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
-        std::cout << "Max error: " << E_max << " at (" << E_max_row << ", " << E_max_col << ")" << std::endl;
-        std::cout << "Max error percentage: " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ")" << std::endl;
+        std::cout << "Max error     : " << E_max << " at (" << E_max_idx << ")" << std::endl;
+        std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_idx << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
+
         return 0;
     }
 };

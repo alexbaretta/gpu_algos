@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_transpose_striped.hip.hpp
+// source path: include/hip/kernels/matrix/matrix_transpose_striped.hpp
 
 #pragma once
 
@@ -12,8 +12,8 @@
 #include <Eigen/Dense>
 #include <cassert>
 
-#include "hip/kernel_api/matrix_1in_1out.hpp"
-#include "hip/type_traits.hpp"
+#include "hip/kernel_api/matrix_1in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
 constexpr long STRIPE_WIDTH = 32;
 

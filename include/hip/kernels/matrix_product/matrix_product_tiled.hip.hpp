@@ -1,18 +1,16 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_product_tiled.hip.hpp
+// source path: include/hip/kernels/matrix/matrix_product_tiled.hpp
 
 #pragma once
 #include <iostream>
 #include <hip/hip_runtime.h>
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
-#include <cassert>
 
-#include "cxxopts.hpp"
-#include "hip/kernel_api/matrix_2in_1out.hpp"
-#include "hip/type_traits.hpp"
+#include "hip/kernel_api/matrix_2in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
 constexpr long TILE_SIZE = 16;
 

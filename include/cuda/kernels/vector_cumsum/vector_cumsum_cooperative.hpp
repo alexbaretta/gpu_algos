@@ -71,7 +71,7 @@ __device__ void vector_cumsum_cooperative(
 
         long offset = 1, subtree_id = tid_warp;
         for (long scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
-            const CUDA_Number received_value = __shfl_down_sync(FULL_MASK, value, offset);
+            const CUDA_Number received_value = __shfl_down_sync(__activemask(), value, offset);
             if (subtree_id % 2 == 1) {
                 value += received_value;
                 offset *= 2;
@@ -104,7 +104,7 @@ __device__ void vector_cumsum_cooperative(
                 int offset = 1, subtree_id = tid_warp;
                 shm_value = shm[tid_warp];
                 for (long scanned_size = 1; scanned_size < WARP_SIZE; scanned_size <<= 1, subtree_id /= 2) {
-                    const CUDA_Number received_value = __shfl_down_sync(FULL_MASK, value, offset);
+                    const CUDA_Number received_value = __shfl_down_sync(__activemask(), value, offset);
                     if (subtree_id % 2 == 1) {
                         shm_value += received_value;
                         offset *= 2;
@@ -119,10 +119,10 @@ __device__ void vector_cumsum_cooperative(
                 const CUDA_Number updated_value = shm[wid_block];
                 const CUDA_Number warp_delta_value = updated_value - value;
                 value = updated_value; // only for the last lane!
-                __shfl_sync(FULL_MASK, warp_delta_value, 0);
+                __shfl_sync(__activemask(), warp_delta_value, 0);
             } else {
                 // All the other lanes
-                value += __shfl_sync(FULL_MASK, 0, LAST_LANE);
+                value += __shfl_sync(__activemask(), 0, LAST_LANE);
             }
 
             if (n_blocks > 1) {

@@ -363,9 +363,14 @@ class Gradient_leastsquares_elasticnet_optimizer_kernel {
         // 3. Convergence checking
 
         // For now, placeholder implementation
-        cudaMemcpyAsync(gpu_data_result, gpu_data_M,
-                       spec_.n_ * spec_.k_ * sizeof(Number),
-                       cudaMemcpyDeviceToDevice, stream);
+        cuda_check_error(
+            cudaMemcpyAsync(
+                gpu_data_result, gpu_data_M,
+                spec_.n_ * spec_.k_ * sizeof(Number),
+                cudaMemcpyDeviceToDevice, stream
+            ),
+            "cudaMemcpyAsync"
+        );
     }
 
     template<typename Matrix_like_A, typename Matrix_like_B, typename Matrix_like_M>

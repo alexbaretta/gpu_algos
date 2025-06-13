@@ -17,5 +17,5 @@
 
 #include "hip/kernel_api/tensor3d_1inout.hip.hpp"
 #include "hip/kernel_api/tensor3d_1in_1out.hip.hpp"
-#include "hip/kernel_api/tensor3d_1in_2out.hip.hpp"
+#include "hip/kernel_api/tensor3d_2in_1out.hip.hpp"
 #include "hip/kernel_api/tensor3d_3in_1out.hip.hpp"

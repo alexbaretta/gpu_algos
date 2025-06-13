@@ -128,7 +128,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
             subtree_size < WARP_SIZE;
             subtree_size <<= 1, subtree_id /= 2) {
         const int from_lane = max(0, subtree_id * subtree_size - 1);
-        const Number received_value = __shfl_sync(FULL_MASK, value, from_lane);
+        const Number received_value = __shfl_sync(__activemask(), value, from_lane);
         if (subtree_id % 2 == 1) {
             value += received_value;
         }
@@ -166,7 +166,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
                 subtree_size < WARP_SIZE;
                 subtree_size <<= 1, subtree_id /= 2) {
                 const int from_lane = max(0, subtree_id * subtree_size - 1);
-                const Number received_value = __shfl_sync(FULL_MASK, shm_value, from_lane);
+                const Number received_value = __shfl_sync(__activemask(), shm_value, from_lane);
                 if (subtree_id % 2 == 1) {
                     shm_value += received_value;
                 }
@@ -232,7 +232,8 @@ struct Vector_cumsum_parallel_spec {
         }
         const auto n = options_parsed["n"].as<long>();
         const auto block_dim_option = options_parsed["block_dim"].as<long>();
-        const auto block_size = (std::min(n, block_dim_option)  + WARP_SIZE - 1) / WARP_SIZE * WARP_SIZE;
+        const auto warp_size = get_warp_size();
+        const auto block_size = (std::min(n, block_dim_option)  + warp_size - 1) / warp_size * warp_size;
         return Vector_cumsum_parallel_spec(
             type,
             n,

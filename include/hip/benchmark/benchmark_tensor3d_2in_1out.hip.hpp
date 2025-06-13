@@ -15,9 +15,9 @@
 #include <cxxopts.hpp>
 
 #include "common/types/tensor3d.hpp"
-#include "hip/random.hpp"
-#include "hip/check_errors.hpp"
-#include "hip/hip_utils.hpp"
+#include "hip/random.hip.hpp"
+#include "hip/check_errors.hip.hpp"
+#include "hip/hip_utils.hip.hpp"
 #include "hip/kernel_api/tensor3d_2in_1out.hip.hpp"
 
 template <TENSOR3D_KERNEL_2IN_1OUT Tensor3D_Kernel_2In_1Out>

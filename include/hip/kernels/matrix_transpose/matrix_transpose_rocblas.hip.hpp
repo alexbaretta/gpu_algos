@@ -1,21 +1,21 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix_transpose/matrix_transpose_cublas.hip.hpp
+// source path: include/hip/kernels/matrix_transpose/matrix_transpose_rocblas.hpp
 
 #pragma once
 #include <hip/hip_runtime.h>
-#include <cublas_v2.h>
+#include <rocblas/rocblas.h>
 #include <string>
 #include <iostream>
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
-#include <hip_fp16.h>
+#include <hip/hip_fp16.h>
 
-#include "hip/kernel_api/matrix_1in_1out.hpp"
-#include "hip/type_traits.hpp"
+#include "hip/kernel_api/matrix_1in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
-struct Matrix_transpose_cublas_spec {
+struct Matrix_transpose_rocblas_spec {
     const std::string type_;
 
     const long m_;    // Rows of input matrix, cols of output matrix
@@ -31,7 +31,7 @@ struct Matrix_transpose_cublas_spec {
     const long n_rows_temp_;
     const long n_cols_temp_;
 
-    // Note: block_dim and grid_dim are not used with cuBLAS but kept for compatibility
+    // Note: block_dim and grid_dim are not used with rocBLAS but kept for compatibility
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_;
@@ -53,7 +53,7 @@ struct Matrix_transpose_cublas_spec {
         ;
     }
 
-    inline static Matrix_transpose_cublas_spec make(
+    inline static Matrix_transpose_rocblas_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
         // Validate the type option
@@ -62,7 +62,7 @@ struct Matrix_transpose_cublas_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        return Matrix_transpose_cublas_spec(
+        return Matrix_transpose_rocblas_spec(
             type,
             options_parsed["m"].as<long>(),
             options_parsed["n"].as<long>(),
@@ -71,7 +71,7 @@ struct Matrix_transpose_cublas_spec {
         );
     }
 
-    inline Matrix_transpose_cublas_spec(
+    inline Matrix_transpose_rocblas_spec(
         const std::string& type,
         const long m,
         const long n,
@@ -95,31 +95,30 @@ struct Matrix_transpose_cublas_spec {
     {}
 };
 
-static_assert(Check_matrix_kernel_spec_1In_1Out<Matrix_transpose_cublas_spec>::check_passed, "Matrix_transpose_cublas_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_1In_1Out<Matrix_transpose_rocblas_spec>::check_passed, "Matrix_transpose_rocblas_spec is not a valid kernel spec");
 
 
 template <HIP_scalar Number_>
-class Matrix_transpose_cublas_kernel {
+class Matrix_transpose_rocblas_kernel {
     public:
     using Number = Number_;
-    using Kernel_spec = Matrix_transpose_cublas_spec;
+    using Kernel_spec = Matrix_transpose_rocblas_spec;
 
     const Kernel_spec spec_;
-    cublasHandle_t cublas_handle_;
+    rocblas_handle rocblas_handle_;
 
-    Matrix_transpose_cublas_kernel(
+    Matrix_transpose_rocblas_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {
-        // Initialize cuBLAS handle
-        cublasCreate(&cublas_handle_);
+        // Initialize rocBLAS handle
+        rocblas_create_handle(&rocblas_handle_);
 
-        // Set math mode to enable tensor cores when available
-        cublasSetMathMode(cublas_handle_, CUBLAS_DEFAULT_MATH);
+        // Note: AMD rocBLAS doesn't have separate math modes like NVIDIA
     }
 
-    ~Matrix_transpose_cublas_kernel() {
-        if (cublas_handle_) {
-            cublasDestroy(cublas_handle_);
+    ~Matrix_transpose_rocblas_kernel() {
+        if (rocblas_handle_) {
+            rocblas_destroy_handle(rocblas_handle_);
         }
     }
 
@@ -129,45 +128,45 @@ class Matrix_transpose_cublas_kernel {
         Number* const gpu_data_temp,
         hipStream_t stream
     ) {
-        // Set the stream for cuBLAS operations
-        cublasSetStream(cublas_handle_, stream);
+        // Set the stream for rocBLAS operations
+        rocblas_set_stream(rocblas_handle_, stream);
 
         const Number alpha = static_cast<Number>(1.0);
         const Number beta = static_cast<Number>(0.0);
 
-        // Matrix transpose using cuBLAS geam
+        // Matrix transpose using rocBLAS geam
         // For row-major matrices: A is m×n, C is n×m
-        // cuBLAS expects column-major, so we need to account for this
+        // rocBLAS expects column-major, so we need to account for this
 
-        if constexpr (std::is_same_v<Number, __half>) {
-            // cuBLAS doesn't provide cublasHgeam function for half precision
-            std::cerr << "Error: Half precision matrix transpose is not supported with cuBLAS geam" << std::endl;
-            throw std::runtime_error("Half precision not supported in cuBLAS geam operations");
-        } else if constexpr (std::is_same_v<Number, float>) {
-            // For single precision, use cublasSgeam
+        if constexpr (std::is_same_v<Number, float>) {
+            // For single precision, use rocblas_sgeam
             // C = alpha * A^T + beta * 0
-            // Since we're working with row-major data but cuBLAS expects column-major:
-            // - A (m×n row-major) appears as A^T (n×m column-major) to cuBLAS
-            // - We want C = A^T, so C (n×m row-major) appears as C^T (m×n column-major) to cuBLAS
-            // - So cuBLAS should compute: C^T = (A^T)^T = A
-            cublasSgeam(cublas_handle_,
-                       CUBLAS_OP_T, CUBLAS_OP_T,   // transpose the input to undo the implicit transpose
-                       spec_.m_, spec_.n_,          // output dimensions as seen by cuBLAS (C^T is m×n)
+            // Since we're working with row-major data but rocBLAS expects column-major:
+            // - A (m×n row-major) appears as A^T (n×m column-major) to rocBLAS
+            // - We want C = A^T, so C (n×m row-major) appears as C^T (m×n column-major) to rocBLAS
+            // - So rocBLAS should compute: C^T = (A^T)^T = A
+            rocblas_sgeam(rocblas_handle_,
+                       rocblas_operation_transpose, rocblas_operation_transpose,   // transpose the input to undo the implicit transpose
+                       spec_.m_, spec_.n_,          // output dimensions as seen by rocBLAS (C^T is m×n)
                        &alpha,
                        gpu_data_A, spec_.n_,        // A with leading dimension n (as row-major m×n)
                        &beta,
                        gpu_data_A, spec_.n_,        // dummy (beta=0)
                        gpu_data_C, spec_.m_);       // C with leading dimension m (as row-major n×m)
         } else if constexpr (std::is_same_v<Number, double>) {
-            // For double precision, use cublasDgeam
-            cublasDgeam(cublas_handle_,
-                       CUBLAS_OP_T, CUBLAS_OP_T,   // transpose the input to undo the implicit transpose
-                       spec_.m_, spec_.n_,          // output dimensions as seen by cuBLAS (C^T is m×n)
+            // For double precision, use rocblas_dgeam
+            rocblas_dgeam(rocblas_handle_,
+                       rocblas_operation_transpose, rocblas_operation_transpose,   // transpose the input to undo the implicit transpose
+                       spec_.m_, spec_.n_,          // output dimensions as seen by rocBLAS (C^T is m×n)
                        &alpha,
                        gpu_data_A, spec_.n_,        // A with leading dimension n
                        &beta,
                        gpu_data_A, spec_.n_,        // dummy (beta=0)
                        gpu_data_C, spec_.m_);       // C with leading dimension m
+        } else {
+            // rocBLAS doesn't provide rocblas_hgeam function for half precision
+            std::cerr << "Error: " << spec_.type_ << " is not supported by rocBLAS geam" << std::endl;
+            throw std::runtime_error(spec_.type_ + " is not supported by rocBLAS geam");
         }
     }
 
@@ -178,4 +177,4 @@ class Matrix_transpose_cublas_kernel {
     }
 
 };
-static_assert(Check_matrix_kernel_1In_1Out_template<Matrix_transpose_cublas_kernel>::check_passed, "Matrix_transpose_cublas is not a valid kernel template");
+static_assert(Check_matrix_kernel_1In_1Out_template<Matrix_transpose_rocblas_kernel>::check_passed, "Matrix_transpose_rocblas is not a valid kernel template");

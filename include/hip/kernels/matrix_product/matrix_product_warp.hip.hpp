@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_product_warp.hip.hpp
+// source path: include/hip/kernels/matrix/matrix_product_warp.hpp
 
 #pragma once
 
@@ -11,8 +11,8 @@
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 
-#include "hip/kernel_api/matrix_2in_1out.hpp"
-#include "hip/type_traits.hpp"
+#include "hip/kernel_api/matrix_2in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
 /*
     This kernel uses a "one warp per result element" threading strategy.

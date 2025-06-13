@@ -1,21 +1,20 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_product_cublas.hip.hpp
+// source path: include/hip/kernels/matrix/matrix_product_rocblas.hpp
 
 #pragma once
 #include <hip/hip_runtime.h>
-#include <cublas_v2.h>
-#include <cublasLt.h>
+#include <rocblas/rocblas.h>
 #include <cxxopts.hpp>
 #include <iostream>
 #include <Eigen/Dense>
-#include <hip_fp16.h>
+#include <hip/hip_fp16.h>
 
-#include "hip/kernel_api/matrix_2in_1out.hpp"
-#include "hip/type_traits.hpp"
+#include "hip/kernel_api/matrix_2in_1out.hip.hpp"
+#include "hip/type_traits.hip.hpp"
 
-struct Matrix_product_cublas_spec {
+struct Matrix_product_rocblas_spec {
     const std::string type_;
 
     const long m_;    // Rows of first matrix
@@ -34,7 +33,7 @@ struct Matrix_product_cublas_spec {
     const long n_rows_temp_;
     const long n_cols_temp_;
 
-    // Note: block_dim and grid_dim are not used with cuBLAS but kept for compatibility
+    // Note: block_dim and grid_dim are not used with rocBLAS but kept for compatibility
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
@@ -56,7 +55,7 @@ struct Matrix_product_cublas_spec {
         ;
     }
 
-    inline static Matrix_product_cublas_spec make(
+    inline static Matrix_product_rocblas_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
         // Validate the type option
@@ -65,7 +64,7 @@ struct Matrix_product_cublas_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        return Matrix_product_cublas_spec(
+        return Matrix_product_rocblas_spec(
             type,
             options_parsed["m"].as<long>(),
             options_parsed["n"].as<long>(),
@@ -75,7 +74,7 @@ struct Matrix_product_cublas_spec {
         );
     }
 
-    inline Matrix_product_cublas_spec(
+    inline Matrix_product_rocblas_spec(
         const std::string& type,
         const long m,
         const long n,
@@ -102,36 +101,30 @@ struct Matrix_product_cublas_spec {
     {}
 };
 
-static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_cublas_spec>::check_passed, "Matrix_product_cublas_spec is not a valid kernel spec");
+static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_rocblas_spec>::check_passed, "Matrix_product_rocblas_spec is not a valid kernel spec");
 
 
 template <HIP_scalar Number_>
-class Matrix_product_cublas_kernel {
+class Matrix_product_rocblas_kernel {
     public:
     using Number = Number_;
-    using Kernel_spec = Matrix_product_cublas_spec;
+    using Kernel_spec = Matrix_product_rocblas_spec;
 
     const Kernel_spec spec_;
-    cublasLtHandle_t cublaslt_handle_;
-    cublasHandle_t cublas_handle_;
+    rocblas_handle rocblas_handle_;
 
-    Matrix_product_cublas_kernel(
+    Matrix_product_rocblas_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {
-        // Initialize cuBLAS and cuBLASLt handles
-        cublasCreate(&cublas_handle_);
-        cublasLtCreate(&cublaslt_handle_);
+        // Initialize rocBLAS handle
+        rocblas_create_handle(&rocblas_handle_);
 
-        // Set math mode to enable tensor cores
-        cublasSetMathMode(cublas_handle_, CUBLAS_TENSOR_OP_MATH);
+        // Note: AMD rocBLAS doesn't have separate math modes like NVIDIA
     }
 
-    ~Matrix_product_cublas_kernel() {
-        if (cublas_handle_) {
-            cublasDestroy(cublas_handle_);
-        }
-        if (cublaslt_handle_) {
-            cublasLtDestroy(cublaslt_handle_);
+    ~Matrix_product_rocblas_kernel() {
+        if (rocblas_handle_) {
+            rocblas_destroy_handle(rocblas_handle_);
         }
     }
 
@@ -142,43 +135,26 @@ class Matrix_product_cublas_kernel {
         Number* const gpu_data_temp,
         hipStream_t stream
     ) {
-        // Set the stream for cuBLAS operations
-        cublasSetStream(cublas_handle_, stream);
+        // Set the stream for rocBLAS operations
+        rocblas_set_stream(rocblas_handle_, stream);
 
         const Number alpha = static_cast<Number>(1.0);
         const Number beta = static_cast<Number>(0.0);
 
         if constexpr (std::is_same_v<Number, __half>) {
-            // Use cuBLASLt for half precision to leverage tensor cores
-            cublasLtMatmulDesc_t matmul_desc;
-            cublasLtMatrixLayout_t A_desc, B_desc, C_desc;
-
-            // Create matrix descriptors
-            cublasLtMatmulDescCreate(&matmul_desc, CUBLAS_COMPUTE_16F, HIP_R_16F);
-            cublasLtMatrixLayoutCreate(&A_desc, HIP_R_16F, spec_.m_, spec_.n_, spec_.n_);
-            cublasLtMatrixLayoutCreate(&B_desc, HIP_R_16F, spec_.n_, spec_.k_, spec_.k_);
-            cublasLtMatrixLayoutCreate(&C_desc, HIP_R_16F, spec_.m_, spec_.k_, spec_.k_);
-
-            // Perform matrix multiplication: C = A * B
-            cublasLtMatmul(cublaslt_handle_,
-                          matmul_desc,
-                          &alpha,
-                          gpu_data_A, A_desc,
-                          gpu_data_B, B_desc,
-                          &beta,
-                          gpu_data_C, C_desc,
-                          gpu_data_C, C_desc,
-                          nullptr, nullptr, 0, stream);
-
-            // Clean up descriptors
-            cublasLtMatrixLayoutDestroy(A_desc);
-            cublasLtMatrixLayoutDestroy(B_desc);
-            cublasLtMatrixLayoutDestroy(C_desc);
-            cublasLtMatmulDescDestroy(matmul_desc);
+            // Use standard rocBLAS for half precision
+            rocblas_hgemm(rocblas_handle_,
+                       rocblas_operation_none, rocblas_operation_none,
+                       spec_.k_, spec_.m_, spec_.n_,
+                       &alpha,
+                       gpu_data_B, spec_.k_,
+                       gpu_data_A, spec_.n_,
+                       &beta,
+                       gpu_data_C, spec_.k_);
         } else if constexpr (std::is_same_v<Number, float>) {
-            // Use cuBLAS for single precision
-            cublasSgemm(cublas_handle_,
-                       CUBLAS_OP_N, CUBLAS_OP_N,
+            // Use standard rocBLAS for single precision
+            rocblas_sgemm(rocblas_handle_,
+                       rocblas_operation_none, rocblas_operation_none,
                        spec_.k_, spec_.m_, spec_.n_,
                        &alpha,
                        gpu_data_B, spec_.k_,
@@ -186,9 +162,9 @@ class Matrix_product_cublas_kernel {
                        &beta,
                        gpu_data_C, spec_.k_);
         } else if constexpr (std::is_same_v<Number, double>) {
-            // Use cuBLAS for double precision
-            cublasDgemm(cublas_handle_,
-                       CUBLAS_OP_N, CUBLAS_OP_N,
+            // Use standard rocBLAS for double precision
+            rocblas_dgemm(rocblas_handle_,
+                       rocblas_operation_none, rocblas_operation_none,
                        spec_.k_, spec_.m_, spec_.n_,
                        &alpha,
                        gpu_data_B, spec_.k_,
@@ -205,4 +181,4 @@ class Matrix_product_cublas_kernel {
     }
 
 };
-static_assert(Check_matrix_kernel_2In_1Out_template<Matrix_product_cublas_kernel>::check_passed, "Matrix_product_cublas is not a valid kernel template");
+static_assert(Check_matrix_kernel_2In_1Out_template<Matrix_product_rocblas_kernel>::check_passed, "Matrix_product_rocblas is not a valid kernel template");
