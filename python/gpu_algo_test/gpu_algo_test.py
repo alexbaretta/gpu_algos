@@ -842,23 +842,48 @@ class GPUAlgoTest:
         report.append("=" * 80)
 
         total_tests = 0
-        total_passed = 0
+        total_execution_passed = 0
+        total_correct = 0
+
+        # Collect failed tests for detailed reporting
+        execution_failures = []
+        correctness_failures = []
 
         for exe_name, exe_results in results.items():
             report.append(f"\n{exe_name}:")
             report.append("-" * (len(exe_name) + 1))
 
-            passed = sum(1 for r in exe_results if r.get("run_success", False))
-            failed = len(exe_results) - passed
+            # Count different types of results
+            execution_passed = sum(1 for r in exe_results if r.get("run_success", False))
+            execution_failed = len(exe_results) - execution_passed
+            correct = sum(1 for r in exe_results if r.get("correct", False))
+            correctness_failed = execution_passed - correct
 
             report.append(
-                f"  Tests: {len(exe_results)} total, {passed} passed, {failed} failed"
+                f"  Tests: {len(exe_results)} total, {execution_passed} executed successfully, {execution_failed} execution failures"
             )
 
-            total_tests += len(exe_results)
-            total_passed += passed
+            if correctness_failed > 0:
+                report.append(
+                    f"  Correctness: {correct} correct, {correctness_failed} correctness failures"
+                )
+            else:
+                report.append(
+                    f"  Correctness: {correct} correct"
+                )
 
-            # Group failures by error type
+            total_tests += len(exe_results)
+            total_execution_passed += execution_passed
+            total_correct += correct
+
+            # Collect failed tests for detailed reporting
+            for result in exe_results:
+                if not result.get("run_success", False):
+                    execution_failures.append(result)
+                elif not result.get("correct", False):
+                    correctness_failures.append(result)
+
+            # Group execution failures by error type
             errors = {}
             for result in exe_results:
                 if not result.get("run_success", False):
@@ -866,15 +891,50 @@ class GPUAlgoTest:
                     errors[error] = errors.get(error, 0) + 1
 
             if errors:
-                report.append("  Common errors:")
+                report.append("  Common execution errors:")
                 for error, count in sorted(errors.items()):
                     report.append(f"    {error}: {count} occurrences")
 
         report.append(f"\n{'=' * 80}")
         report.append(
-            f"Overall: {total_passed}/{total_tests} tests passed ({total_passed/total_tests*100:.1f}%)"
+            f"Overall: {total_correct}/{total_tests} tests passed both execution and correctness checks ({total_correct/total_tests*100:.1f}%)"
         )
         report.append("=" * 80)
+
+        # Add detailed failure sections
+        if execution_failures:
+            report.append(f"\n{'=' * 80}")
+            report.append("TESTS THAT FAILED TO RUN")
+            report.append("=" * 80)
+            report.append(f"\nTotal execution failures: {len(execution_failures)}")
+            report.append("\nCommand lines:")
+            for i, failure in enumerate(execution_failures, 1):
+                exe_name = failure.get("executable", "unknown")
+                data_type = failure.get("data_type", "unknown")
+                size = failure.get("size", "unknown")
+                cmdline = failure.get("cmdline", "No command line available")
+                error = failure.get("error", "Unknown error")
+                report.append(f"{i:3d}. {exe_name} (type={data_type}, size={size})")
+                report.append(f"     Command: {cmdline}")
+                report.append(f"     Error: {error}")
+
+        if correctness_failures:
+            report.append(f"\n{'=' * 80}")
+            report.append("TESTS THAT FAILED CORRECTNESS CHECKS")
+            report.append("=" * 80)
+            report.append(f"\nTotal correctness failures: {len(correctness_failures)}")
+            report.append("\nCommand lines:")
+            for i, failure in enumerate(correctness_failures, 1):
+                exe_name = failure.get("executable", "unknown")
+                data_type = failure.get("data_type", "unknown")
+                size = failure.get("size", "unknown")
+                cmdline = failure.get("cmdline", "No command line available")
+                metrics = failure.get("metrics", {})
+                max_error = metrics.get("max_error", "N/A")
+                max_error_pct = metrics.get("max_error_pct", "N/A")
+                report.append(f"{i:3d}. {exe_name} (type={data_type}, size={size})")
+                report.append(f"     Command: {cmdline}")
+                report.append(f"     Max error: {max_error}, Max error %: {max_error_pct}")
 
         return "\n".join(report)
 
