@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-import json
 import sys
-import json_stream
+import ijson
 from pathlib import Path
 from collections import defaultdict
 
@@ -13,7 +12,7 @@ def read_streaming_results(json_file):
     with open(json_file, 'r') as f:
         try:
             # json_stream.load() can handle both JSON Lines and other streaming formats
-            for result in json_stream.load(f):
+            for result in ijson.items(f, '', multiple_values=True):
                 # Group results by executable name
                 if 'executable' in result:
                     results[result['executable']].append(result)
