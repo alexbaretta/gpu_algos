@@ -43,10 +43,6 @@ from datetime import datetime
 
 import ijson
 
-# Constants for GPU architecture
-WARP_SIZE = 32
-BLOCK_SIZE = 1024
-
 # Data types to test
 DATA_TYPES = [
     "half",
@@ -496,41 +492,6 @@ class GPUAlgoTest:
             self.logger.info(f"  Skipping unsupported data types for {executable.name}: {sorted(skipped_types)}")
 
         return filtered_types
-
-    def _run_executable(
-        self, executable: Path, args: List[str], timeout: int = 30
-    ) -> Tuple[bool, str, str]:
-        """Run an executable with given arguments.
-
-        Returns:
-            Tuple of (success, stdout, stderr)
-        """
-        abs_path = executable.resolve()
-        cmd = [str(abs_path)] + args
-        self.logger.debug(f"Running: {' '.join(cmd)}")
-
-        # Print absolute path for debugging
-        if self.verbose:
-            self.logger.debug(f"Absolute executable path: {abs_path}")
-
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                cwd=self.bin_dir.parent,
-            )
-
-            success = result.returncode == 0
-            return success, result.stdout, result.stderr
-
-        except subprocess.TimeoutExpired:
-            self.logger.error(f"Timeout running {executable.name} with args: {args}")
-            return False, "", "Timeout"
-        except Exception as e:
-            self.logger.error(f"Error running {executable.name}: {e}")
-            return False, "", str(e)
 
     def _extract_performance_metrics(self, stdout: str) -> Dict[str, float]:
         """Extract performance metrics from stdout."""
