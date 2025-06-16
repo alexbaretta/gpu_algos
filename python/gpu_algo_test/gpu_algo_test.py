@@ -290,7 +290,7 @@ class GPUAlgoTest:
                  selected_sizes: Optional[Set[int]] = None, selected_types: Optional[Set[str]] = None,
                  dry_run: bool = False, float_abs_tol: Optional[float] = None, float_pct_tol: Optional[float] = None,
                  int_abs_tol: float = 0.0, int_pct_tol: float = 0.0, output_file: Optional[str] = None,
-                 rerun_failures_file: Optional[str] = None):
+                 rerun_failures_file: Optional[str] = None, timeout: int = 300):
         """Initialize the GPU algorithm tester.
 
         Args:
@@ -308,6 +308,7 @@ class GPUAlgoTest:
             int_pct_tol: Percent tolerance for integer types (default: 0.0 - perfect accuracy required)
             output_file: Output file for detailed results (None for no output)
             rerun_failures_file: Path to previous test results file (JSONL format) to rerun only failed tests
+            timeout: Timeout for test execution in seconds (default: 300 seconds)
         """
         self.bin_dir = Path(bin_dir)
         self.cmake_root = cmake_root
@@ -319,6 +320,7 @@ class GPUAlgoTest:
         self.dry_run = dry_run
         self.output_file = output_file
         self.rerun_failures_file = rerun_failures_file
+        self.timeout = timeout
 
         # Tolerance values with IEEE 754-based defaults
         self.float_abs_tol = float_abs_tol
@@ -625,7 +627,7 @@ class GPUAlgoTest:
 
             # Execute the command
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=30, cwd=self.bin_dir
+                cmd, capture_output=True, text=True, timeout=self.timeout, cwd=self.bin_dir
             )
 
             # Extract performance metrics
@@ -659,7 +661,7 @@ class GPUAlgoTest:
                 "cmdline": ' '.join(cmd) if 'cmd' in locals() else "",
                 "run_success": False,
                 "return_code": -1,
-                "error": "Timeout after 30 seconds",
+                "error": f"Timeout after {self.timeout} seconds",
                 "metrics": {},
                 "stdout": "",
                 "stderr": "",
@@ -1025,6 +1027,13 @@ def main():
         help="Path to previous test results file (JSONL format) to rerun only failed tests",
     )
 
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=300,
+        help="Timeout for test execution in seconds (default: 300 seconds)",
+    )
+
     args = parser.parse_args()
 
     try:
@@ -1080,6 +1089,7 @@ def main():
             args.int_pct_tol,
             args.output,
             args.rerun_failures,
+            args.timeout,
         )
 
         # Run all tests
