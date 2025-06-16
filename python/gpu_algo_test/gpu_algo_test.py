@@ -643,7 +643,10 @@ class GPUAlgoTest:
                 # Fallback to positional argument if --type not supported
                 cmd.append(data_type)
 
-            self.logger.debug(f"Running: {' '.join(cmd)}")
+            # Capture the command line for debugging and replication
+            cmdline = ' '.join(cmd)
+
+            self.logger.debug(f"Running: {cmdline}")
 
             # Execute the command
             result = subprocess.run(
@@ -664,6 +667,7 @@ class GPUAlgoTest:
             # Combine all results
             test_result = {
                 **test_info,
+                "cmdline": cmdline,
                 "run_success": run_success,
                 "correct": correct,
                 "return_code": result.returncode,
@@ -677,8 +681,8 @@ class GPUAlgoTest:
         except subprocess.TimeoutExpired:
             return {
                 **test_info,
+                "cmdline": ' '.join(cmd) if 'cmd' in locals() else "",
                 "run_success": False,
-                "correct": False,
                 "return_code": -1,
                 "error": "Timeout after 30 seconds",
                 "metrics": {},
@@ -688,8 +692,8 @@ class GPUAlgoTest:
         except Exception as e:
             return {
                 **test_info,
+                "cmdline": ' '.join(cmd) if 'cmd' in locals() else "",
                 "run_success": False,
-                "correct": False,
                 "return_code": -1,
                 "error": str(e),
                 "metrics": {},
