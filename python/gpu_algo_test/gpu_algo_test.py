@@ -41,6 +41,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 from datetime import datetime
 
+import ijson
+
 # Constants for GPU architecture
 WARP_SIZE = 32
 BLOCK_SIZE = 1024
@@ -291,7 +293,8 @@ class GPUAlgoTest:
                  verbose: bool = False, selected_executables: Optional[Set[str]] = None,
                  selected_sizes: Optional[Set[int]] = None, selected_types: Optional[Set[str]] = None,
                  dry_run: bool = False, float_abs_tol: Optional[float] = None, float_pct_tol: Optional[float] = None,
-                 int_abs_tol: float = 0.0, int_pct_tol: float = 0.0, output_file: Optional[str] = None):
+                 int_abs_tol: float = 0.0, int_pct_tol: float = 0.0, output_file: Optional[str] = None,
+                 rerun_failures_file: Optional[str] = None):
         """Initialize the GPU algorithm tester.
 
         Args:
@@ -308,6 +311,7 @@ class GPUAlgoTest:
             int_abs_tol: Absolute tolerance for integer types (default: 0.0 - perfect accuracy required)
             int_pct_tol: Percent tolerance for integer types (default: 0.0 - perfect accuracy required)
             output_file: Output file for detailed results (None for no output)
+            rerun_failures_file: Path to previous test results file (JSONL format) to rerun only failed tests
         """
         self.bin_dir = Path(bin_dir)
         self.cmake_root = cmake_root
@@ -318,6 +322,7 @@ class GPUAlgoTest:
         self.selected_types = selected_types or set(DATA_TYPES)
         self.dry_run = dry_run
         self.output_file = output_file
+        self.rerun_failures_file = rerun_failures_file
 
         # Tolerance values with IEEE 754-based defaults
         self.float_abs_tol = float_abs_tol
@@ -366,6 +371,15 @@ class GPUAlgoTest:
         self.output_handle = None
         if self.output_file:
             self.output_handle = open(self.output_file, 'w')
+
+        # Parse failed tests from previous results if specified
+        self.failed_tests = []
+        if self.rerun_failures_file:
+            self.failed_tests = self._parse_failed_tests()
+            if self.failed_tests:
+                self.logger.info(f"Found {len(self.failed_tests)} failed tests to rerun")
+            else:
+                self.logger.warning("No failed tests found in previous results file")
 
     def _write_streaming_result(self, result: Dict) -> None:
         """Write a single test result to the streaming output file as a JSON Lines entry."""
@@ -736,12 +750,101 @@ class GPUAlgoTest:
 
         return results
 
+    def run_failed_tests(self) -> Dict[str, List[Dict]]:
+        """Run only the previously failed tests.
+
+        Returns:
+            Dictionary mapping executable names to their test results
+        """
+        if not self.failed_tests:
+            self.logger.warning("No failed tests to rerun")
+            return {}
+
+        self.logger.info(f"Rerunning {len(self.failed_tests)} failed tests")
+        if self.output_file:
+            self.logger.info(f"Detailed results streaming to: {self.output_file}")
+
+        all_results = {}
+
+        # Group failed tests by executable
+        tests_by_executable = {}
+        for test in self.failed_tests:
+            exe_name = test['executable']
+            if exe_name not in tests_by_executable:
+                tests_by_executable[exe_name] = []
+            tests_by_executable[exe_name].append(test)
+
+        for exe_name, failed_tests in tests_by_executable.items():
+            self.logger.info(f"Rerunning {len(failed_tests)} tests for {exe_name}")
+
+            # Find the executable path
+            executable = None
+            for exe_path in self.executables:
+                if exe_path.name == exe_name:
+                    executable = exe_path
+                    break
+
+            if not executable:
+                error_msg = f"Executable {exe_name} not found in bin directory"
+                self.logger.error(error_msg)
+                all_results[exe_name] = [{"error": error_msg, "executable": exe_name}]
+                continue
+
+            results = []
+            for test in failed_tests:
+                if self.verbose or self.dry_run:
+                    self.logger.debug(f"  Rerunning: {exe_name} size={test['size']} type={test['data_type']}")
+
+                try:
+                    result = self.test_executable(executable, test['data_type'], test['size'])
+                    result["category"] = test['category']
+                    result["rerun"] = True
+                    result["previous_run_success"] = test['previous_run_success']
+                    result["previous_correct"] = test['previous_correct']
+                    results.append(result)
+
+                    # Write result immediately for streaming output
+                    self._write_streaming_result(result)
+
+                    if not result["run_success"] and (self.verbose or self.dry_run):
+                        error_msg = result.get("error", f"Exit code: {result.get('return_code', 'unknown')}")
+                        self.logger.warning(f"    Still failing: {error_msg}")
+                    elif result["run_success"] and result.get("correct", False) and (self.verbose or self.dry_run):
+                        self.logger.info(f"    Now passing!")
+
+                except Exception as e:
+                    import traceback
+                    error_details = f"Exception: {type(e).__name__}: {str(e)}\nTraceback:\n{traceback.format_exc()}"
+                    self.logger.error(f"Error retesting {exe_name}: {error_details}")
+
+                    error_result = {
+                        "error": str(e),
+                        "error_details": error_details,
+                        "executable": exe_name,
+                        "data_type": test['data_type'],
+                        "size": test['size'],
+                        "rerun": True
+                    }
+                    self._write_streaming_result(error_result)
+                    results.append(error_result)
+
+            all_results[exe_name] = results
+
+        # Close streaming output
+        self._close_streaming_output()
+
+        return all_results
+
     def run_all_tests(self) -> Dict[str, List[Dict]]:
         """Run tests on all executables.
 
         Returns:
             Dictionary mapping executable names to their test results
         """
+        # If rerunning failed tests, use the specialized method
+        if self.failed_tests:
+            return self.run_failed_tests()
+
         if self.output_file:
             self.logger.info(f"Detailed results streaming to: {self.output_file}")
 
@@ -811,6 +914,63 @@ class GPUAlgoTest:
         report.append("=" * 80)
 
         return "\n".join(report)
+
+    def _parse_failed_tests(self) -> List[Dict]:
+        """Parse failed tests from previous results file.
+
+        Returns:
+            List of test specifications for failed tests (executable, data_type, size)
+        """
+        failed_tests = []
+        results_file = Path(self.rerun_failures_file)
+
+        if not results_file.exists():
+            raise FileNotFoundError(f"Previous results file not found: {results_file}")
+
+        try:
+            with open(results_file, 'r') as f:
+                for result in ijson.items(f, '', multiple_values=True):
+                    # Skip entries that don't have the required fields
+                    if not all(key in result for key in ['executable', 'data_type', 'size']):
+                        continue
+
+                    # Check if this test failed (either execution failure or correctness failure)
+                    run_success = result.get('run_success', True)
+                    correct = result.get('correct', True)
+
+                    # A test is considered failed if:
+                    # 1. It failed to run successfully (run_success == False), OR
+                    # 2. It ran successfully but gave incorrect results (correct == False)
+                    is_failed = not run_success or not correct
+
+                    if is_failed:
+                        # Filter by executable if specified
+                        if self.selected_executables and result['executable'] not in self.selected_executables:
+                            continue
+
+                        failed_test = {
+                            'executable': result['executable'],
+                            'data_type': result['data_type'],
+                            'size': result['size'],
+                            'category': result.get('category', 'unknown'),
+                            'previous_run_success': run_success,
+                            'previous_correct': correct,
+                        }
+                        failed_tests.append(failed_test)
+
+        except Exception as e:
+            raise RuntimeError(f"Error parsing previous results file {results_file}: {e}")
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_failed_tests = []
+        for test in failed_tests:
+            key = (test['executable'], test['data_type'], test['size'])
+            if key not in seen:
+                seen.add(key)
+                unique_failed_tests.append(test)
+
+        return unique_failed_tests
 
 
 def main():
@@ -899,6 +1059,11 @@ def main():
         help="Percent tolerance for integer types (default: 0.0 - perfect accuracy required)",
     )
 
+    parser.add_argument(
+        "--rerun-failures",
+        help="Path to previous test results file (JSONL format) to rerun only failed tests",
+    )
+
     args = parser.parse_args()
 
     try:
@@ -953,11 +1118,17 @@ def main():
             args.int_abs_tol,
             args.int_pct_tol,
             args.output,
+            args.rerun_failures,
         )
 
         # Run all tests
         if args.dryrun:
             print("Dry run mode: checking executable existence...")
+        elif args.rerun_failures:
+            if selected_executables:
+                print(f"Rerunning failed tests for executables: {', '.join(selected_executables)}")
+            else:
+                print("Rerunning all failed tests from previous results...")
         else:
             print("Starting GPU algorithm tests...")
 
@@ -980,7 +1151,7 @@ def main():
 
         # Calculate failures
         execution_failures = total_tests - total_execution_passed
-        correctness_failures = total_tests - total_correctness_passed
+        correctness_failures = total_execution_passed - total_correctness_passed
 
         # Print summary statistics
         print(f"\n{'=' * 80}")
@@ -988,8 +1159,8 @@ def main():
         print(f"{'=' * 80}")
         print(f"Total benchmarks: {total_tests}")
         print(f"Execution failures: {execution_failures}")
-        print(f"Correctness failures: {correctness_failures}")
         print(f"Successful executions: {total_execution_passed}")
+        print(f"Correctness failures: {correctness_failures}")
         print(f"Correct results: {total_correctness_passed}")
 
         if args.dryrun:
