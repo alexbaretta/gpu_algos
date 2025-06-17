@@ -15,6 +15,7 @@
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 
+#include "cuda/eigen_utils.hpp"
 #include "cuda/random.hpp"
 #include "cuda/check_errors.hpp"
 #include "cuda/cuda_utils.hpp"

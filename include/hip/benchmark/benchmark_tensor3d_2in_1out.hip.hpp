@@ -310,7 +310,14 @@ class Benchmark_Tensor3D_2In_1Out {
         for (long sheet = 0; sheet < e_sheets; ++sheet) {
             for (long row = 0; row < e_rows; ++row) {
                 for (long col = 0; col < e_cols; ++col) {
-                    const double e = double(tensor3d_result_gpu(row, col, sheet)) - double(tensor3d_result_cpu(row, col, sheet));
+                    const double result_gpu_row_col = double(tensor3d_result_gpu(row, col, sheet));
+                    const double result_cpu_row_col = double(tensor3d_result_cpu(row, col, sheet));
+                    const double delta = result_gpu_row_col - result_cpu_row_col;
+                    const bool results_are_identical = (
+                        (std::isnan(result_gpu_row_col) && std::isnan(result_cpu_row_col))
+                        || (std::isinf(result_gpu_row_col) && std::isinf(result_cpu_row_col) && std::isnan(delta))
+                    );
+                    const double e = results_are_identical ? 0 : delta;
                     const double e_abs = std::abs(e);
                     const double e_ref = double(tensor3d_result_cpu(row, col, sheet));
                     const double e_ref_abs = std::abs(e_ref);

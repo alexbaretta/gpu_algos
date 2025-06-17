@@ -14,6 +14,7 @@
 #include <hip/hip_runtime.h>
 #include <cxxopts.hpp>
 
+#include "hip/eigen_utils.hip.hpp"
 #include "hip/random.hip.hpp"
 #include "hip/check_errors.hip.hpp"
 #include "hip/hip_utils.hip.hpp"

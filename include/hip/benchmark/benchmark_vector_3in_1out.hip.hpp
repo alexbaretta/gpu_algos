@@ -14,6 +14,7 @@
 #include <hip/hip_runtime.h>
 #include <cxxopts.hpp>
 
+#include "hip/eigen_utils.hip.hpp"
 #include "hip/random.hip.hpp"
 #include "hip/check_errors.hip.hpp"
 #include "hip/hip_utils.hip.hpp"
@@ -311,7 +312,7 @@ class Benchmark_Vector_3In_1Out {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
 
         const auto cpu_step_3 = "Compute error vector";
-        const auto E = (D_gpu - D_cpu).eval();
+        const auto E = D_gpu.binaryExpr(D_cpu, ComputeError()).eval();
         const auto E_pct = E.cwiseAbs().template cast<double>().array() / D_cpu.cwiseAbs().template cast<double>().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;

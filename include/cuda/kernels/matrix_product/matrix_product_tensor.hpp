@@ -102,7 +102,7 @@ struct Matrix_product_tensor_spec {
         grid_dim_(
             // For small matrices, use thread-per-element grid for naive implementation
             // For large matrices, use WMMA tile-based grid
-            (k_ < 16 || m_ < 16) ?
+            (k_ < 16 || m_ < 16 || n_ < 16) ?
                 dim3((k_ + block_dim_x - 1) / block_dim_x, (m_ + block_dim_y - 1) / block_dim_y) :
                 dim3((k_ + 15) / 16, (m_ + 15) / 16)
         )
