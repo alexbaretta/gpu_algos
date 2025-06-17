@@ -282,8 +282,9 @@ __global__ void matrix_product_tensor_wmma(
                     for (int i = 0; i < WMMA_M; ++i) {
                         for (int j = 0; j < WMMA_N; ++j) {
                             int val = shared_temp[i * WMMA_N + j];
-                            val = max(-128, min(127, val));
-                            C[(effective_row_base + i) * k + (effective_col_base + j)] = static_cast<Number>(val);
+                            // Use proper integer overflow semantics instead of clamping
+                            // Cast to int8_t allows natural overflow: 127+1 => -128
+                            C[(effective_row_base + i) * k + (effective_col_base + j)] = static_cast<std::int8_t>(val);
                         }
                     }
                 } else {
@@ -296,10 +297,9 @@ __global__ void matrix_product_tensor_wmma(
                     // Convert and store only valid elements
                     for (int i = 0; i < WMMA_M && effective_row_base + i < m; ++i) {
                         for (int j = 0; j < WMMA_N && effective_col_base + j < k; ++j) {
-                            // Clamp to INT8 range
+                            // Use proper integer overflow semantics instead of clamping
                             int val = shared_temp[i * WMMA_N + j];
-                            val = max(-128, min(127, val));
-                            C[(effective_row_base + i) * k + (effective_col_base + j)] = static_cast<Number>(val);
+                            C[(effective_row_base + i) * k + (effective_col_base + j)] = static_cast<std::int8_t>(val);
                         }
                     }
                 }

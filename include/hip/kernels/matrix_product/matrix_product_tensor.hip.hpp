@@ -236,10 +236,10 @@ __global__ void matrix_product_tensor_wmma(
 
         // Only first wave per block performs WMMA operations
         if (waveId == 0) {
-            // Declare ROCWMMA fragments for INT8 inputs with INT32 accumulation
+            // Declare ROCWMMA fragments for INT8 inputs with INT8 accumulation
             fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, int8_t, row_major> a_frag;
             fragment<matrix_b, WMMA_M, WMMA_N, WMMA_K, int8_t, row_major> b_frag;
-            fragment<accumulator, WMMA_M, WMMA_N, WMMA_K, int32_t> c_frag;
+            fragment<accumulator, WMMA_M, WMMA_N, WMMA_K, int8_t> c_frag;
 
             // Initialize accumulator to zero
             fill_fragment(c_frag, 0);
@@ -266,7 +266,7 @@ __global__ void matrix_product_tensor_wmma(
                 }
             }
 
-            // Store the result (convert from INT32 back to INT8)
+            // Store the result
             if (effective_row_base < m && effective_col_base < k) {
                 // For small matrices, we need to be careful about partial tile storage
                 // store_matrix_sync can overwrite adjacent memory with large strides
@@ -281,8 +281,9 @@ __global__ void matrix_product_tensor_wmma(
                     for (int i = 0; i < WMMA_M; ++i) {
                         for (int j = 0; j < WMMA_N; ++j) {
                             int val = shared_temp[i * WMMA_N + j];
-                            val = max(-128, min(127, val));
-                            C[(effective_row_base + i) * k + (effective_col_base + j)] = static_cast<Number>(val);
+                            // Use proper integer overflow semantics instead of clamping
+                            // Cast to int8_t allows natural overflow: 127+1 => -128
+                            C[(effective_row_base + i) * k + (effective_col_base + j)] = static_cast<std::int8_t>(val);
                         }
                     }
                 } else {
@@ -295,10 +296,9 @@ __global__ void matrix_product_tensor_wmma(
                     // Convert and store only valid elements
                     for (int i = 0; i < WMMA_M && effective_row_base + i < m; ++i) {
                         for (int j = 0; j < WMMA_N && effective_col_base + j < k; ++j) {
-                            // Clamp to INT8 range
+                            // Use proper integer overflow semantics instead of clamping
                             int val = shared_temp[i * WMMA_N + j];
-                            val = max(-128, min(127, val));
-                            C[(effective_row_base + i) * k + (effective_col_base + j)] = static_cast<Number>(val);
+                            C[(effective_row_base + i) * k + (effective_col_base + j)] = static_cast<std::int8_t>(val);
                         }
                     }
                 }
