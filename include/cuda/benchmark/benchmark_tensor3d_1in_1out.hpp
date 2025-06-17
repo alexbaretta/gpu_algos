@@ -359,12 +359,10 @@ class Benchmark_Tensor3D_1In_1Out {
                 std::cout << "tmp  :\n";
                 tensor3d_temp.print(std::cout);
             }
-            if (errors) {
-                std::cout << "E    :\n";
-                tensor3d_E.print(std::cout);
-                std::cout << "E_pct:\n";
-                tensor3d_E_pct.print(std::cout);
-            }
+            std::cout << "E    :\n";
+            tensor3d_E.print(std::cout);
+            std::cout << "E_pct:\n";
+            tensor3d_E_pct.print(std::cout);
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
