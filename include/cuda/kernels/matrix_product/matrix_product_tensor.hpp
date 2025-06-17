@@ -37,7 +37,6 @@ struct Matrix_product_tensor_spec {
     const long n_rows_temp_;
     const long n_cols_temp_;
 
-    // Note: block_dim and grid_dim are not used with cuBLAS but kept for compatibility
     const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
@@ -101,8 +100,11 @@ struct Matrix_product_tensor_spec {
         n_cols_temp_(0),
         block_dim_(block_dim_x, block_dim_y),
         grid_dim_(
-            (k_ + 15) / 16,  // Each warp handles 16 columns for WMMA
-            (m_ + 15) / 16   // Each warp handles 16 rows for WMMA
+            // For small matrices, use thread-per-element grid for naive implementation
+            // For large matrices, use WMMA tile-based grid
+            (k_ < 16 || m_ < 16) ?
+                dim3((k_ + block_dim_x - 1) / block_dim_x, (m_ + block_dim_y - 1) / block_dim_y) :
+                dim3((k_ + 15) / 16, (m_ + 15) / 16)
         )
     {}
 };
@@ -136,12 +138,29 @@ __global__ void matrix_product_tensor_wmma(
     const int col_base = block_col * WMMA_N;
 
     if constexpr (std::is_same_v<Number, __half>) {
+        // For matrices smaller than WMMA tile size, fall back to naive implementation
+        if (m < WMMA_M || n < WMMA_K || k < WMMA_N) {
+            // Fallback to naive implementation for small matrices
+            const int row = blockIdx.y * blockDim.y + threadIdx.y;
+            const int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+            if (row < m && col < k) {
+                __half sum = 0;
+                for (int i = 0; i < n; ++i) {
+                    sum += A[row * n + i] * B[i * k + col];
+                }
+                C[row * k + col] = sum;
+            }
+            return;
+        }
+
         using namespace nvcuda::wmma;
 
         // Get warp ID within the block
         const int warpId = (threadIdx.y * blockDim.x + threadIdx.x) / warpSize;
 
-        // Only first warp per block performs WMMA operations
+        // For small matrices (single block), only first warp processes the entire matrix
+        // For large matrices, each block processes one tile
         if (warpId == 0) {
             // Declare WMMA fragments
             fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, __half, row_major> a_frag;
@@ -151,35 +170,72 @@ __global__ void matrix_product_tensor_wmma(
             // Initialize accumulator to zero
             fill_fragment(c_frag, 0.0f);
 
+            // For small matrices in single block mode, process from (0,0)
+            int effective_row_base = (gridDim.x == 1 && gridDim.y == 1) ? 0 : row_base;
+            int effective_col_base = (gridDim.x == 1 && gridDim.y == 1) ? 0 : col_base;
+
             // Loop over K dimension in chunks of WMMA_K
             for (int i = 0; i < n; i += WMMA_K) {
-                // Bounds checking for this tile
-                if (row_base < m && col_base < k &&
-                    row_base + WMMA_M <= m && col_base + WMMA_N <= k &&
-                    i + WMMA_K <= n) {
+                // Check if we have enough elements in this K-chunk or if this is the last chunk
+                int k_chunk_size = min(WMMA_K, n - i);
 
-                    // Load fragments from global memory
-                    load_matrix_sync(a_frag, A + row_base * n + i, n);
-                    load_matrix_sync(b_frag, B + i * k + col_base, k);
+                // Only proceed if we have data to process and our tile intersects with the matrix
+                if (effective_row_base < m && effective_col_base < k && k_chunk_size > 0) {
+                    // Load fragments from global memory with bounds checking
+                    // WMMA will handle partial tiles internally through leading dimension
+                    load_matrix_sync(a_frag, A + effective_row_base * n + i, n);
+                    load_matrix_sync(b_frag, B + i * k + effective_col_base, k);
 
                     // Perform tensor core matrix multiplication
                     mma_sync(c_frag, a_frag, b_frag, c_frag);
                 }
             }
 
-            // Store the result
-            if (row_base < m && col_base < k &&
-                row_base + WMMA_M <= m && col_base + WMMA_N <= k) {
-                store_matrix_sync(C + row_base * k + col_base, c_frag, k, mem_row_major);
+            // Store the result - only need to check if our tile intersects with the output matrix
+            if (effective_row_base < m && effective_col_base < k) {
+                // For small matrices, we need to be careful about partial tile storage
+                // store_matrix_sync can overwrite adjacent memory with large strides
+                if (effective_row_base + WMMA_M <= m && effective_col_base + WMMA_N <= k) {
+                    // Full tile fits, safe to use direct store
+                    store_matrix_sync(C + effective_row_base * k + effective_col_base, c_frag, k, mem_row_major);
+                } else {
+                    // Partial tile - need element-wise extraction and storage
+                    __half temp_result[WMMA_M * WMMA_N];
+                    store_matrix_sync(temp_result, c_frag, WMMA_N, mem_row_major);
+
+                    // Copy only the valid elements
+                    for (int i = 0; i < WMMA_M && effective_row_base + i < m; ++i) {
+                        for (int j = 0; j < WMMA_N && effective_col_base + j < k; ++j) {
+                            C[(effective_row_base + i) * k + (effective_col_base + j)] = temp_result[i * WMMA_N + j];
+                        }
+                    }
+                }
             }
         }
     } else if constexpr (std::is_same_v<Number, std::int8_t>) {
+        // For matrices smaller than WMMA tile size, fall back to naive implementation
+        if (m < WMMA_M || n < WMMA_K || k < WMMA_N) {
+            // Fallback to naive implementation for small matrices
+            const int row = blockIdx.y * blockDim.y + threadIdx.y;
+            const int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+            if (row < m && col < k) {
+                Number sum = 0;
+                for (int i = 0; i < n; ++i) {
+                    sum += A[row * n + i] * B[i * k + col];
+                }
+                C[row * k + col] = sum;
+            }
+            return;
+        }
+
         using namespace nvcuda::wmma;
 
         // Get warp ID within the block
         const int warpId = (threadIdx.y * blockDim.x + threadIdx.x) / warpSize;
 
-        // Only first warp per block performs WMMA operations
+        // For small matrices (single block), only first warp processes the entire matrix
+        // For large matrices, each block processes one tile
         if (warpId == 0) {
             // Declare WMMA fragments for INT8 inputs with INT32 accumulation
             fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, signed char, row_major> a_frag;
@@ -189,18 +245,22 @@ __global__ void matrix_product_tensor_wmma(
             // Initialize accumulator to zero
             fill_fragment(c_frag, 0);
 
+            // For small matrices in single block mode, process from (0,0)
+            int effective_row_base = (gridDim.x == 1 && gridDim.y == 1) ? 0 : row_base;
+            int effective_col_base = (gridDim.x == 1 && gridDim.y == 1) ? 0 : col_base;
+
             // Loop over K dimension in chunks of WMMA_K
             for (int i = 0; i < n; i += WMMA_K) {
-                // Bounds checking for this tile
-                if (row_base < m && col_base < k &&
-                    row_base + WMMA_M <= m && col_base + WMMA_N <= k &&
-                    i + WMMA_K <= n) {
+                // Check if we have enough elements in this K-chunk or if this is the last chunk
+                int k_chunk_size = min(WMMA_K, n - i);
 
-                    // Load fragments from global memory
+                // Only proceed if we have data to process and our tile intersects with the matrix
+                if (effective_row_base < m && effective_col_base < k && k_chunk_size > 0) {
+                    // Load fragments from global memory with bounds checking
                     load_matrix_sync(a_frag,
-                        reinterpret_cast<const signed char*>(A) + row_base * n + i, n);
+                        reinterpret_cast<const signed char*>(A) + effective_row_base * n + i, n);
                     load_matrix_sync(b_frag,
-                        reinterpret_cast<const signed char*>(B) + i * k + col_base, k);
+                        reinterpret_cast<const signed char*>(B) + i * k + effective_col_base, k);
 
                     // Perform tensor core matrix multiplication
                     mma_sync(c_frag, a_frag, b_frag, c_frag);
@@ -208,23 +268,38 @@ __global__ void matrix_product_tensor_wmma(
             }
 
             // Store the result (convert from INT32 back to INT8)
-            if (row_base < m && col_base < k &&
-                row_base + WMMA_M <= m && col_base + WMMA_N <= k) {
+            if (effective_row_base < m && effective_col_base < k) {
+                // For small matrices, we need to be careful about partial tile storage
+                // store_matrix_sync can overwrite adjacent memory with large strides
+                if (effective_row_base + WMMA_M <= m && effective_col_base + WMMA_N <= k) {
+                    // Full tile fits, safe to use direct store to shared memory first
+                    store_matrix_sync(shared_temp, c_frag, WMMA_N, mem_row_major);
 
-                // Store to shared memory instead of local memory
-                store_matrix_sync(shared_temp, c_frag, WMMA_N, mem_row_major);
+                    // Synchronize threads within the block
+                    __syncthreads();
 
-                // Synchronize threads within the block
-                __syncthreads();
+                    // Copy to output
+                    for (int i = 0; i < WMMA_M; ++i) {
+                        for (int j = 0; j < WMMA_N; ++j) {
+                            int val = shared_temp[i * WMMA_N + j];
+                            val = max(-128, min(127, val));
+                            C[(effective_row_base + i) * k + (effective_col_base + j)] = static_cast<Number>(val);
+                        }
+                    }
+                } else {
+                    // Partial tile - store to shared memory first then copy selectively
+                    store_matrix_sync(shared_temp, c_frag, WMMA_N, mem_row_major);
 
-                // Convert and store as INT8
-                for (int i = 0; i < WMMA_M; ++i) {
-                    for (int j = 0; j < WMMA_N; ++j) {
-                        if (row_base + i < m && col_base + j < k) {
+                    // Synchronize threads within the block
+                    __syncthreads();
+
+                    // Convert and store only valid elements
+                    for (int i = 0; i < WMMA_M && effective_row_base + i < m; ++i) {
+                        for (int j = 0; j < WMMA_N && effective_col_base + j < k; ++j) {
                             // Clamp to INT8 range
                             int val = shared_temp[i * WMMA_N + j];
                             val = max(-128, min(127, val));
-                            C[(row_base + i) * k + (col_base + j)] = static_cast<Number>(val);
+                            C[(effective_row_base + i) * k + (effective_col_base + j)] = static_cast<Number>(val);
                         }
                     }
                 }
