@@ -295,15 +295,17 @@ class Benchmark_Tensor3D_1In_1Out {
         // row-major representation: innermost loop should iterate over elements of the same sheet/row
         const long e_rows = tensor3d_result_cpu.rows_, e_cols = tensor3d_result_cpu.cols_, e_sheets = tensor3d_result_cpu.sheets_;
         Tensor3D<double> tensor3d_E(e_rows, e_cols, e_sheets, 0);
+        Tensor3D<double> tensor3d_E_pct(e_rows, e_cols, e_sheets, 0);
         for (long sheet = 0; sheet < e_sheets; ++sheet) {
             for (long row = 0; row < e_rows; ++row) {
                 for (long col = 0; col < e_cols; ++col) {
                     const double e = double(tensor3d_result_gpu(row, col, sheet)) - double(tensor3d_result_cpu(row, col, sheet));
-                    tensor3d_E(row, col, sheet) = e;
                     const double e_abs = std::abs(e);
                     const double e_ref = double(tensor3d_result_cpu(row, col, sheet));
                     const double e_ref_abs = std::abs(e_ref);
                     const double e_pct = e_ref_abs > 0 ? 100.0 * e_abs / e_ref_abs : 0.0;
+                    tensor3d_E(row, col, sheet) = e;
+                    tensor3d_E_pct(row, col, sheet) = e_pct;
                     if (e_abs > E_max) {
                         E_max = e_abs;
                         E_max_row = row;
@@ -356,6 +358,12 @@ class Benchmark_Tensor3D_1In_1Out {
             if ((spec.n_rows_temp_ > 0) && (spec.n_cols_temp_ > 0) && (spec.n_sheets_temp_)) {
                 std::cout << "tmp  :\n";
                 tensor3d_temp.print(std::cout);
+            }
+            if (errors) {
+                std::cout << "E    :\n";
+                tensor3d_E.print(std::cout);
+                std::cout << "E_pct:\n";
+                tensor3d_E_pct.print(std::cout);
             }
         }
 
