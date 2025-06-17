@@ -9,11 +9,9 @@ All rights reserved.
 """
 
 from .gpu_algo_test import (
-    BLOCK_SIZE,
     DATA_TYPES,
     PROBLEM_SIZES,
     SPECIAL_DATA_TYPES,
-    WARP_SIZE,
     GPUAlgoTest,
     determine_bin_directory,
     expand_special_sizes,
@@ -24,8 +22,6 @@ from .gpu_algo_test import (
 __version__ = "1.0.0"
 __all__ = [
     "GPUAlgoTest",
-    "WARP_SIZE",
-    "BLOCK_SIZE",
     "DATA_TYPES",
     "PROBLEM_SIZES",
     "SPECIAL_DATA_TYPES",

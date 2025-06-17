@@ -288,7 +288,7 @@ class GPUAlgoTest:
     def __init__(self, bin_dir: Path, cmake_root: Optional[Path] = None, preset: str = "debug",
                  verbose: bool = False, selected_executables: Optional[Set[str]] = None,
                  selected_sizes: Optional[Set[int]] = None, selected_types: Optional[Set[str]] = None,
-                 dry_run: bool = False, float_abs_tol: Optional[float] = None, float_pct_tol: Optional[float] = None,
+                 dryrun: bool = False, float_abs_tol: Optional[float] = None, float_pct_tol: Optional[float] = None,
                  int_abs_tol: float = 0.0, int_pct_tol: float = 0.0, output_file: Optional[str] = None,
                  rerun_failures_file: Optional[str] = None, timeout: int = 300, only_hip: bool = False, only_cuda: bool = False):
         """Initialize the GPU algorithm tester.
@@ -301,7 +301,7 @@ class GPUAlgoTest:
             selected_executables: Set of executable names to test (None for all)
             selected_sizes: Set of problem sizes to test (None for all)
             selected_types: Set of data types to test (None for all)
-            dry_run: Only check executable existence, don't run tests
+            dryrun: Only check executable existence, don't run tests
             float_abs_tol: Absolute tolerance for floating point types (None for no absolute check)
             float_pct_tol: Percent tolerance for floating point types (None for type-specific defaults)
             int_abs_tol: Absolute tolerance for integer types (default: 0.0 - perfect accuracy required)
@@ -319,7 +319,7 @@ class GPUAlgoTest:
         self.selected_executables = selected_executables
         self.selected_sizes = selected_sizes
         self.selected_types = selected_types or set(DATA_TYPES)
-        self.dry_run = dry_run
+        self.dryrun = dryrun
         self.output_file = output_file
         self.rerun_failures_file = rerun_failures_file
         self.timeout = timeout
@@ -364,7 +364,7 @@ class GPUAlgoTest:
             self.logger.info(f"Platform filtering: {platform} executables only")
 
         # Print executable paths for debugging
-        if self.verbose or self.dry_run:
+        if self.verbose or self.dryrun:
             self.logger.info("Discovered executables:")
             for exe in self.executables:
                 abs_path = exe.resolve()
@@ -536,7 +536,7 @@ class GPUAlgoTest:
 
         # Log skipped types if verbose mode and some types were filtered out
         skipped_types = self.selected_types - supported_types
-        if skipped_types and (self.verbose or self.dry_run):
+        if skipped_types and (self.verbose or self.dryrun):
             self.logger.info(f"  Skipping unsupported data types for {executable.name}: {sorted(skipped_types)}")
 
         return filtered_types
@@ -547,8 +547,8 @@ class GPUAlgoTest:
 
         # Look for timing information
         timing_patterns = [
-            (r"Max error\s*:\s*([\d.e-]+)", "max_error"),
-            (r"Max error pct\s*:\s*([\d.e-]+)", "max_error_pct"),
+            (r"Max error\s*:\s*([\d.e-]+|nan|inf)", "max_error"),
+            (r"Max error pct\s*:\s*([\d.e-]+|nan|inf)", "max_error_pct"),
             (r"Gross speedup\s*:\s*([\d.e-]+)", "gross_speedup"),
             (r"Net speedup\s*:\s*([\d.e-]+)", "net_speedup"),
             (r"Compute kernel:\s*([\d.]+)\s*ms", "kernel_time_ms"),
@@ -559,8 +559,10 @@ class GPUAlgoTest:
             match = re.search(pattern, stdout)
             if match:
                 try:
-                    metrics[key] = float(match.group(1))
+                    value_str = match.group(1).lower()
+                    metrics[key] = float(value_str)
                 except ValueError:
+                    metrics[key] = value_str
                     pass
 
         return metrics
@@ -583,8 +585,15 @@ class GPUAlgoTest:
         Returns:
             True if results are correct (errors below thresholds), False otherwise
         """
+        import math
+
         max_error = metrics.get("max_error", float("inf"))
         max_error_pct = metrics.get("max_error_pct", float("inf"))
+
+        # Handle NaN cases explicitly
+        if math.isnan(max_error):
+            # If absolute error is NaN, the algorithm likely failed
+            return False
 
         # Error of 0 always satisfies correctness check
         if max_error == 0.0:
@@ -623,13 +632,33 @@ class GPUAlgoTest:
         if abs_tol is not None and max_error > abs_tol:
             return False
 
+        # Handle NaN percent error - this can occur when expected result is 0
+        # In this case, rely on absolute tolerance if available
+        if math.isnan(max_error_pct):
+            if abs_tol is not None:
+                # We already checked abs_tol above, so if we reach here it passed
+                return True
+            else:
+                # No absolute tolerance specified, but percent error is NaN
+                # This could be legitimate (0/0 case) if absolute error is small
+                # Use a reasonable default based on data type
+                if self._is_floating_type(data_type):
+                    if data_type == "half":
+                        return max_error <= 1e-3  # Allow small absolute errors for half precision
+                    elif data_type in ["float", "single"]:
+                        return max_error <= 1e-6  # Standard float precision
+                    else:  # double
+                        return max_error <= 1e-12  # Double precision
+                else:  # integer types
+                    return max_error == 0.0  # Integers must be exact if percent is NaN
+
         # Check percent tolerance
         if pct_tol is not None and max_error_pct > pct_tol:
             return False
 
         return True
 
-    def test_executable(self, executable: Path, data_type: str, size: int) -> Dict:
+    def test_executable(self, executable: Path, data_type: str, size: int) -> Optional[Dict]:
         """Test a single executable with specific parameters.
 
         Args:
@@ -669,37 +698,42 @@ class GPUAlgoTest:
             # Capture the command line for debugging and replication
             cmdline = ' '.join(cmd)
 
-            self.logger.debug(f"Running: {cmdline}")
+            # In dry run mode, just print the command and return a mock result
+            if self.dryrun:
+                print(f"dryrun: {cmdline}")
+                return None
+            else:
+                self.logger.debug(f"Running: {cmdline}")
 
-            # Execute the command
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=self.timeout, cwd=self.bin_dir
-            )
+                # Execute the command
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=self.timeout, cwd=self.bin_dir
+                )
 
-            # Extract performance metrics
-            metrics = self._extract_performance_metrics(result.stdout)
+                # Extract performance metrics
+                metrics = self._extract_performance_metrics(result.stdout)
 
-            # Determine run success
-            run_success = result.returncode == 0
+                # Determine run success
+                run_success = result.returncode == 0
 
-            # Check correctness (only if run was successful and we have metrics)
-            correct = False
-            if run_success and metrics:
-                correct = self._check_correctness(metrics, data_type)
+                # Check correctness (only if run was successful and we have metrics)
+                correct = False
+                if run_success and metrics:
+                    correct = self._check_correctness(metrics, data_type)
 
-            # Combine all results
-            test_result = {
-                **test_info,
-                "cmdline": cmdline,
-                "run_success": run_success,
-                "correct": correct,
-                "return_code": result.returncode,
-                "metrics": metrics,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-            }
+                # Combine all results
+                test_result = {
+                    **test_info,
+                    "cmdline": cmdline,
+                    "run_success": run_success,
+                    "correct": correct,
+                    "return_code": result.returncode,
+                    "metrics": metrics,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                }
 
-            return test_result
+                return test_result
 
         except subprocess.TimeoutExpired:
             return {
@@ -743,19 +777,20 @@ class GPUAlgoTest:
 
             for size in sizes:
                 for data_type in filtered_data_types:
-                    if self.verbose or self.dry_run:
+                    if self.verbose or self.dryrun:
                         self.logger.debug(f"    Testing size={size}, type={data_type}")
 
                     result = self.test_executable(executable, data_type, size)
-                    result["category"] = category
-                    results.append(result)
+                    if result is not None:
+                        result["category"] = category
+                        results.append(result)
 
-                    # Write result immediately for streaming output
-                    self._write_streaming_result(result)
+                        # Write result immediately for streaming output
+                        self._write_streaming_result(result)
 
-                    if not result["run_success"] and (self.verbose or self.dry_run):
-                        error_msg = result.get("error", f"Exit code: {result.get('return_code', 'unknown')}")
-                        self.logger.warning(f"    Failed: {error_msg}")
+                        if not result["run_success"] and (self.verbose or self.dryrun):
+                            error_msg = result.get("error", f"Exit code: {result.get('return_code', 'unknown')}")
+                            self.logger.warning(f"    Failed: {error_msg}")
 
         return results
 
@@ -801,25 +836,26 @@ class GPUAlgoTest:
 
             results = []
             for test in failed_tests:
-                if self.verbose or self.dry_run:
+                if self.verbose or self.dryrun:
                     self.logger.debug(f"  Rerunning: {exe_name} size={test['size']} type={test['data_type']}")
 
                 try:
                     result = self.test_executable(executable, test['data_type'], test['size'])
-                    result["category"] = test['category']
-                    result["rerun"] = True
-                    result["previous_run_success"] = test['previous_run_success']
-                    result["previous_correct"] = test['previous_correct']
-                    results.append(result)
+                    if result is not None:
+                        result["category"] = test['category']
+                        result["rerun"] = True
+                        result["previous_run_success"] = test['previous_run_success']
+                        result["previous_correct"] = test['previous_correct']
+                        results.append(result)
 
-                    # Write result immediately for streaming output
-                    self._write_streaming_result(result)
+                        # Write result immediately for streaming output
+                        self._write_streaming_result(result)
 
-                    if not result["run_success"] and (self.verbose or self.dry_run):
-                        error_msg = result.get("error", f"Exit code: {result.get('return_code', 'unknown')}")
-                        self.logger.warning(f"    Still failing: {error_msg}")
-                    elif result["run_success"] and result.get("correct", False) and (self.verbose or self.dry_run):
-                        self.logger.info(f"    Now passing!")
+                        if not result["run_success"] and (self.verbose or self.dryrun):
+                            error_msg = result.get("error", f"Exit code: {result.get('return_code', 'unknown')}")
+                            self.logger.warning(f"    Still failing: {error_msg}")
+                        elif result["run_success"] and result.get("correct", False) and (self.verbose or self.dryrun):
+                            self.logger.info(f"    Now passing!")
 
                 except Exception as e:
                     import traceback
