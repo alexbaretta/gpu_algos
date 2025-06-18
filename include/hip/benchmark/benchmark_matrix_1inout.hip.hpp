@@ -330,7 +330,7 @@ class Benchmark_Matrix_1Inout {
             std::cout << "E    :\n";
             std::cout << E.template cast<Printable_Number>().format(eigen_format) << std::endl;
             std::cout << "E_pct:\n";
-            std::cout << E_pct.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << E_pct.format(eigen_format) << std::endl;
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();

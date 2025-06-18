@@ -77,7 +77,7 @@ __device__ Number compute_loss_device(
             Number m_val = M[idx];
 
             // L1 regularization: α * |M|
-            local_loss += alpha * (m_val >= 0 ? m_val : -m_val);
+            local_loss += alpha * (m_val >= Number(0) ? m_val : -m_val);
 
             // L2 regularization: λ * M^2
             local_loss += lambda * m_val * m_val;
@@ -104,8 +104,29 @@ __global__ void compute_frobenius_norm(
         local_sum += val * val;
     }
 
-    // Simplified reduction - in practice would use proper warp/block reduction
-    atomicAdd(norm_squared, local_sum);
+    // Use appropriate atomic operation based on type
+    if constexpr (std::is_same_v<Number, float>) {
+        atomicAdd(norm_squared, local_sum);
+    } else if constexpr (std::is_same_v<Number, double>) {
+        atomicAdd(norm_squared, local_sum);
+    } else if constexpr (std::is_same_v<Number, __half>) {
+        atomicAdd(norm_squared, local_sum);
+    } else if constexpr (std::is_same_v<Number, int>) {
+        atomicAdd(norm_squared, local_sum);
+    } else if constexpr (std::is_same_v<Number, unsigned int>) {
+        atomicAdd(norm_squared, local_sum);
+    } else if constexpr (std::is_same_v<Number, unsigned long long>) {
+        atomicAdd(norm_squared, local_sum);
+    } else {
+        // For other types, use atomicCAS fallback
+        unsigned long long* address_as_ull = (unsigned long long*)norm_squared;
+        unsigned long long old = *address_as_ull, assumed;
+        do {
+            assumed = old;
+            old = atomicCAS(address_as_ull, assumed,
+                          __double_as_longlong(local_sum + __longlong_as_double(assumed)));
+        } while (assumed != old);
+    }
 }
 
 // Line search kernel
@@ -131,7 +152,8 @@ __global__ void line_search_kernel(
     const int thread_id = threadIdx.x + threadIdx.y * blockDim.x;
 
     // Compute step size for this point: eta * frobenius_norm * (point_idx + 1)^2
-    Number step_size = eta * frobenius_norm * (point_idx + 1) * (point_idx + 1);
+    const Number step_multiplier = Number(point_idx + 1);
+    const Number step_size = eta * frobenius_norm * step_multiplier * step_multiplier;
 
     // Compute candidate M: M_current - step_size * gradient
     Number* M_candidate = M_candidates + point_idx * n * k;
@@ -237,7 +259,7 @@ struct Gradient_leastsquares_elasticnet_optimizer_spec {
             ("n", "Number of features", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("k", "Number of outputs", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("max_iterations", "Maximum optimization iterations", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_MAX_ITERATIONS)))
-            ("n_points_line_sear.hpp", "Number of line search points", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N_POINTS_LINE_SEARCH)))
+            ("n_points_line_search", "Number of line search points", cxxopts::value<int>()->default_value(std::to_string(DEFAULT_N_POINTS_LINE_SEARCH)))
             ("eta", "Learning rate", cxxopts::value<double>())
             ("alpha", "L1 regularization parameter", cxxopts::value<double>()->default_value(std::to_string(DEFAULT_ALPHA)))
             ("lambda", "L2 regularization parameter", cxxopts::value<double>()->default_value(std::to_string(DEFAULT_LAMBDA)))
@@ -245,7 +267,7 @@ struct Gradient_leastsquares_elasticnet_optimizer_spec {
             ("rtol", "Relative tolerance", cxxopts::value<double>()->default_value(std::to_string(DEFAULT_RTOL)))
             ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
-            ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
+            ("type", "Numeric type (half, single/float, double)", cxxopts::value<std::string>()->default_value("float"));
     }
 
     inline static Gradient_leastsquares_elasticnet_optimizer_spec make(
@@ -253,8 +275,8 @@ struct Gradient_leastsquares_elasticnet_optimizer_spec {
     ) {
         // Validate the type option
         const auto& type = options_parsed["type"].as<std::string>();
-        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "int16" && type != "int32" && type != "int64" && type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64") {
-            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
+        if (type != "half" && type != "single" && type != "float" && type != "double") {
+            std::cerr << "[ERROR] --type must be one of: half, single/float, double" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
 
@@ -263,7 +285,7 @@ struct Gradient_leastsquares_elasticnet_optimizer_spec {
         if (options_parsed.count("eta")) {
             eta = options_parsed["eta"].as<double>();
         } else {
-            int n_points = options_parsed["n_points_line_sear.hpp"].as<int>();
+            int n_points = options_parsed["n_points_line_search"].as<int>();
             eta = 1.0 / (n_points * n_points);
         }
 
@@ -273,7 +295,7 @@ struct Gradient_leastsquares_elasticnet_optimizer_spec {
             options_parsed["n"].as<long>(),
             options_parsed["k"].as<long>(),
             options_parsed["max_iterations"].as<int>(),
-            options_parsed["n_points_line_sear.hpp"].as<int>(),
+            options_parsed["n_points_line_search"].as<int>(),
             eta,
             options_parsed["alpha"].as<double>(),
             options_parsed["lambda"].as<double>(),
@@ -357,20 +379,118 @@ class Gradient_leastsquares_elasticnet_optimizer_kernel {
         Number* const gpu_data_temp,     // temporary storage
         cudaStream_t stream
     ) {
-        // Implementation would involve multiple kernel launches:
-        // 1. Copy initial M to result
-        // 2. Iterative optimization loop with gradient computation and line search
-        // 3. Convergence checking
+        // Parse temporary storage:
+        // temp_gradient: n * k
+        // temp_candidates: n_points_line_search * n * k
+        // temp_losses: n_points_line_search
+        // temp_norm: 1
 
-        // For now, placeholder implementation
+        const size_t gradient_size = spec_.n_ * spec_.k_;
+        const size_t candidates_size = spec_.n_points_line_search_ * spec_.n_ * spec_.k_;
+        const size_t losses_size = spec_.n_points_line_search_;
+
+        Number* temp_gradient = gpu_data_temp;
+        Number* temp_candidates = temp_gradient + gradient_size;
+        Number* temp_losses = temp_candidates + candidates_size;
+        Number* temp_norm = temp_losses + losses_size;
+
+        // Copy initial M to result (working copy)
         cuda_check_error(
             cudaMemcpyAsync(
                 gpu_data_result, gpu_data_M,
-                spec_.n_ * spec_.k_ * sizeof(Number),
+                gradient_size * sizeof(Number),
                 cudaMemcpyDeviceToDevice, stream
             ),
-            "cudaMemcpyAsync"
+            "cudaMemcpyAsync initial copy"
         );
+
+        // Allocate host memory for loss values and norm to check convergence
+        Number* host_losses = new Number[spec_.n_points_line_search_];
+        Number* host_norm = new Number[1];
+        Number prev_loss = std::numeric_limits<Number>::max();
+
+        for (int iter = 0; iter < spec_.max_iterations_; ++iter) {
+            // Step 1: Compute gradient
+            gradient_kernel_.run_device_kernel(
+                gpu_data_A, gpu_data_B, gpu_data_result,
+                temp_gradient, nullptr, stream
+            );
+
+            // Step 2: Compute Frobenius norm of current M
+            cuda_check_error(cudaMemsetAsync(temp_norm, 0, sizeof(Number), stream), "cudaMemsetAsync norm");
+
+            dim3 norm_block(256);
+            dim3 norm_grid((gradient_size + norm_block.x - 1) / norm_block.x);
+
+            compute_frobenius_norm<<<norm_grid, norm_block, 0, stream>>>(
+                gpu_data_result, temp_norm, gradient_size
+            );
+            cuda_check_error(cudaGetLastError(), "compute_frobenius_norm kernel");
+
+            // Copy norm to host for line search computation
+            cuda_check_error(
+                cudaMemcpyAsync(host_norm, temp_norm, sizeof(Number), cudaMemcpyDeviceToHost, stream),
+                "cudaMemcpyAsync norm to host"
+            );
+            cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize norm");
+
+            const Number frobenius_norm = Number(std::sqrt(double(*host_norm)));
+
+            // Step 3: Perform line search
+            dim3 line_search_block(16, 16);
+            dim3 line_search_grid(spec_.n_points_line_search_, 1);
+
+            line_search_kernel<<<line_search_grid, line_search_block, 0, stream>>>(
+                gpu_data_A, gpu_data_B, gpu_data_result, temp_gradient,
+                temp_candidates, temp_losses, frobenius_norm, Number(spec_.eta_),
+                spec_.m_, spec_.n_, spec_.k_, spec_.n_points_line_search_,
+                Number(spec_.alpha_), Number(spec_.lambda_)
+            );
+            cuda_check_error(cudaGetLastError(), "line_search_kernel");
+
+            // Step 4: Copy losses to host and find best candidate
+            cuda_check_error(
+                cudaMemcpyAsync(host_losses, temp_losses,
+                              spec_.n_points_line_search_ * sizeof(Number),
+                              cudaMemcpyDeviceToHost, stream),
+                "cudaMemcpyAsync losses to host"
+            );
+            cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize losses");
+
+            // Find best loss and corresponding candidate
+            Number best_loss = host_losses[0];
+            int best_idx = 0;
+            for (int j = 1; j < spec_.n_points_line_search_; ++j) {
+                if (host_losses[j] < best_loss) {
+                    best_loss = host_losses[j];
+                    best_idx = j;
+                }
+            }
+
+            // Step 5: Copy best candidate to result
+            const Number* best_candidate = temp_candidates + best_idx * gradient_size;
+            cuda_check_error(
+                cudaMemcpyAsync(
+                    gpu_data_result, best_candidate,
+                    gradient_size * sizeof(Number),
+                    cudaMemcpyDeviceToDevice, stream
+                ),
+                "cudaMemcpyAsync best candidate"
+            );
+
+            // Step 6: Check convergence
+            Number improvement = prev_loss - best_loss;
+            Number relative_improvement = improvement / (prev_loss + Number(1e-10));
+
+            if (improvement < Number(spec_.tol_) || relative_improvement < Number(spec_.rtol_)) {
+                break;
+            }
+
+            prev_loss = best_loss;
+        }
+
+        delete[] host_losses;
+        delete[] host_norm;
     }
 
     template<typename Matrix_like_A, typename Matrix_like_B, typename Matrix_like_M>

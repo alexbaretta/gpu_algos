@@ -96,6 +96,9 @@ EXECUTABLE_TYPE_SUPPORT = {
     # rocBLAS-based implementations only support float and double
     "*rocblas*": {"float", "double"},
 
+    # gradient descent optimizers require floating point types
+    "*gradient*optimizer*": {"half", "float", "double"},
+
     # Cooperative kernels might have limitations (can be updated as issues are discovered)
     "*cooperative*": set(DATA_TYPES),  # Assume full support for now
 

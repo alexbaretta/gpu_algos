@@ -126,7 +126,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
 
     for (int subtree_size = 1, subtree_id = tid_warp;
             subtree_size < WARP_SIZE;
-            subtree_size <<= 1, subtree_id /= 2) {
+            subtree_size <<= 1, subtree_id >>= 1) {
         const int from_lane = max(0, subtree_id * subtree_size - 1);
         const Number received_value = __shfl_sync(__activemask(), value, from_lane);
         if (subtree_id % 2 == 1) {
