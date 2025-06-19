@@ -15,7 +15,8 @@
           "CMAKE_BUILD_TYPE": "Release",
           "CMAKE_CUDA_ARCHITECTURES": "89",
           "CMAKE_CXX_FLAGS": "-O3 -Werror -Wall",
-          "DEFAULT_CUDA_FLAGS": "-O3 -lineinfo"
+          "DEFAULT_CUDA_FLAGS": "-O3 -lineinfo",
+          "DEFAULT_HIP_FLAGS": "-O3 -g"
         }
       },
       {
@@ -27,7 +28,8 @@
         "cacheVariables": {
           "CMAKE_BUILD_TYPE": "Debug",
           "CMAKE_CXX_FLAGS": "-O0 -g -Werror -Wall -DDEBUG",
-          "DEFAULT_CUDA_FLAGS": "-O0 -g -G -DDEBUG"
+          "DEFAULT_CUDA_FLAGS": "-O0 -g -G -DDEBUG",
+          "DEFAULT_HIP_FLAGS": "-O0 -g -DDEBUG"
         }
       }
     ],
