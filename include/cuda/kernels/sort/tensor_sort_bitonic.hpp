@@ -68,7 +68,7 @@ __global__ void bitonic_compare_and_swap_3d(
     const long pair_id = global_tid % pairs_per_problem;
 
     // Calculate the coordinates for this sort problem
-    long row, col, sheet;
+    long col, row, sheet;
     if (sort_dim == 0) {
         sheet = problem_id / n_cols;
         col = problem_id % n_cols;
@@ -308,40 +308,40 @@ class tensor3d_sort_bitonic_kernel {
         // Sort along the specified dimension using std::sort
         if (spec_.sort_dimension_ == "rows") {
             // For each (sheet, col), sort all rows
-            for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
-                for (long col = 0; col < tensor3d.cols_; ++col) {
+            for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
+                for (long col = 0; col < tensor3d.cols(); ++col) {
                     // Create array of pointers to elements in this column
-                    std::vector<Number> column_data(tensor3d.rows_);
-                    for (long row = 0; row < tensor3d.rows_; ++row) {
-                        column_data[row] = tensor3d(row, col, sheet);
+                    std::vector<Number> column_data(tensor3d.rows());
+                    for (long row = 0; row < tensor3d.rows(); ++row) {
+                        column_data[row] = tensor3d(col, row, sheet);
                     }
                     std::sort(column_data.begin(), column_data.end());
                     // Write back
-                    for (long row = 0; row < tensor3d.rows_; ++row) {
-                        tensor3d(row, col, sheet) = column_data[row];
+                    for (long row = 0; row < tensor3d.rows(); ++row) {
+                        tensor3d(col, row, sheet) = column_data[row];
                     }
                 }
             }
         } else if (spec_.sort_dimension_ == "cols") {
             // For each (sheet, row), sort all columns
-            for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
-                for (long row = 0; row < tensor3d.rows_; ++row) {
+            for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
+                for (long row = 0; row < tensor3d.rows(); ++row) {
                     Number* const row_start = &tensor3d(row, 0, sheet);
-                    std::sort(row_start, row_start + tensor3d.cols_);
+                    std::sort(row_start, row_start + tensor3d.cols());
                 }
             }
         } else {
             // For each (row, col), sort all sheets
-            for (long row = 0; row < tensor3d.rows_; ++row) {
-                for (long col = 0; col < tensor3d.cols_; ++col) {
-                    std::vector<Number> sheet_data(tensor3d.sheets_);
-                    for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
-                        sheet_data[sheet] = tensor3d(row, col, sheet);
+            for (long row = 0; row < tensor3d.rows(); ++row) {
+                for (long col = 0; col < tensor3d.cols(); ++col) {
+                    std::vector<Number> sheet_data(tensor3d.sheets());
+                    for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
+                        sheet_data[sheet] = tensor3d(col, row, sheet);
                     }
                     std::sort(sheet_data.begin(), sheet_data.end());
                     // Write back
-                    for (long sheet = 0; sheet < tensor3d.sheets_; ++sheet) {
-                        tensor3d(row, col, sheet) = sheet_data[sheet];
+                    for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
+                        tensor3d(col, row, sheet) = sheet_data[sheet];
                     }
                 }
             }

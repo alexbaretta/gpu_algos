@@ -112,8 +112,8 @@ class Benchmark_Tensor3D_1Inout {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        Tensor3D<Number> tensor3d_A(spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, 0);
-        Tensor3D<Number> tensor3d_temp(spec.n_rows_temp_, spec.n_cols_temp_, spec.n_sheets_temp_, 0);
+        Tensor3D<Number> tensor3d_A(spec.n_cols_A_, spec.n_rows_A_, spec.n_sheets_A_, 0);
+        Tensor3D<Number> tensor3d_temp(spec.n_cols_temp_, spec.n_rows_temp_, spec.n_sheets_temp_, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
@@ -185,7 +185,7 @@ class Benchmark_Tensor3D_1Inout {
         hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "hipStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
-        Tensor3D<Number> tensor3d_A_gpu(spec.n_rows_A_, spec.n_cols_A_, spec.n_sheets_A_, 0);
+        Tensor3D<Number> tensor3d_A_gpu(spec.n_cols_A_, spec.n_rows_A_, spec.n_sheets_A_, 0);
         hip_check_error(hipMemcpyAsync(tensor3d_A_gpu.data(), gpu_data_A, size_A_bytes, hipMemcpyDeviceToHost, stream), "hipMemcpyAsync");
         if (size_temp_bytes > 0) {
             hip_check_error(hipMemcpyAsync(tensor3d_temp.data(), gpu_data_temp, size_temp_bytes, hipMemcpyDeviceToHost, stream), "hipMemcpyAsync");
@@ -283,14 +283,14 @@ class Benchmark_Tensor3D_1Inout {
         long E_pct_max_row = 0, E_pct_max_col = 0, E_pct_max_sheet = 0;
 
         // row-major representation: innermost loop should iterate over elements of the same sheet/row
-        const long e_rows = tensor3d_result_cpu.rows_, e_cols = tensor3d_result_cpu.cols_, e_sheets = tensor3d_result_cpu.sheets_;
-        Tensor3D<double> tensor3d_E(e_rows, e_cols, e_sheets, 0);
-        Tensor3D<double> tensor3d_E_pct(e_rows, e_cols, e_sheets, 0);
+        const long e_rows = tensor3d_result_cpu.rows(), e_cols = tensor3d_result_cpu.cols(), e_sheets = tensor3d_result_cpu.sheets();
+        Tensor3D<double> tensor3d_E(e_cols, e_rows, e_sheets, 0);
+        Tensor3D<double> tensor3d_E_pct(e_cols, e_rows, e_sheets, 0);
         for (long sheet = 0; sheet < e_sheets; ++sheet) {
             for (long row = 0; row < e_rows; ++row) {
                 for (long col = 0; col < e_cols; ++col) {
-                    const double result_gpu_row_col = double(tensor3d_result_gpu(row, col, sheet));
-                    const double result_cpu_row_col = double(tensor3d_result_cpu(row, col, sheet));
+                    const double result_gpu_row_col = double(tensor3d_result_gpu(col, row, sheet));
+                    const double result_cpu_row_col = double(tensor3d_result_cpu(col, row, sheet));
                     const double delta = result_gpu_row_col - result_cpu_row_col;
                     const bool results_are_identical = (
                         (std::isnan(result_gpu_row_col) && std::isnan(result_cpu_row_col))
@@ -298,11 +298,11 @@ class Benchmark_Tensor3D_1Inout {
                     );
                     const double e = results_are_identical ? 0 : delta;
                     const double e_abs = std::abs(e);
-                    const double e_ref = double(tensor3d_result_cpu(row, col, sheet));
+                    const double e_ref = double(tensor3d_result_cpu(col, row, sheet));
                     const double e_ref_abs = std::abs(e_ref);
                     const double e_pct = e_ref_abs > 0 ? 100.0 * e_abs / e_ref_abs : 0.0;
-                    tensor3d_E(row, col, sheet) = e;
-                    tensor3d_E_pct(row, col, sheet) = e_pct;
+                    tensor3d_E(col, row, sheet) = e;
+                    tensor3d_E_pct(col, row, sheet) = e_pct;
                     if (e_abs > E_max) {
                         E_max = e_abs;
                         E_max_row = row;
