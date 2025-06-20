@@ -15,15 +15,14 @@
 #include "cuda/type_traits.hpp"
 
 /*
-This kernel computes the gradient of the loss of a linear regression
-with a squared error loss function and an elastic net regularization term.
+This kernel evaluates a Tensor3Dlinear model on a Tensor3D of covariates, resulting in a Tensor3D of predictions.
 
 ### Notation
 We will use the following convention with respect to tensor indices:
-- `feature ∈ 1..nfeatures` indexes over features
-- `target ∈ 1..ntargets` indexes over targets
-- `task ∈ 1..ntasks` indexes over tasks
-- `obs ∈ 1..nobs` indexes over observations
+- `feature ∈ 1..nfeatures` indexes over features  (previously, `k`)
+- `target ∈ 1..ntargets` indexes over targets     (previously, `h`)
+- `task ∈ 1..ntasks` indexes over tasks           (previously, `i`)
+- `obs ∈ 1..nobs` indexes over observations       (previously, `j`)
 
 where we interpret the `nobs` as the number of observations (the length of the data set),
 `ntasks` as the number of interrelated regression tasks per observation, `nfeatures` as
@@ -36,22 +35,28 @@ The input to the algorithm is a triplet of tensors of rank 3: `(X, Y, M)` such t
 - `Y` with shape `(ntargets, ntasks, nobs)` is the tensor of dependent variables
 - `M` with shape `(nfeatures, ntargets, ntasks)` is a linear model predicting Y given X.
 
-The output of the model is computed as follows: `Ŷ[h, i, j] = ∑_k M[i, j, k] * X[h, i, k]`.
+The output of the model is computed as follows:
 
-The squared-error loss function is:
-`L(M) = SUM_h,i,j E(h,i,j)^2 = SUM_h,i,j (Ŷ[h, i, j] - Y[h, i, j])^2`
+`Ŷ[target, task, obs] = SUM_feature M[feature,target,task] * X[feature,task,obs]`.
 
-The ElasticNet regularization term is:
-`ElastNet[alpha, lambda](M) = lambda * (alpha * L1(M) + (1-alpha) * L2(M)^2)`
-`                           = lambda * (alpha * SUM_i,j,k |M[i, j, k]| + (1-alpha) * SUM_i,j,k M[i, j, k]^2)`
+Notice that this cannot be computed as a tensor contraction (Einstein summation), because a contraction
+reduces the total number of dimensions by 2. So for example we could compute the following contraction,
+(using Einstein notation):
 
-The regularized loss function is:
-`L_r[alpha, lambda](M) = SUM_h,i,j (Ŷ[h, i, j] - Y[h, i, j])^2 + lambda * (alpha * SUM_i,j,k |M[i, j, k]| + (1-alpha) * SUM_i,j,k M[i, j, k]^2)`
+M[feature,target,task] X[feature,task,obs]
 
-We want to compute the gradient L_r with respect to the elements of M.
+but it would result in a tensor having only two dimensions: {target,obs}, which is not what we want.
 
-The gradient is:
-dL/dM[i,j,k] = 2 * SUM_h,i,j (Ŷ[h, i, j] - Y[h, i, j]) + lambda * (alpha * SUM_i,j,k sign(M[i,j,k]) + (1-alpha) * 2 * SUM_i,j,k M[i,j,k])
+We could also perform the following contraction:
+M[feature,target,task] X[feature,task',obs]
+
+but it would result in a tensor having four dimensions: {target,task,task',obs}, which is also not
+what we want.
+
+If we wanted to use tensor notation, we would first have to use a contraction over the shared `feature`
+dimension, with distinct `task` and `task'` dimensions, followed by a selection for `task == task'`
+
+Ŷ[target,task,obs] = (M[feature,target,task] X[feature,task',obs])[target,task,task,obs}
 */
 
 namespace glm {
@@ -76,14 +81,14 @@ namespace glm {
         const auto tid_grid = blockIdx.x * blockDim.x + threadIdx.x;
         const auto wid_grid = tid_grid / WARP_SIZE;
         const auto tid_warp = tid_grid % WARP_SIZE;
-        const auto output_size = nobs * ntasks * ntargets;
+        const auto Y_output_size = nobs * ntasks * ntargets;
         const auto grid_size = gridDim.x * blockDim.x; // Must be a multiple of WARP_SIZE!
-        const auto sheet_size = ntargets * ntasks;
+        const auto Y_sheet_size = ntasks * nobs;
         assert(grid_size % WARP_SIZE == 0);
         const auto nwarps = grid_size / WARP_SIZE;
-        for (auto Y_idx = wid_grid; Y_idx < output_size; Y_idx += nwarps) {
-            const auto obs  = Y_idx / sheet_size;      // h = obs
-            const auto obs_idx = Y_idx % sheet_size;   // idx in the `obs`-th sheet
+        for (auto Y_idx = wid_grid; Y_idx < Y_output_size; Y_idx += nwarps) {
+            const auto obs  = Y_idx / Y_sheet_size;      // h = obs
+            const auto obs_idx = Y_idx % Y_sheet_size;   // idx in the `obs`-th sheet
             const auto task = obs_idx / ntargets;      // i = task
             const auto target = obs_idx % ntargets;  // idx in the `task`-th row
 
