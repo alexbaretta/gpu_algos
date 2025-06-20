@@ -1,3 +1,3 @@
 #!/bin/bash
 
-cmake --build --preset debug -j $(nproc) "$@"
+cmake --build --preset release -j $(nproc) "$@"
