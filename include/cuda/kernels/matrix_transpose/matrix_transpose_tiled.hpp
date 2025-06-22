@@ -90,14 +90,14 @@ __global__ void matrix_transpose_tiled(
         // Transpose the blocks in the grid...
         blockIdx.x * blockDim.x +
 
-        // ...and rotate each block while maintaining column major order
+        // ...and rotate each block while maintaining Row major order
         C_tid_y
     );
     const auto C_col = (
         // Transpose the blocks in the grid...
         blockIdx.y * blockDim.y +
 
-        // ...and rotate each block while maintaining column major order
+        // ...and rotate each block while maintaining Row major order
         C_tid_x
     );
 

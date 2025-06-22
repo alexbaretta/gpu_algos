@@ -137,14 +137,14 @@ class Matrix_transpose_cublas_kernel {
 
         // Matrix transpose using cuBLAS geam
         // For row-major matrices: A is m×n, C is n×m
-        // cuBLAS expects column-major, so we need to account for this
+        // cuBLAS expects row-major, so we need to account for this
 
         if constexpr (std::is_same_v<Number, float>) {
             // For single precision, use cublasSgeam
             // C = alpha * A^T + beta * 0
-            // Since we're working with row-major data but cuBLAS expects column-major:
-            // - A (m×n row-major) appears as A^T (n×m column-major) to cuBLAS
-            // - We want C = A^T, so C (n×m row-major) appears as C^T (m×n column-major) to cuBLAS
+            // Since we're working with row-major data but cuBLAS expects row-major:
+            // - A (m×n row-major) appears as A^T (n×m row-major) to cuBLAS
+            // - We want C = A^T, so C (n×m row-major) appears as C^T (m×n row-major) to cuBLAS
             // - So cuBLAS should compute: C^T = (A^T)^T = A
             cublasSgeam(cublas_handle_,
                        CUBLAS_OP_T, CUBLAS_OP_T,   // transpose the input to undo the implicit transpose

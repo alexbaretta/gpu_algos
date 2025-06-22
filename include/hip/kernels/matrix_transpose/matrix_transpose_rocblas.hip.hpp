@@ -136,14 +136,14 @@ class Matrix_transpose_rocblas_kernel {
 
         // Matrix transpose using rocBLAS geam
         // For row-major matrices: A is m×n, C is n×m
-        // rocBLAS expects column-major, so we need to account for this
+        // rocBLAS expects row-major, so we need to account for this
 
         if constexpr (std::is_same_v<Number, float>) {
             // For single precision, use rocblas_sgeam
             // C = alpha * A^T + beta * 0
-            // Since we're working with row-major data but rocBLAS expects column-major:
-            // - A (m×n row-major) appears as A^T (n×m column-major) to rocBLAS
-            // - We want C = A^T, so C (n×m row-major) appears as C^T (m×n column-major) to rocBLAS
+            // Since we're working with row-major data but rocBLAS expects row-major:
+            // - A (m×n row-major) appears as A^T (n×m row-major) to rocBLAS
+            // - We want C = A^T, so C (n×m row-major) appears as C^T (m×n row-major) to rocBLAS
             // - So rocBLAS should compute: C^T = (A^T)^T = A
             rocblas_sgeam(rocblas_handle_,
                        rocblas_operation_transpose, rocblas_operation_transpose,   // transpose the input to undo the implicit transpose

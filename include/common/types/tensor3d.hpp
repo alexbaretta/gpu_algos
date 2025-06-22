@@ -12,16 +12,16 @@
 #include "common/random.hpp"
 
 /*
-A simple tensor representation as 3D array in column-major format. The dimension,
+A simple tensor representation as 3D array in row-major format. The dimension,
 from the innermost to the outermost, are the following:
 * columns
 * rows
 * sheets
 
-Note on Column-major Eigen Tensors: the elements of the first (leftmost) dimension or
+Note on Row-major Eigen Tensors: the elements of the first (leftmost) dimension or
 index are contiguous in memory.
 
-Each sheet is an ordinary column-major matrix. Each row is an ordinary vector.
+Each sheet is an ordinary row-major matrix. Each row is an ordinary vector.
 */
 
 template <typename T>
@@ -43,14 +43,16 @@ public:
     using Tensor_const = Eigen::Tensor<const Number, 3>;
 
     using Matrix = Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic>;
-    using Matrix_const = Eigen::Matrix<const Number, Eigen::Dynamic, Eigen::Dynamic>;
-    using Sheet = Eigen::Map<Matrix>;
-    using Sheet_const = Eigen::Map<Matrix_const>;
+    // using Matrix_const = Eigen::Matrix<const Number, Eigen::Dynamic, Eigen::Dynamic>;
     using Vector = Eigen::Vector<Number, Eigen::Dynamic>;
-    using Vector_const = Eigen::Vector<const Number, Eigen::Dynamic>;
-    using Row = Eigen::Map<Vector>;
-    using Row_const = Eigen::Map<Vector_const>;
+    // using Vector_const = Eigen::Vector<const Number, Eigen::Dynamic>;
 
+    using Sheet = Eigen::Map<Matrix>;
+    using Sheet_const = Eigen::Map<const Matrix>;
+    using Row = Eigen::Map<Vector>;
+    using Row_const = Eigen::Map<const Vector>;
+    using Stride = Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>;
+    using Chip = Eigen::Map<Matrix, Eigen::Unaligned, Stride>;
 
     const long ncols_;
     const long nrows_;
@@ -134,6 +136,12 @@ public:
         const auto row_size = ncols_;
         Number* const start = &const_cast<Tensor3D*>(this)->vector_.at(sheet * sheet_size + row * row_size);
         return Row{start, ncols_};
+    }
+
+    Chip chip_at_dim1(const int row) {
+        const long outer_stride = ;
+        const long inner_stride = 1;
+        const Stride stride{outer_stride, inner_stride};
     }
 
     void randomize(const int seed) {

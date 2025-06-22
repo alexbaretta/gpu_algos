@@ -4,6 +4,7 @@
 // source path: include/cuda/kernels/glm/glm_gradient_naive.hpp
 
 #pragma once
+#include <array>
 #include <cassert>
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
@@ -345,17 +346,39 @@ dL/dM[feature',target',task'] =
 */
         Tensor3D<Number> grad_M{spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_};
 
-        #pragma omp parallel for
-        for (int dst_feature = 0; dst_feature < spec_.nfeatures_; ++dst_feature) {
-            for (int dst_target = 0; dst_target < spec_.ntargets_; ++dst_target) {
-                for (int dst_task = 0; dst_task < spec_.ntasks_; ++dst_task) {
-                    Number sum_obs{0};
-                    for (int obs = 0; obs < spec_.nobs_; ++obs) {
-                        sum_obs += M.row_at(dst_target, dst_task).value.dot(X.row_at(dst_task, obs).value);
-                    }
-                    grad_M.at(dst_feature, dst_target, dst_task) = Number(2) * sum_obs;
-                }
-            }
+        // The following algorithm is clearly wrong as it does not reference Y
+        // #pragma omp parallel for
+        // for (int dst_feature = 0; dst_feature < spec_.nfeatures_; ++dst_feature) {
+        //     for (int dst_target = 0; dst_target < spec_.ntargets_; ++dst_target) {
+        //         for (int dst_task = 0; dst_task < spec_.ntasks_; ++dst_task) {
+        //             Number sum_obs{0};
+        //             for (int obs = 0; obs < spec_.nobs_; ++obs) {
+        //                 sum_obs += M.row_at(dst_target, dst_task).value.dot(X.row_at(dst_task, obs).value);
+        //             }
+        //             grad_M.at(dst_feature, dst_target, dst_task) = Number(2) * sum_obs;
+        //         }
+        //     }
+        // }
+        auto eigen_X = X.as_eigen_tensor();
+        auto eigen_Y = Y.as_eigen_tensor();
+        auto eigen_M = M.as_eigen_tensor();
+        auto eigen_grad_M = grad_M.as_eigen_tensor();
+
+        const long X_task_chip_dim = 1; // (nfeatures, ntasks, nobs)
+        const long Y_task_chip_dim = 1; // (ntargets, ntasks, nobs)
+        const long M_task_chip_dim = 2; // (nfeatures, ntargets, ntasks)
+        for (int task = 0; task < spec_.ntasks_; ++task) {
+            const auto X_task_chip = eigen_X.chip(task, X_task_chip_dim)
+            const auto Y_task_chip = eigen_Y.chip(task, Y_task_chip_dim)
+            const auto M_task_chip = eigen_M.chip(task, M_task_chip_dim)
+            auto grad_M_task_slice = eigen_grad_M.chip(task, M_task_chip_dim)
+            const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> X_task{X_task_slice.data(), X_task_slice.dimension(0), X_task_slice.dimension(1)};
+            const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> Y_task{Y_task_slice.data(), Y_task_slice.dimension(0), Y_task_slice.dimension(1)};
+            const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> M_task{M_task_slice.data(), M_task_slice.dimension(0), M_task_slice.dimension(1)};
+
+            // for each slice: grad_M = \(2X^{T}(X*M-Y)\)
+            const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> computed_grad_M_slice = X_task.transpose() * (X_task*M_task - Y_task);
+            grad_M_task_slice = computed_grad_M_slice;
         }
         return grad_M;
     }
