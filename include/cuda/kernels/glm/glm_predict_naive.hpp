@@ -285,7 +285,7 @@ class Glm_predict_naive_kernel {
         for (int obs = 0; obs < spec_.nobs_; ++obs) {
             for (int task = 0; task < spec_.ntasks_; ++task) {
                 for (int target = 0; target < spec_.ntargets_; ++target) {
-                    Yhat.at(target, task, obs) = X.row_at(task, obs).value.dot(M.row_at(target, task).value);
+                    Yhat.at(target, task, obs) = X.row_at(task, obs).dot(M.row_at(target, task));
                 }
             }
         }

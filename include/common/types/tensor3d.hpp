@@ -12,7 +12,8 @@
 #include "common/random.hpp"
 
 /*
-A simple tensor representation as 3D array in row-major format. The dimension,
+A simple tensor representation as 3D array in row-major format: in other words,
+each row is stored in a contiguous array in memory. Therefore, the dimensions,
 from the innermost to the outermost, are the following:
 * columns
 * rows
@@ -23,17 +24,6 @@ index are contiguous in memory.
 
 Each sheet is an ordinary row-major matrix. Each row is an ordinary vector.
 */
-
-template <typename T>
-struct Const {
-    const T value;
-
-    template <typename... Args>
-    Const(Args&&... args) : value(args...) {}
-
-    template <typename... Args>
-    Const(const Args&... args) : value(args...) {}
-};
 
 template <typename Number>
 class Tensor3D {
@@ -53,6 +43,7 @@ public:
     using Row_const = Eigen::Map<const Vector>;
     using Stride = Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>;
     using Chip = Eigen::Map<Matrix, Eigen::Unaligned, Stride>;
+    using Chip_const = Eigen::Map<const Matrix, Eigen::Unaligned, Stride>;
 
     const long ncols_;
     const long nrows_;
@@ -62,6 +53,7 @@ public:
     long cols() const { return ncols_; }
     long rows() const { return nrows_; }
     long sheets() const { return nsheets_; }
+    std::array<long, 3> dims() const {return {ncols_, nrows_, nsheets_}; }
     Number* data() { return vector_.data(); }
     const Number* data() const { return vector_.data(); }
 
@@ -96,6 +88,9 @@ public:
     long tensor_size() const { return nsheets_ * sheet_size(); }
 
     std::size_t iat(const int col, const int row, const int sheet) const {
+        if (col > ncols_) throw std::invalid_argument("col out of bounds: col=" + std::to_string(col) + " ncols_=" + std::to_string(ncols_));
+        if (row > nrows_) throw std::invalid_argument("row out of bounds: row=" + std::to_string(row) + " nrows_=" + std::to_string(nrows_));
+        if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
         return sheet * sheet_size() + row * row_size() + col;
     }
     Number& operator()(const int col, const int row, const int sheet) {
@@ -112,36 +107,54 @@ public:
     }
 
     Sheet sheet_at(const int sheet) {
+        if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
         const auto sheet_size = ncols_ * nrows_;
         Number* const start = &vector_.at(sheet * sheet_size);
         return {start, nrows_, ncols_}; // This is the constructor of Eigen::Matrix: must be nrows, ncols
     }
 
-    Const<Sheet> sheet_at(const int sheet) const {
+    Sheet_const sheet_at(const int sheet) const {
+        if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
         const auto sheet_size = ncols_ * nrows_;
-        Number* const start = &const_cast<Tensor3D*>(this)->vector_.at(sheet * sheet_size);
-        return Sheet{start, nrows_, ncols_}; // This is the constructor of Eigen::Matrix: must be nrows, ncols
+        const Number* const start = &vector_.at(sheet * sheet_size);
+        return {start, nrows_, ncols_}; // This is the constructor of Eigen::Matrix: must be nrows, ncols
     }
 
     Row row_at(const int row, const int sheet) {
+        if (row > nrows_) throw std::invalid_argument("row out of bounds: row=" + std::to_string(row) + " nrows_=" + std::to_string(nrows_));
+        if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
         const auto sheet_size = ncols_ * nrows_;
         const auto row_size = ncols_;
         Number* const start = &vector_.at(sheet * sheet_size + row * row_size);
         return {start, ncols_};
     }
 
-    Const<Row> row_at(const int row, const int sheet) const {
-        assert(sheet < nsheets_);
+    Row_const row_at(const int row, const int sheet) const {
+        if (row > nrows_) throw std::invalid_argument("row out of bounds: row=" + std::to_string(row) + " nrows_=" + std::to_string(nrows_));
+        if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
         const auto sheet_size = ncols_ * nrows_;
         const auto row_size = ncols_;
-        Number* const start = &const_cast<Tensor3D*>(this)->vector_.at(sheet * sheet_size + row * row_size);
-        return Row{start, ncols_};
+        const Number* const start = &vector_.at(sheet * sheet_size + row * row_size);
+        return {start, ncols_};
     }
 
     Chip chip_at_dim1(const int row) {
-        const long outer_stride = ;
+        // We are selecting a row across all sheets, so the outer stride is sheet_size
+        const long outer_stride = sheet_size();
         const long inner_stride = 1;
         const Stride stride{outer_stride, inner_stride};
+
+        Number* const map_data = &at(/* col= */0, row, /* sheet= */ 0);
+        return {map_data, nsheets_, ncols_, stride};
+    }
+    Chip_const chip_at_dim1(const int row) const {
+        // We are selecting a row across all sheets, so the outer stride is sheet_size
+        const long outer_stride = sheet_size();
+        const long inner_stride = 1;
+        const Stride stride{outer_stride, inner_stride};
+
+        const Number* const map_data = &at(/* col= */0, row, /* sheet= */ 0);
+        return {map_data, nsheets_, ncols_, stride};
     }
 
     void randomize(const int seed) {
