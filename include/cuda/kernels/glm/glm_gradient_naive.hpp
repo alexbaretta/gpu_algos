@@ -213,7 +213,8 @@ struct Glm_gradient_naive_spec {
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
-    const size_t dynamic_shared_mem_words_ = 0;
+    const size_t dynamic_shared_mem_words_ = 1;
+    const bool optimize_launch_;
 
     constexpr static long DEFAULT_NOBS = 1000;
     constexpr static long DEFAULT_NTASKS = 10;
@@ -228,6 +229,7 @@ struct Glm_gradient_naive_spec {
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
             ("block_dim,n", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("optimize-launch", "Use occupancy API to determine optimal launch configuration")
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"))
 
             // Commenting out --cpu-algo as the Eigen matrix implementation is broken. More debugging necessary before it can be enabled.
@@ -257,6 +259,7 @@ struct Glm_gradient_naive_spec {
             options_parsed["ntasks"].as<long>(),
             options_parsed["nobs"].as<long>(),
             options_parsed["block_dim"].as<long>(),
+            options_parsed.count("optimize-launch") > 0
         };
     }
 
@@ -267,7 +270,8 @@ struct Glm_gradient_naive_spec {
         const long ntargets,
         const long ntasks,
         const long nobs,
-        const long block_dim
+        const long block_dim,
+        const bool optimize_launch
     ) : type_(type),
         cpu_algo_(cpu_algo),
         nfeatures_(nfeatures),
@@ -297,7 +301,8 @@ struct Glm_gradient_naive_spec {
         n_sheets_temp_(0),
 
         block_dim_(block_dim),
-        grid_dim_((niterations_ + block_dim - 1)/ block_dim * 32)
+        grid_dim_((niterations_ + block_dim - 1)/ block_dim * 32),
+        optimize_launch_(optimize_launch)
     {
         assert(block_dim_.x > 0);
         assert(block_dim_.y > 0);
@@ -331,13 +336,47 @@ class Glm_gradient_naive_kernel {
         Number* const gpu_data_temp,     // temporary storage (unused)
         cudaStream_t stream
     ) {
-        std::cout << "[INFO] kernel launch: glm::glm_gradient_naive<<<" << spec_.grid_dim_.x << ", " << spec_.block_dim_.x << ", " << spec_.dynamic_shared_mem_words_ * sizeof(Number)
+        const int shm_size = spec_.dynamic_shared_mem_words_ * sizeof(Number);
+        dim3 block_dim;
+        dim3 grid_dim;
+        if (spec_.optimize_launch_) {
+            const int shm_size = spec_.dynamic_shared_mem_words_ * sizeof(Number);
+            int max_block_size = 0;
+            int opt_grid_size = 0;
+            int max_active_blocks_per_multiprocessor = 0;
+            cuda_check_error(cudaOccupancyMaxPotentialBlockSize(
+                &max_block_size,
+                &opt_grid_size,
+                glm::glm_gradient_naive<Number>,
+                shm_size,
+                0
+            ), "cudaOccupancyMaxPotentialBlockSize");
+            cuda_check_error(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+                &max_active_blocks_per_multiprocessor,
+                glm::glm_gradient_naive<Number>,
+                max_block_size,
+                shm_size
+            ), "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
+            std::cout << "[INFO] max_active_blocks_per_multiprocessor: " << max_active_blocks_per_multiprocessor
+                << " at block_size:" << max_block_size << std::endl;
+            std::cout << "[INFO] max_block_size: " << max_block_size << std::endl;
+            std::cout << "[INFO] opt_grid_size: " << opt_grid_size << std::endl;
+            block_dim = dim3(max_block_size);
+            grid_dim = dim3(opt_grid_size);
+        } else {
+            block_dim = spec_.block_dim_;
+            grid_dim = spec_.grid_dim_;
+        }
+
+        std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
+        std::cout << "[INFO] block_dim_: " << block_dim.x << ", " << block_dim.y << ", " << block_dim.z << std::endl;
+        std::cout << "[INFO] kernel launch: glm::glm_gradient_naive<<<" << grid_dim.x << ", " << block_dim.x << ", " << spec_.dynamic_shared_mem_words_ * sizeof(Number)
             << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
         std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
         glm::glm_gradient_naive<<<
-            spec_.grid_dim_,
-            spec_.block_dim_,
-            spec_.dynamic_shared_mem_words_ * sizeof(Number),
+            grid_dim,
+            block_dim,
+            shm_size,
             stream
         >>>(
             gpu_data_X,
