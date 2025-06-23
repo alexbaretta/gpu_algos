@@ -179,6 +179,7 @@ namespace glm {
 
 struct Glm_gradient_naive_spec {
     const std::string type_;
+    const std::string cpu_algo_;
 
     const long nfeatures_;
     const long ntargets_;
@@ -227,8 +228,12 @@ struct Glm_gradient_naive_spec {
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
             ("block_dim,n", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
-            ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
-    }
+            ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"))
+
+            // Commenting out --cpu-algo as the Eigen matrix implementation is broken. More debugging necessary before it can be enabled.
+            ("cpu-algo", "CPU algo variant to benchmark against (nested-loop, matrix)", cxxopts::value<std::string>()->default_value("nested-loop"))
+            ;
+        }
 
     inline static Glm_gradient_naive_spec make(
         const cxxopts::ParseResult& options_parsed
@@ -239,8 +244,14 @@ struct Glm_gradient_naive_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
+        const auto& cpu_algo = options_parsed["cpu-algo"].as<std::string>();
+        if (cpu_algo != "nested-loop" && cpu_algo != "matrix") {
+            std::cerr << "[ERROR] --nested-loop must be one of: nested-loop, matrix" << std::endl;
+            throw cxxopts::exceptions::exception("Invalid --nested-loop: " + cpu_algo);
+        }
         return {
             type,
+            cpu_algo,
             options_parsed["nfeatures"].as<long>(),
             options_parsed["ntargets"].as<long>(),
             options_parsed["ntasks"].as<long>(),
@@ -251,12 +262,14 @@ struct Glm_gradient_naive_spec {
 
     inline Glm_gradient_naive_spec(
         const std::string& type,
+        const std::string& cpu_algo,
         const long nfeatures,
         const long ntargets,
         const long ntasks,
         const long nobs,
         const long block_dim
     ) : type_(type),
+        cpu_algo_(cpu_algo),
         nfeatures_(nfeatures),
         ntargets_(ntargets),
         ntasks_(ntasks),
@@ -267,13 +280,13 @@ struct Glm_gradient_naive_spec {
         n_rows_A_(ntasks),
         n_sheets_A_(nobs),
 
-        n_cols_B_(nfeatures),
-        n_rows_B_(ntargets),
-        n_sheets_B_(ntasks),
+        n_cols_B_(ntargets),
+        n_rows_B_(ntasks),
+        n_sheets_B_(nobs),
 
-        n_cols_C_(ntargets),
-        n_rows_C_(ntasks),
-        n_sheets_C_(nobs),
+        n_cols_C_(nfeatures),
+        n_rows_C_(ntargets),
+        n_sheets_C_(ntasks),
 
         n_cols_D_(nfeatures),
         n_rows_D_(ntargets),
@@ -342,43 +355,39 @@ class Glm_gradient_naive_kernel {
     ) {
 /*
 dL/dM[feature',target',task'] =
-    = 2 * SUM_obs ( (SUM_feature M[feature,target',task'] * X[feature,task',obs]) - Y[target',task',obs]) * X[feature',task',obs]
+    = 2 * SUM_obs (
+                     (SUM_feature M[feature,target',task'] * X[feature,task',obs])
+                    - Y[target',task',obs]
+                ) * X[feature',task',obs]
 */
         Tensor3D<Number> grad_M{spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_};
 
-        // The following algorithm is clearly wrong as it does not reference Y
-        // #pragma omp parallel for
-        // for (int dst_feature = 0; dst_feature < spec_.nfeatures_; ++dst_feature) {
-        //     for (int dst_target = 0; dst_target < spec_.ntargets_; ++dst_target) {
-        //         for (int dst_task = 0; dst_task < spec_.ntasks_; ++dst_task) {
-        //             Number sum_obs{0};
-        //             for (int obs = 0; obs < spec_.nobs_; ++obs) {
-        //                 sum_obs += M.row_at(dst_target, dst_task).value.dot(X.row_at(dst_task, obs).value);
-        //             }
-        //             grad_M.at(dst_feature, dst_target, dst_task) = Number(2) * sum_obs;
-        //         }
-        //     }
-        // }
-        auto eigen_X = X.as_eigen_tensor();
-        auto eigen_Y = Y.as_eigen_tensor();
-        auto eigen_M = M.as_eigen_tensor();
-        auto eigen_grad_M = grad_M.as_eigen_tensor();
-
-        const long X_task_chip_dim = 1; // (nfeatures, ntasks, nobs)
-        const long Y_task_chip_dim = 1; // (ntargets, ntasks, nobs)
-        const long M_task_chip_dim = 2; // (nfeatures, ntargets, ntasks)
-        for (int task = 0; task < spec_.ntasks_; ++task) {
-            const auto X_task_chip = eigen_X.chip(task, X_task_chip_dim)
-            const auto Y_task_chip = eigen_Y.chip(task, Y_task_chip_dim)
-            const auto M_task_chip = eigen_M.chip(task, M_task_chip_dim)
-            auto grad_M_task_slice = eigen_grad_M.chip(task, M_task_chip_dim)
-            const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> X_task{X_task_slice.data(), X_task_slice.dimension(0), X_task_slice.dimension(1)};
-            const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> Y_task{Y_task_slice.data(), Y_task_slice.dimension(0), Y_task_slice.dimension(1)};
-            const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> M_task{M_task_slice.data(), M_task_slice.dimension(0), M_task_slice.dimension(1)};
-
-            // for each slice: grad_M = \(2X^{T}(X*M-Y)\)
-            const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> computed_grad_M_slice = X_task.transpose() * (X_task*M_task - Y_task);
-            grad_M_task_slice = computed_grad_M_slice;
+        if (spec_.cpu_algo_ == "nested-loop") {
+            #pragma omp parallel for
+            for (int dst_feature = 0; dst_feature < spec_.nfeatures_; ++dst_feature) {
+                for (int dst_target = 0; dst_target < spec_.ntargets_; ++dst_target) {
+                    for (int dst_task = 0; dst_task < spec_.ntasks_; ++dst_task) {
+                        Number sum_obs{0};
+                        for (int obs = 0; obs < spec_.nobs_; ++obs) {
+                            const auto sum_feature = M.row_at(dst_target, dst_task).dot(X.row_at(dst_task, obs));
+                            sum_obs += (sum_feature - Y.at(dst_target, dst_task, obs)) * X.at(dst_feature, dst_task, obs);
+                        }
+                        grad_M.at(dst_feature, dst_target, dst_task) = Number(2) * sum_obs;
+                    }
+                }
+            }
+        } else {
+            // X: (nfeatures, ntasks, nobs)
+            // Y: (ntargets, ntasks, nobs)
+            // M: (nfeatures, ntargets, ntasks)
+            for (int task = 0; task < spec_.ntasks_; ++task) {
+                auto X_task_matrix = X.chip_at_dim1(task);
+                auto Y_task_matrix = Y.chip_at_dim1(task);
+                auto M_task_matrix = M.sheet_at(task);
+                auto grad_M_task_matrix = grad_M.sheet_at(task);
+                // for each slice: grad_M = \(2X^{T}(X*M-Y)\)
+                grad_M_task_matrix.noalias() = X_task_matrix.transpose() * (X_task_matrix * M_task_matrix - Y_task_matrix);
+            }
         }
         return grad_M;
     }
