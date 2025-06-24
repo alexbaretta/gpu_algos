@@ -113,7 +113,7 @@ namespace glm {
 
         // We use one block per location in grad_M to sum over obs and over feature
         const auto& bid_grid = blockIdx.x; // We use a 1D grid
-        // const auto& tid_block = threadIdx.x; // We use a 1D block
+        const auto& tid_block = threadIdx.x; // We use a 1D block
         const auto tid_warp = threadIdx.x % WARP_SIZE;
         const auto wid_block = threadIdx.x / WARP_SIZE;
         const auto n_warps_per_block = (blockDim.x + WARP_SIZE - 1) / WARP_SIZE;
@@ -123,6 +123,7 @@ namespace glm {
         const auto M_output_size = M_sheet_size * ntasks;
 
         const auto& nfeatures_per_block = blockDim.x;
+        assert(nfeatures_per_block > 0 && nfeatures_per_block % WARP_SIZE == 0);
 
         for (auto grad_M_idx = bid_grid; grad_M_idx < M_output_size; grad_M_idx += gridDim.x) {
             const auto dst_task = grad_M_idx / M_sheet_size;
@@ -134,7 +135,7 @@ namespace glm {
             for (long obs = 0; obs < nobs; ++obs ) {
                 // compute SUM_feature M[feature,target',task'] * X[feature,task',obs]
                 Number sum_feature{0};
-                for (long feature = threadIdx.x; feature < nfeatures; feature += nfeatures_per_block) {
+                for (long feature = tid_block; feature < nfeatures; feature += nfeatures_per_block) {
                     // compute M[feature,target',task'] * X[feature,task',obs]
                     sum_feature += (
                         // compute M[feature,target',task']
@@ -146,7 +147,7 @@ namespace glm {
                 }
                 // Now we need to reduce/sum over the threads of the block to get the aggregate sum_feature
                 // First a warp shuffle reduction down to lane 0
-                for (int reduced_lanes = 1; reduced_lanes < warpSize; reduced_lanes <<= 1) {
+                for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
                     sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
                 }
                 // Next we perform a block-level reduction via shm
@@ -157,7 +158,7 @@ namespace glm {
                 // Finally, we sum over shared memory using a single warp
                 if (wid_block == 0) {
                     sum_feature = (tid_warp < n_warps_per_block) ? shm[tid_warp] : Number(0);
-                    for (int reduced_lanes = 1; reduced_lanes < warpSize; reduced_lanes <<= 1) {
+                    for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
                         sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
                     }
 
@@ -172,7 +173,9 @@ namespace glm {
                 }
             }
 
-            grad_M[dst_feature + dst_target * nfeatures + dst_task * M_sheet_size] = Number(2) * sum_obs;
+            if (wid_block == 0 && tid_warp == 0) {
+                grad_M[dst_feature + dst_target * nfeatures + dst_task * M_sheet_size] = Number(2) * sum_obs;
+            }
         }
     }
 } // namespace glm
@@ -213,7 +216,7 @@ struct Glm_gradient_naive_spec {
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
-    const size_t dynamic_shared_mem_words_ = 1;
+    const size_t dynamic_shared_mem_words_ = 0;
     const bool optimize_launch_;
 
     constexpr static long DEFAULT_NOBS = 1000;
@@ -228,7 +231,7 @@ struct Glm_gradient_naive_spec {
             ("ntargets,Y", "Number of targets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTARGETS)))
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
-            ("block_dim,n", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim,n", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("optimize-launch", "Use occupancy API to determine optimal launch configuration")
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"))
 
@@ -258,7 +261,7 @@ struct Glm_gradient_naive_spec {
             options_parsed["ntargets"].as<long>(),
             options_parsed["ntasks"].as<long>(),
             options_parsed["nobs"].as<long>(),
-            options_parsed["block_dim"].as<long>(),
+            options_parsed["block-dim"].as<long>(),
             options_parsed.count("optimize-launch") > 0
         };
     }
@@ -280,18 +283,22 @@ struct Glm_gradient_naive_spec {
         nobs_(nobs),
         niterations_(nobs * ntasks * ntargets),
 
+        // X
         n_cols_A_(nfeatures),
         n_rows_A_(ntasks),
         n_sheets_A_(nobs),
 
+        // Y
         n_cols_B_(ntargets),
         n_rows_B_(ntasks),
         n_sheets_B_(nobs),
 
+        // M
         n_cols_C_(nfeatures),
         n_rows_C_(ntargets),
         n_sheets_C_(ntasks),
 
+        // grad_M
         n_cols_D_(nfeatures),
         n_rows_D_(ntargets),
         n_sheets_D_(ntasks),
@@ -336,11 +343,12 @@ class Glm_gradient_naive_kernel {
         Number* const gpu_data_temp,     // temporary storage (unused)
         cudaStream_t stream
     ) {
-        const int shm_size = spec_.dynamic_shared_mem_words_ * sizeof(Number);
         dim3 block_dim;
         dim3 grid_dim;
         if (spec_.optimize_launch_) {
-            const int shm_size = spec_.dynamic_shared_mem_words_ * sizeof(Number);
+            const int tentative_dynamic_shared_mem_words = compute_n_warps_per_block(spec_.block_dim_);
+            const int tentative_shm_size = tentative_dynamic_shared_mem_words * sizeof(Number);
+
             int max_block_size = 0;
             int opt_grid_size = 0;
             int max_active_blocks_per_multiprocessor = 0;
@@ -348,14 +356,14 @@ class Glm_gradient_naive_kernel {
                 &max_block_size,
                 &opt_grid_size,
                 glm::glm_gradient_naive<Number>,
-                shm_size,
+                tentative_shm_size, // We don't know shm_size yet
                 0
             ), "cudaOccupancyMaxPotentialBlockSize");
             cuda_check_error(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
                 &max_active_blocks_per_multiprocessor,
                 glm::glm_gradient_naive<Number>,
                 max_block_size,
-                shm_size
+                tentative_shm_size  // We don't know shm_size yet
             ), "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
             std::cout << "[INFO] max_active_blocks_per_multiprocessor: " << max_active_blocks_per_multiprocessor
                 << " at block_size:" << max_block_size << std::endl;
@@ -367,10 +375,12 @@ class Glm_gradient_naive_kernel {
             block_dim = spec_.block_dim_;
             grid_dim = spec_.grid_dim_;
         }
+        const int dynamic_shared_mem_words = compute_n_warps_per_block(block_dim);
+        const int shm_size = dynamic_shared_mem_words * sizeof(Number);
 
         std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
         std::cout << "[INFO] block_dim_: " << block_dim.x << ", " << block_dim.y << ", " << block_dim.z << std::endl;
-        std::cout << "[INFO] kernel launch: glm::glm_gradient_naive<<<" << grid_dim.x << ", " << block_dim.x << ", " << spec_.dynamic_shared_mem_words_ * sizeof(Number)
+        std::cout << "[INFO] kernel launch: glm::glm_gradient_naive<<<" << grid_dim.x << ", " << block_dim.x << ", " << shm_size
             << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
         std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
         glm::glm_gradient_naive<<<
