@@ -205,3 +205,172 @@ struct cuda_prod_op {
 
 cudaDeviceProp get_device_prop(const int device_id);
 cudaDeviceProp get_default_device_prop();
+
+template <typename Number_, int size>
+requires (size <= 4)
+struct CUDA_vector {
+    // You must use a specialization
+    std::enable_if_t<false, Number_> must_use_a_specialization;
+};
+template <typename Number_, int size>
+using CUDA_vector_t = typename CUDA_vector<Number_, size>::vector_type;
+
+template <>
+struct CUDA_vector<std::int8_t, 2> {
+    using scalar_type = std::int8_t;
+    using vector_type = char2;
+};
+template <>
+struct CUDA_vector<std::int8_t, 3> {
+    using scalar_type = std::int8_t;
+    using vector_type = char3;
+};
+template <>
+struct CUDA_vector<std::int8_t, 4> {
+    using scalar_type = std::int8_t;
+    using vector_type = char4;
+};
+
+template <>
+struct CUDA_vector<std::uint8_t, 2> {
+    using scalar_type = std::uint8_t;
+    using vector_type = uchar2;
+};
+template <>
+struct CUDA_vector<std::uint8_t, 3> {
+    using scalar_type = std::uint8_t;
+    using vector_type = uchar3;
+};
+template <>
+struct CUDA_vector<std::uint8_t, 4> {
+    using scalar_type = std::uint8_t;
+    using vector_type = uchar4;
+};
+template <>
+struct CUDA_vector<std::int16_t, 2> {
+    using scalar_type = std::int16_t;
+    using vector_type = short2;
+};
+template <>
+struct CUDA_vector<std::int16_t, 3> {
+    using scalar_type = std::int16_t;
+    using vector_type = short3;
+};
+template <>
+struct CUDA_vector<std::int16_t, 4> {
+    using scalar_type = std::int16_t;
+    using vector_type = short4;
+};
+
+template <>
+struct CUDA_vector<std::uint16_t, 2> {
+    using scalar_type = std::uint16_t;
+    using vector_type = ushort2;
+};
+template <>
+struct CUDA_vector<std::uint16_t, 3> {
+    using scalar_type = std::uint16_t;
+    using vector_type = ushort3;
+};
+template <>
+struct CUDA_vector<std::uint16_t, 4> {
+    using scalar_type = std::uint16_t;
+    using vector_type = ushort4;
+};
+
+template <>
+struct CUDA_vector<std::int32_t, 2> {
+    using scalar_type = std::int32_t;
+    using vector_type = int2;
+};
+template <>
+struct CUDA_vector<std::int32_t, 3> {
+    using scalar_type = std::int32_t;
+    using vector_type = int3;
+};
+template <>
+struct CUDA_vector<std::int32_t, 4> {
+    using scalar_type = std::int32_t;
+    using vector_type = int4;
+};
+
+template <>
+struct CUDA_vector<std::uint32_t, 2> {
+    using scalar_type = uint32_t;
+    using vector_type = uint2;
+};
+template <>
+struct CUDA_vector<std::uint32_t, 3> {
+    using scalar_type = uint32_t;
+    using vector_type = uint3;
+};
+template <>
+struct CUDA_vector<std::uint32_t, 4> {
+    using scalar_type = uint32_t;
+    using vector_type = uint4;
+};
+
+template <>
+struct CUDA_vector<std::int64_t, 2> {
+    using scalar_type = std::int64_t;
+    using vector_type = long2;
+};
+template <>
+struct CUDA_vector<std::int64_t, 3> {
+    using scalar_type = std::int64_t;
+    using vector_type = long3;
+};
+template <>
+struct CUDA_vector<std::int64_t, 4> {
+    using scalar_type = std::int64_t;
+    using vector_type = long4;
+};
+
+template <>
+struct CUDA_vector<std::uint64_t, 2> {
+    using scalar_type = std::uint64_t;
+    using vector_type = ulong2;
+};
+template <>
+struct CUDA_vector<std::uint64_t, 3> {
+    using scalar_type = std::uint64_t;
+    using vector_type = ulong3;
+};
+template <>
+struct CUDA_vector<std::uint64_t, 4> {
+    using scalar_type = std::uint64_t;
+    using vector_type = ulong4;
+};
+
+
+template <>
+struct CUDA_vector<float, 2> {
+    using scalar_type = float;
+    using vector_type = float2;
+};
+template <>
+struct CUDA_vector<float, 3> {
+    using scalar_type = float;
+    using vector_type = float3;
+};
+template <>
+struct CUDA_vector<float, 4> {
+    using scalar_type = float;
+    using vector_type = float4;
+};
+
+template <>
+struct CUDA_vector<double, 2> {
+    using scalar_type = double;
+    using vector_type = double2;
+};
+template <>
+struct CUDA_vector<double, 3> {
+    using scalar_type = double;
+    using vector_type = double3;
+};
+template <>
+struct CUDA_vector<double, 4> {
+    using scalar_type = double;
+    using vector_type = double4;
+};
