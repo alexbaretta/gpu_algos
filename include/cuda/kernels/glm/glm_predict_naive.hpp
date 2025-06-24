@@ -268,11 +268,6 @@ namespace glm {
         const long nobs,
         const transform_ptr<Number> transform
     ) {
-        assert(blockDim.y == 1);
-        assert(blockDim.z == 1);
-        assert(gridDim.y == 1);
-        assert(gridDim.z == 1);
-
         // We use one thread per location in Yhat
         const auto& tid_grid = threadIdx.x + blockIdx.x * blockDim.x; // We use a 1D block
         const auto X_sheet_size = nfeatures * ntasks;
@@ -299,6 +294,42 @@ namespace glm {
                 );
             }
             Yhat[Yhat_idx] = sum_feature;
+        }
+    }
+
+    template <CUDA_scalar Number>
+    __global__ void glm_predict_fixed_grid(
+        const Number* const X,     // (nfeatures, ntasks, nobs)
+        const Number* const M,     // (nfeatures, ntargets, ntasks)
+        Number* const Yhat,        // (ntargets, ntasks, nobs)
+        const long nfeatures,
+        const long ntargets,
+        const long ntasks,
+        const long nobs,
+        const transform_ptr<Number> transform
+    ) {
+        // We use one thread per location in Yhat
+        const auto dst_target = blockIdx.x * blockDim.x + threadIdx.x;
+        const auto dst_task = blockIdx.y * blockDim.y + threadIdx.y;
+        const auto dst_obs = blockIdx.z * blockDim.z + threadIdx.z;
+        if (dst_target < ntargets && dst_task < ntasks && dst_obs < nobs) {
+            const auto X_sheet_size = nfeatures * ntasks;
+            const auto Y_sheet_size = ntargets * ntasks;
+            const auto M_sheet_size = nfeatures * ntargets;
+
+            // compute SUM_feature M[feature,target',task'] * X[feature,task',obs]
+            Number sum_feature{0};
+            for (long feature = 0; feature < nfeatures; feature += 1) {
+                // compute M[feature,target',task'] * X[feature,task',obs]
+                sum_feature += (
+                    // compute M[feature,target',task']
+                    M[feature + dst_target * nfeatures + dst_task * M_sheet_size]
+                ) * (
+                    // compute X[feature,task',obs]
+                    X[feature + dst_task * nfeatures + dst_obs * X_sheet_size]
+                );
+            }
+            Yhat[dst_target + dst_task * ntargets + dst_obs * Y_sheet_size] = sum_feature;
         }
     }
 } // namespace glm
@@ -341,7 +372,7 @@ struct Glm_predict_naive_spec {
     constexpr static long DEFAULT_NTASKS = 10;
     constexpr static long DEFAULT_NTARGETS = 25;
     constexpr static long DEFAULT_NFEATURES = 25;
-    constexpr static long DEFAULT_BLOCK_DIM = 256;
+    constexpr static long DEFAULT_BLOCK_DIM = 32;
     constexpr static std::string DEFAULT_GPU_ALGO = "naive";
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
@@ -350,24 +381,31 @@ struct Glm_predict_naive_spec {
             ("ntargets,Y", "Number of targets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTARGETS)))
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
-            ("block_dim,n", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
-            ("gpu-algo", "GPU algo to use (naive, warp, group, block)", cxxopts::value<std::string>()->default_value(DEFAULT_GPU_ALGO))
+            ("block-dim,n", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("gpu-algo", "GPU algo to use (fixed-grid, naive, vector, warp, group, block)", cxxopts::value<std::string>()->default_value(DEFAULT_GPU_ALGO))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
     }
 
     inline static Glm_predict_naive_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
+        // Validate gpu_algo
+        const auto gpu_algo = options_parsed["gpu-algo"].as<std::string>();
+        if (gpu_algo != "fixed-grid" && gpu_algo != "naive" && gpu_algo != "group" && gpu_algo != "warp" && gpu_algo != "block") {
+            std::cerr << "[ERROR] --gpu-algo must be one of: fixed-grid, naive, warp, group, block" << std::endl;
+            throw cxxopts::exceptions::exception("Invalid --gpu-algo: " + gpu_algo);
+        }
         // Validate the type option
-        const auto& type = options_parsed["type"].as<std::string>();
+        const auto type = options_parsed["type"].as<std::string>();
         if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "int16" && type != "int32" && type != "int64" && type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64") {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        const auto& gpu_algo = options_parsed["gpu-algo"].as<std::string>();
-        if (gpu_algo != "naive" && gpu_algo != "group" && gpu_algo != "warp" && gpu_algo != "block") {
-            std::cerr << "[ERROR] --gpu-algo must be one of: naive, warp, group, block" << std::endl;
-            throw cxxopts::exceptions::exception("Invalid --gpu-algo: " + gpu_algo);
+        // Validate block-dim
+        const auto block_dim = options_parsed["block-dim"].as<long>();
+        if (gpu_algo == "fixed-grid" && block_dim > 10) {
+            std::cerr << "[ERROR] --block-dim " << block_dim << " too big when --gpu-algo fixed-grid (must be <= 10)" << std::endl;
+            throw cxxopts::exceptions::exception("--block-dim " + std::to_string(block_dim) + " too big when --gpu-algo fixed-grid (must be <= 10)");
         }
         return {
             type,
@@ -376,7 +414,7 @@ struct Glm_predict_naive_spec {
             options_parsed["ntargets"].as<long>(),
             options_parsed["ntasks"].as<long>(),
             options_parsed["nobs"].as<long>(),
-            options_parsed["block_dim"].as<long>(),
+            block_dim,
         };
     }
 
@@ -412,8 +450,12 @@ struct Glm_predict_naive_spec {
         n_rows_temp_(0),
         n_sheets_temp_(0),
 
-        block_dim_(block_dim),
-        grid_dim_(niterations_ * 32),
+        block_dim_(gpu_algo == "fixed-grid" ? dim3(block_dim, block_dim, block_dim) : dim3(block_dim)),
+        grid_dim_(gpu_algo == "fixed-grid" ? dim3(
+            (ntargets + block_dim - 1)/block_dim,
+            (ntasks + block_dim - 1)/block_dim,
+            (nobs + block_dim - 1)/block_dim
+        ) : dim3(niterations_ * 32)),
         dynamic_shared_mem_words_(block_dim)
     {
         assert(block_dim_.x > 0);
@@ -448,7 +490,26 @@ class Glm_predict_naive_kernel {
         Number* const gpu_data_temp,     // temporary storage (unused)
         cudaStream_t stream
     ) {
-        if (spec_.gpu_algo_ == "naive") {
+        if (spec_.gpu_algo_ == "fixed-grid") {
+            const int dynamic_shared_mem_words = 0;
+            std::cout << "[INFO] kernel launch: glm::glm_predict_fixed_grid<<<(" << spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << "), ("
+                << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << "), " << dynamic_shared_mem_words
+                << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
+            std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
+            glm::glm_predict_fixed_grid<<<
+                spec_.grid_dim_,
+                spec_.block_dim_,
+                dynamic_shared_mem_words * sizeof(Number),
+                stream
+            >>>(
+                gpu_data_X,
+                // gpu_data_Y,
+                gpu_data_M,
+                gpu_data_Yhat,
+                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
+                static_cast<glm::transform_ptr<Number>>(nullptr) // Transform: logistic or other activation function
+            );
+        } else if (spec_.gpu_algo_ == "naive") {
             const int dynamic_shared_mem_words = 0;
             std::cout << "[INFO] kernel launch: glm::glm_predict_naive<<<" << spec_.grid_dim_.x << ", " << spec_.block_dim_.x << ", " << dynamic_shared_mem_words
                 << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
@@ -520,6 +581,10 @@ class Glm_predict_naive_kernel {
                 spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
                 static_cast<glm::transform_ptr<Number>>(nullptr) // Transform: logistic or other activation function
             );
+        } else {
+            std::cerr << "[ERROR] --gpu-algo must be one of: fixed-grid, naive, warp, group, block" << std::endl;
+            throw cxxopts::exceptions::exception("Invalid --gpu-algo: " + spec_.gpu_algo_);
+            assert(false); // We should have printed this error when parsing the command line
         }
     }
 
