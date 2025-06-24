@@ -288,7 +288,7 @@ class Benchmark_Matrix_1In_1Out {
 
         const auto cpu_step_3 = "Compute error matrix";
         const auto E = C_gpu.binaryExpr(C_cpu, ComputeError()).eval();
-        const auto E_pct = E.cwiseAbs().template cast<double>().array() / C_cpu.cwiseAbs().template cast<double>().array();
+        const auto E_pct = 100.0 * E.cwiseAbs().template cast<double>().array() / C_cpu.cwiseAbs().template cast<double>().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
