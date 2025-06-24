@@ -170,11 +170,11 @@ namespace glm {
                         // compute X[feature',task',obs]
                         X[dst_feature + dst_task * nfeatures + obs * X_sheet_size]
                     );
-                }
-            }
+                    if (tid_warp == 0) {
+                        grad_M[dst_feature + dst_target * nfeatures + dst_task * M_sheet_size] = Number(2) * sum_obs;
+                    }
 
-            if (wid_block == 0 && tid_warp == 0) {
-                grad_M[dst_feature + dst_target * nfeatures + dst_task * M_sheet_size] = Number(2) * sum_obs;
+                }
             }
         }
     }
