@@ -200,7 +200,7 @@ struct Vector_cummax_parallel_spec {
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
             ("n", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("block_dim,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block-dim,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -215,7 +215,7 @@ struct Vector_cummax_parallel_spec {
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
         const auto n = options_parsed["n"].as<long>();
-        const auto block_dim_option = options_parsed["block_dim"].as<long>();
+        const auto block_dim_option = options_parsed["block-dim"].as<long>();
         const auto block_size = (std::min(n, block_dim_option)  + WARP_SIZE - 1) / WARP_SIZE * WARP_SIZE;
         return Vector_cummax_parallel_spec(
             type,

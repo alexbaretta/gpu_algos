@@ -69,8 +69,8 @@ struct Matrix_transpose_naive_spec {
             ("m", "Number of rows in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
             ("n", "Number of columns in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("k", "Unused", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
-            ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("block-dim-x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block-dim-y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -88,8 +88,8 @@ struct Matrix_transpose_naive_spec {
             type,
             options_parsed["m"].as<long>(),
             options_parsed["n"].as<long>(),
-            options_parsed["block_dim_x"].as<long>(),
-            options_parsed["block_dim_y"].as<long>()
+            options_parsed["block-dim-x"].as<long>(),
+            options_parsed["block-dim-y"].as<long>()
         );
     }
 

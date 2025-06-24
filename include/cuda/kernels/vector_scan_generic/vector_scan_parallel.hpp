@@ -212,7 +212,7 @@ struct Vector_scan_parallel_spec {
         options.add_options()
             ("operation,op", "Operation to perform (max, min, sum, prod)", cxxopts::value<std::string>()->default_value("sum"))
             ("n", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("block_dim,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block-dim,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -232,7 +232,7 @@ struct Vector_scan_parallel_spec {
             throw cxxopts::exceptions::exception("Invalid --operation: " + operation);
         }
         const auto n = options_parsed["n"].as<long>();
-        const auto block_dim_option = options_parsed["block_dim"].as<long>();
+        const auto block_dim_option = options_parsed["block-dim"].as<long>();
         const auto warp_size = get_warp_size();
         const auto block_size = (std::min(n, block_dim_option)  + warp_size - 1) / warp_size * warp_size;
         return Vector_scan_parallel_spec(

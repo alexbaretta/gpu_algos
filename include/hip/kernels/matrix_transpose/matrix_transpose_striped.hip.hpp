@@ -117,7 +117,7 @@ struct Matrix_transpose_striped_spec {
             ("m", "Number of rows in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
             ("n", "Number of columns in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("k", "Unused", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
-            ("block_dim,x", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim,x", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -135,7 +135,7 @@ struct Matrix_transpose_striped_spec {
             type,
             options_parsed["m"].as<long>(),
             options_parsed["n"].as<long>(),
-            options_parsed["block_dim"].as<long>()
+            options_parsed["block-dim"].as<long>()
         );
     }
 

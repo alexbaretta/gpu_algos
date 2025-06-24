@@ -49,8 +49,8 @@ struct Matrix_product_rocblas_spec {
             ("m", "Number of rows in first matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
             ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("k", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
-            ("block_dim_x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("block_dim_y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("block-dim-x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block-dim-y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -69,8 +69,8 @@ struct Matrix_product_rocblas_spec {
             options_parsed["m"].as<long>(),
             options_parsed["n"].as<long>(),
             options_parsed["k"].as<long>(),
-            options_parsed["block_dim_x"].as<long>(),
-            options_parsed["block_dim_y"].as<long>()
+            options_parsed["block-dim-x"].as<long>(),
+            options_parsed["block-dim-y"].as<long>()
         );
     }
 
