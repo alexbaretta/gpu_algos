@@ -8,6 +8,7 @@
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 #include <iostream>
+#include <string>
 #include <Eigen/Dense>
 
 #include "common/types/tensor3d.hpp"
@@ -65,6 +66,198 @@ namespace glm {
     using transform_ptr = Number (*const)(Number);
 
     template <CUDA_scalar Number>
+    __global__ void glm_predict_block(
+        const Number* const X,     // (nfeatures, ntasks, nobs)
+        const Number* const M,     // (nfeatures, ntargets, ntasks)
+        Number* const Yhat,        // (ntargets, ntasks, nobs)
+        const long nfeatures,
+        const long ntargets,
+        const long ntasks,
+        const long nobs,
+        const transform_ptr<Number> transform
+    ) {
+        // We need one word of dynamic shm per warp per block
+        Number* shm  = get_dynamic_shared_memory<Number>();
+
+        assert(blockDim.x % WARP_SIZE == 0); // Number of threads is a multiple of a warp
+        assert(blockDim.y == 1);
+        assert(blockDim.z == 1);
+        assert(gridDim.y == 1);
+        assert(gridDim.z == 1);
+
+        // We use one block per location in Yhat
+        const auto& bid_grid = blockIdx.x; // We use a 1D grid
+        const auto& tid_block = threadIdx.x; // We use a 1D block
+        const auto tid_warp = threadIdx.x % WARP_SIZE;
+        const auto wid_block = threadIdx.x / WARP_SIZE;
+        const auto n_warps_per_block = (blockDim.x + WARP_SIZE - 1) / WARP_SIZE;
+        const auto X_sheet_size = nfeatures * ntasks;
+        const auto Y_sheet_size = ntargets * ntasks;
+        const auto M_sheet_size = nfeatures * ntargets;
+        const auto Y_output_size = Y_sheet_size * nobs;
+
+        const auto Yhat_idx_per_block = blockDim.x / WARP_SIZE;
+        assert(Yhat_idx_per_block > 0 && blockDim.x % WARP_SIZE == 0);
+        const auto& nfeatures_per_block = WARP_SIZE;
+        assert(nfeatures_per_block > 0 && nfeatures_per_block == WARP_SIZE);
+
+        for (auto Yhat_idx = bid_grid; Yhat_idx < Y_output_size; Yhat_idx += Yhat_idx_per_block) {
+            const auto dst_obs = Yhat_idx / Y_sheet_size;
+            const auto dst_obs_idx = Yhat_idx % Y_sheet_size;
+            const auto dst_task = dst_obs_idx / ntargets;
+            const auto dst_target = dst_obs_idx % ntargets;
+
+            // compute SUM_feature M[feature,target',task'] * X[feature,task',obs']
+            Number sum_feature{0};
+            for (long feature = tid_block; feature < nfeatures; feature += nfeatures_per_block) {
+                // compute M[feature,target',task'] * X[feature,task',obs]
+                sum_feature += (
+                    // compute M[feature,target',task']
+                    M[feature + dst_target * nfeatures + dst_task * M_sheet_size]
+                ) * (
+                    // compute X[feature,task',obs]
+                    X[feature + dst_task * nfeatures + dst_obs * X_sheet_size]
+                );
+            }
+            // Now we need to reduce/sum over the threads of the block to get the aggregate sum_feature
+            // First a warp shuffle reduction down to lane 0
+            for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+                sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
+            }
+            // Next we perform a block-level reduction via shm
+            // Only lane 0 posts its sum_feature value to shm
+            if (tid_warp == 0) { shm[wid_block] = sum_feature; }
+            __syncthreads();
+
+            // Finally, we sum over shared memory using a single warp
+            if (wid_block == 0) {
+                sum_feature = (tid_warp < n_warps_per_block) ? shm[tid_warp] : Number(0);
+                for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+                    sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
+                }
+                if (tid_warp == 0) {
+                    Yhat[Yhat_idx] = sum_feature;
+                }
+            }
+        }
+    }
+
+    template <CUDA_scalar Number>
+    __global__ void glm_predict_warp(
+        const Number* const X,     // (nfeatures, ntasks, nobs)
+        const Number* const M,     // (nfeatures, ntargets, ntasks)
+        Number* const Yhat,        // (ntargets, ntasks, nobs)
+        const long nfeatures,
+        const long ntargets,
+        const long ntasks,
+        const long nobs,
+        const transform_ptr<Number> transform
+    ) {
+        assert(blockDim.x % WARP_SIZE == 0); // Number of threads is a multiple of a warp
+        assert(blockDim.y == 1);
+        assert(blockDim.z == 1);
+        assert(gridDim.y == 1);
+        assert(gridDim.z == 1);
+
+        // We use one block per location in Yhat
+        const auto tid_warp = threadIdx.x % WARP_SIZE;
+        const auto tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+        const auto wid_grid = tid_grid / WARP_SIZE;
+        const auto nthreads_per_grid = blockDim.x * gridDim.x;
+        const auto nwarps_per_grid = nthreads_per_grid / WARP_SIZE;
+        const auto X_sheet_size = nfeatures * ntasks;
+        const auto Y_sheet_size = ntargets * ntasks;
+        const auto M_sheet_size = nfeatures * ntargets;
+        const auto Y_output_size = Y_sheet_size * nobs;
+
+        for (auto Yhat_idx = wid_grid; Yhat_idx < Y_output_size; Yhat_idx += nwarps_per_grid) {
+            const auto dst_obs = Yhat_idx / Y_sheet_size;
+            const auto dst_obs_idx = Yhat_idx % Y_sheet_size;
+            const auto dst_task = dst_obs_idx / ntargets;
+            const auto dst_target = dst_obs_idx % ntargets;
+
+            // compute SUM_feature M[feature,target',task'] * X[feature,task',obs']
+            Number sum_feature{0};
+            for (long feature = tid_warp; feature < nfeatures; feature += WARP_SIZE) {
+                // compute M[feature,target',task'] * X[feature,task',obs]
+                sum_feature += (
+                    // compute M[feature,target',task']
+                    M[feature + dst_target * nfeatures + dst_task * M_sheet_size]
+                ) * (
+                    // compute X[feature,task',obs]
+                    X[feature + dst_task * nfeatures + dst_obs * X_sheet_size]
+                );
+            }
+            // We need to reduce/sum over the threads of the block to get the aggregate sum_feature
+            // First a warp shuffle reduction down to lane 0
+            for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+                sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
+            }
+            if (tid_warp == 0) {
+                Yhat[Yhat_idx] = sum_feature;
+            }
+        }
+    }
+
+    template <CUDA_scalar Number, int COALESCED_ACCESS_SIZE = 32 /* bytes*/, int GROUP_SIZE = COALESCED_ACCESS_SIZE/sizeof(Number)>
+    __global__ void glm_predict_group(
+        const Number* const X,     // (nfeatures, ntasks, nobs)
+        const Number* const M,     // (nfeatures, ntargets, ntasks)
+        Number* const Yhat,        // (ntargets, ntasks, nobs)
+        const long nfeatures,
+        const long ntargets,
+        const long ntasks,
+        const long nobs,
+        const transform_ptr<Number> transform
+    ) {
+        assert(blockDim.x % GROUP_SIZE == 0); // Number of threads is a multiple of a group
+        assert(blockDim.y == 1);
+        assert(blockDim.z == 1);
+        assert(gridDim.y == 1);
+        assert(gridDim.z == 1);
+
+        // We use one block per location in Yhat
+        const auto tid_group = threadIdx.x % GROUP_SIZE;
+        const auto tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+        const auto groupid_grid = tid_grid / GROUP_SIZE;
+        const auto nthreads_per_grid = blockDim.x * gridDim.x;
+        const auto nwarps_per_grid = nthreads_per_grid / GROUP_SIZE;
+        const auto X_sheet_size = nfeatures * ntasks;
+        const auto Y_sheet_size = ntargets * ntasks;
+        const auto M_sheet_size = nfeatures * ntargets;
+        const auto Y_output_size = Y_sheet_size * nobs;
+
+        for (auto Yhat_idx = groupid_grid; Yhat_idx < Y_output_size; Yhat_idx += nwarps_per_grid) {
+            const auto dst_obs = Yhat_idx / Y_sheet_size;
+            const auto dst_obs_idx = Yhat_idx % Y_sheet_size;
+            const auto dst_task = dst_obs_idx / ntargets;
+            const auto dst_target = dst_obs_idx % ntargets;
+
+            // compute SUM_feature M[feature,target',task'] * X[feature,task',obs']
+            Number sum_feature{0};
+            for (long feature = tid_group; feature < nfeatures; feature += GROUP_SIZE) {
+                // compute M[feature,target',task'] * X[feature,task',obs]
+                sum_feature += (
+                    // compute M[feature,target',task']
+                    M[feature + dst_target * nfeatures + dst_task * M_sheet_size]
+                ) * (
+                    // compute X[feature,task',obs]
+                    X[feature + dst_task * nfeatures + dst_obs * X_sheet_size]
+                );
+            }
+            // We need to reduce/sum over the threads of the block to get the aggregate sum_feature
+            // First a warp shuffle reduction down to lane 0
+            for (int reduced_lanes = 1; reduced_lanes < GROUP_SIZE; reduced_lanes <<= 1) {
+                sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
+            }
+            if (tid_group == 0) {
+                Yhat[Yhat_idx] = sum_feature;
+            }
+        }
+    }
+
+
+    template <CUDA_scalar Number>
     __global__ void glm_predict_naive(
         const Number* const X,     // (nfeatures, ntasks, nobs)
         const Number* const M,     // (nfeatures, ntargets, ntasks)
@@ -75,57 +268,45 @@ namespace glm {
         const long nobs,
         const transform_ptr<Number> transform
     ) {
-        // Number of warps: nobs * ntasks * ntargets
-        // We use 1 warp to sum over k in 1..nfeatures.
-        // -> Number of threads = nobs * ntasks * ntargets * WARP_SIZE
-        const auto tid_grid = blockIdx.x * blockDim.x + threadIdx.x;
-        const auto wid_grid = tid_grid / WARP_SIZE;
-        const auto tid_warp = tid_grid % WARP_SIZE;
-        const auto Y_output_size = nobs * ntasks * ntargets;
-        const auto grid_size = gridDim.x * blockDim.x; // Must be a multiple of WARP_SIZE!
-        const auto Y_sheet_size = ntasks * nobs;
-        assert(grid_size % WARP_SIZE == 0);
-        const auto nwarps = grid_size / WARP_SIZE;
-        for (auto Y_idx = wid_grid; Y_idx < Y_output_size; Y_idx += nwarps) {
-            const auto obs  = Y_idx / Y_sheet_size;      // h = obs
-            const auto obs_idx = Y_idx % Y_sheet_size;   // idx in the `obs`-th sheet
-            const auto task = obs_idx / ntargets;      // i = task
-            const auto target = obs_idx % ntargets;  // idx in the `task`-th row
+        assert(blockDim.y == 1);
+        assert(blockDim.z == 1);
+        assert(gridDim.y == 1);
+        assert(gridDim.z == 1);
 
-            const auto X_row_idx = obs * ntasks * nfeatures    + task * nfeatures;
-            const auto M_row_idx = task * ntargets * nfeatures + target * nfeatures;
-            // const auto Y_idx     = obs * ntasks * ntargets     + task * ntargets     + target;
+        // We use one thread per location in Yhat
+        const auto& tid_grid = threadIdx.x + blockIdx.x * blockDim.x; // We use a 1D block
+        const auto X_sheet_size = nfeatures * ntasks;
+        const auto Y_sheet_size = ntargets * ntasks;
+        const auto M_sheet_size = nfeatures * ntargets;
+        const auto Y_output_size = Y_sheet_size * nobs;
 
-            // Compute Ŷ[obs, task, target] = ∑_k M[task, target, feature] * X[obs, task, feature]
-            Number lane_value{0};
-            for (int feature = tid_warp; feature < nfeatures; feature += WARP_SIZE) {
-                // k = feature
-                lane_value += M[M_row_idx + feature] * X[X_row_idx + feature];
-            }
+        for (auto Yhat_idx = tid_grid; Yhat_idx < Y_output_size; Yhat_idx += gridDim.x) {
+            const auto dst_obs = Yhat_idx / Y_sheet_size;
+            const auto dst_obs_idx = Yhat_idx % Y_sheet_size;
+            const auto dst_task = dst_obs_idx / ntargets;
+            const auto dst_target = dst_obs_idx % ntargets;
 
-            // Now we need to do warp shuffle sum
-            // Unrolling lane0:
-            // n = 1 : lane_value += lane1
-            // n = 2 : lane_value += (lane2 + lane3)
-            // n = 4 : lane_value += (lane4 + lane5 + lane6 + lane7)
-            // n = 8 : lane_value += (lane8 + ... + lane15)
-            // n = 16: lane_value += (lane16 + ... + lane31)
-            for (int n = 1; n < WARP_SIZE; n <<= 1) {
-                lane_value += __shfl_sync(__activemask(), lane_value, tid_warp + n);
+            // compute SUM_feature M[feature,target',task'] * X[feature,task',obs]
+            Number sum_feature{0};
+            for (long feature = 0; feature < nfeatures; feature += 1) {
+                // compute M[feature,target',task'] * X[feature,task',obs]
+                sum_feature += (
+                    // compute M[feature,target',task']
+                    M[feature + dst_target * nfeatures + dst_task * M_sheet_size]
+                ) * (
+                    // compute X[feature,task',obs]
+                    X[feature + dst_task * nfeatures + dst_obs * X_sheet_size]
+                );
             }
-            // Now lane_value contains Ŷ[obs, task, target]
-            if (transform) {
-                Yhat[Y_idx] = transform(lane_value);
-            } else {
-                Yhat[Y_idx] = lane_value;
-            }
+            Yhat[Yhat_idx] = sum_feature;
         }
     }
-
 } // namespace glm
+
 
 struct Glm_predict_naive_spec {
     const std::string type_;
+    const std::string gpu_algo_;
 
     const long nfeatures_;
     const long ntargets_;
@@ -154,13 +335,14 @@ struct Glm_predict_naive_spec {
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
-    const size_t dynamic_shared_mem_words_ = 0;
+    const size_t dynamic_shared_mem_words_;
 
     constexpr static long DEFAULT_NOBS = 1000;
     constexpr static long DEFAULT_NTASKS = 10;
     constexpr static long DEFAULT_NTARGETS = 25;
     constexpr static long DEFAULT_NFEATURES = 25;
     constexpr static long DEFAULT_BLOCK_DIM = 256;
+    constexpr static std::string DEFAULT_GPU_ALGO = "naive";
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
@@ -169,6 +351,7 @@ struct Glm_predict_naive_spec {
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
             ("block_dim,n", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("gpu-algo", "GPU algo to use (naive, warp, group, block)", cxxopts::value<std::string>()->default_value(DEFAULT_GPU_ALGO))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
     }
 
@@ -181,8 +364,14 @@ struct Glm_predict_naive_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
+        const auto& gpu_algo = options_parsed["gpu-algo"].as<std::string>();
+        if (gpu_algo != "naive" && gpu_algo != "group" && gpu_algo != "warp" && gpu_algo != "block") {
+            std::cerr << "[ERROR] --gpu-algo must be one of: naive, warp, group, block" << std::endl;
+            throw cxxopts::exceptions::exception("Invalid --gpu-algo: " + gpu_algo);
+        }
         return {
             type,
+            gpu_algo,
             options_parsed["nfeatures"].as<long>(),
             options_parsed["ntargets"].as<long>(),
             options_parsed["ntasks"].as<long>(),
@@ -193,12 +382,14 @@ struct Glm_predict_naive_spec {
 
     inline Glm_predict_naive_spec(
         const std::string& type,
+        const std::string& gpu_algo,
         const long nfeatures,
         const long ntargets,
         const long ntasks,
         const long nobs,
         const long block_dim
     ) : type_(type),
+        gpu_algo_(gpu_algo),
         nfeatures_(nfeatures),
         ntargets_(ntargets),
         ntasks_(ntasks),
@@ -222,7 +413,8 @@ struct Glm_predict_naive_spec {
         n_sheets_temp_(0),
 
         block_dim_(block_dim),
-        grid_dim_((niterations_ + block_dim - 1)/ block_dim * 32)
+        grid_dim_(niterations_ * 32),
+        dynamic_shared_mem_words_(block_dim)
     {
         assert(block_dim_.x > 0);
         assert(block_dim_.y > 0);
@@ -256,22 +448,79 @@ class Glm_predict_naive_kernel {
         Number* const gpu_data_temp,     // temporary storage (unused)
         cudaStream_t stream
     ) {
-        std::cout << "[INFO] kernel launch: glm::glm_predict_naive<<<" << spec_.grid_dim_.x << ", " << spec_.block_dim_.x << ", " << spec_.dynamic_shared_mem_words_ * sizeof(Number)
-            << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
-        std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
-        glm::glm_predict_naive<<<
-            spec_.grid_dim_,
-            spec_.block_dim_,
-            spec_.dynamic_shared_mem_words_ * sizeof(Number),
-            stream
-        >>>(
-            gpu_data_X,
-            // gpu_data_Y,
-            gpu_data_M,
-            gpu_data_Yhat,
-            spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
-            static_cast<glm::transform_ptr<Number>>(nullptr) // Transform: logistic or other activation function
-        );
+        if (spec_.gpu_algo_ == "naive") {
+            const int dynamic_shared_mem_words = 0;
+            std::cout << "[INFO] kernel launch: glm::glm_predict_naive<<<" << spec_.grid_dim_.x << ", " << spec_.block_dim_.x << ", " << dynamic_shared_mem_words
+                << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
+            std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
+            glm::glm_predict_naive<<<
+                spec_.grid_dim_,
+                spec_.block_dim_,
+                dynamic_shared_mem_words * sizeof(Number),
+                stream
+            >>>(
+                gpu_data_X,
+                // gpu_data_Y,
+                gpu_data_M,
+                gpu_data_Yhat,
+                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
+                static_cast<glm::transform_ptr<Number>>(nullptr) // Transform: logistic or other activation function
+            );
+        } else if (spec_.gpu_algo_ == "group") {
+            const int dynamic_shared_mem_words = 0;
+            std::cout << "[INFO] kernel launch: glm::glm_predict_group<<<" << spec_.grid_dim_.x << ", " << spec_.block_dim_.x << ", " << dynamic_shared_mem_words
+                << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
+            std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
+            glm::glm_predict_group<<<
+                spec_.grid_dim_,
+                spec_.block_dim_,
+                dynamic_shared_mem_words * sizeof(Number),
+                stream
+            >>>(
+                gpu_data_X,
+                // gpu_data_Y,
+                gpu_data_M,
+                gpu_data_Yhat,
+                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
+                static_cast<glm::transform_ptr<Number>>(nullptr) // Transform: logistic or other activation function
+            );
+        } else if (spec_.gpu_algo_ == "warp") {
+            const int dynamic_shared_mem_words = 0;
+            std::cout << "[INFO] kernel launch: glm::glm_predict_warp<<<" << spec_.grid_dim_.x << ", " << spec_.block_dim_.x << ", " << dynamic_shared_mem_words
+                << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
+            std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
+            glm::glm_predict_warp<<<
+                spec_.grid_dim_,
+                spec_.block_dim_,
+                dynamic_shared_mem_words * sizeof(Number),
+                stream
+            >>>(
+                gpu_data_X,
+                // gpu_data_Y,
+                gpu_data_M,
+                gpu_data_Yhat,
+                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
+                static_cast<glm::transform_ptr<Number>>(nullptr) // Transform: logistic or other activation function
+            );
+        } else if (spec_.gpu_algo_ == "block") {
+            const int dynamic_shared_mem_words = compute_n_warps_per_block(spec_.block_dim_);
+            std::cout << "[INFO] kernel launch: glm::glm_predict_block<<<" << spec_.grid_dim_.x << ", " << spec_.block_dim_.x << ", " << dynamic_shared_mem_words
+                << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
+            std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
+            glm::glm_predict_block<<<
+                spec_.grid_dim_,
+                spec_.block_dim_,
+                dynamic_shared_mem_words * sizeof(Number),
+                stream
+            >>>(
+                gpu_data_X,
+                // gpu_data_Y,
+                gpu_data_M,
+                gpu_data_Yhat,
+                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
+                static_cast<glm::transform_ptr<Number>>(nullptr) // Transform: logistic or other activation function
+            );
+        }
     }
 
     Tensor3D<Number> run_host_kernel(
