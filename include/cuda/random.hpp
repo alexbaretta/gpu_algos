@@ -5,8 +5,10 @@
 
 #pragma once
 
+#include <vector>
+#include <random>
+
 #include <cuda_fp16.h>
-#include "common/random.hpp"
 
 inline void randomize_vector(
     std::vector<__half>& data,

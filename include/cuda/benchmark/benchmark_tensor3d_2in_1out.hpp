@@ -9,14 +9,13 @@
 #include <iostream>
 #include <chrono>
 #include <iomanip>
-#include <vector>
 #include <Eigen/Dense>
 
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 
-#include "common/types/tensor3d.hpp"
 #include "cuda/random.hpp"
+#include "common/types/tensor3d.hpp"
 #include "cuda/check_errors.hpp"
 #include "cuda/cuda_utils.hpp"
 #include "cuda/kernel_api/tensor3d_2in_1out.hpp"

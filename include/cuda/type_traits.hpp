@@ -5,7 +5,10 @@
 
 #pragma once
 
+#include <stdfloat>
+
 #include <cuda_runtime.h>
+#include <cuda_fp16.h>
 #include <type_traits>
 
 template <typename T>

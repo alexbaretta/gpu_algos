@@ -172,7 +172,7 @@ public:
             for (long row = 0; row < nrows_; ++row) {
                 os << "(" << sheet << "," << row << "): [ ";
                 for (long col = 0; col < ncols_; ++col) {
-                    using PrintableType = std::conditional_t<std::is_floating_point_v<Number>, float, Number>;
+                    using PrintableType = std::conditional_t<std::is_floating_point_v<Number>, Number, float>;
                     os << static_cast<PrintableType>(at(col, row, sheet)) << " ";
                 }
                 os << "]\n";
