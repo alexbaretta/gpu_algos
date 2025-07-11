@@ -7,10 +7,9 @@ cmake_minimum_required(VERSION 4.0)  # Lowered requirement for hip::host usage
 set(CMAKE_CXX_COMPILER "g++-14")
 set(CMAKE_CUDA_HOST_COMPILER "g++-14")
 set(CMAKE_CUDA_COMPILER "nvcc")
-set(CMAKE_HIP_COMPILER "amdclang++")
-set(CMAKE_HIP_HOST_COMPILER "amdclang++")
-# set(CMAKE_CXX_COMPILER "clang-19")
-# set(CMAKE_CUDA_HOST_COMPILER "clang-19")
+set(CMAKE_HIP_COMPILER "/opt/rocm/bin/amdclang++")
+set(CMAKE_HIP_HOST_COMPILER "/opt/rocm/bin/amdclang++")
+set(GPU_TARGETS "gfx1201")  # AMD Radeon RX 9070 (RDNA 3+)
 
 project(gpu_algos LANGUAGES CUDA CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -56,6 +55,10 @@ execute_process(
 )
 
 if(CMAKE_HIP_COMPILER)
+    set(CMAKE_HIP_STANDARD 20)
+    set(CMAKE_HIP_STANDARD_REQUIRED ON)
+    set(CMAKE_HIP_ARCHITECTURES "${GPU_TARGETS}")  # AMD Radeon RX 9070 (RDNA 3+)
+
     # Enable HIP language
     enable_language(HIP)
 
@@ -74,13 +77,9 @@ if(CMAKE_HIP_COMPILER)
 
     # Find HIP package using the modern CMake approach
     find_package(hip CONFIG QUIET)
-
     if(hip_FOUND)
         message(STATUS "HIP found and enabled")
         # Set HIP specific flags
-        set(CMAKE_HIP_STANDARD 20)
-        set(CMAKE_HIP_STANDARD_REQUIRED ON)
-        set(CMAKE_HIP_ARCHITECTURES "gfx1201")  # AMD Radeon RX 9070 (RDNA 3+)
         set(HIP_AVAILABLE TRUE)
 
         # Find additional ROCm libraries that HIP targets may need

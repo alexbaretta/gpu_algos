@@ -5,6 +5,8 @@ CompileFlags:
     - -I/opt/rocm/include # Or path to HIP include directory
     - -I/usr/local/cuda/targets/x86_64-linux/include
     - -xc++
+    - -std=c++23
+    - -DCLANGD
   Remove:
     - --expt-relaxed-constexpr
     - -forward-unknown-to-host-compiler
@@ -35,7 +37,7 @@ CompileFlags:
 If:
   PathMatch: .*\.hip.cpp$
 CompileFlags:
-  Compiler: amdclang++
+  Compiler: /opt/rocm/bin/amdclang++
   Add:
     - -xhip
 
@@ -50,6 +52,6 @@ CompileFlags:
 # If:
 #   PathMatch: .*\.hip.h$
 # CompileFlags:
-#   Compiler: amdclang++
+#   Compiler: /opt/rocm/bin/amdclang++
 #   Add:
 #     - -xhip
