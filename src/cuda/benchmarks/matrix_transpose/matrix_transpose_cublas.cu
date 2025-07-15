@@ -5,10 +5,10 @@
 
 #include <cxxopts.hpp>
 
-#include "cuda/benchmark/benchmark_matrix_1in_1out.hpp"
+#include "cuda/benchmark/benchmark_matrix_1in_1out.cuh"
 #include "common/benchmark_options.hpp"
 
-#include "cuda/kernels/matrix_transpose/matrix_transpose_cublas.hpp"
+#include "cuda/kernels/matrix_transpose/matrix_transpose_cublas.cuh"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("matrix_transpose_cublas", "Matrix transpose using cuBLAS");

@@ -70,7 +70,7 @@ if(CMAKE_HIP_COMPILER)
     )
 
     # Set language mappings for HIP files
-    set_property(GLOBAL PROPERTY CMAKE_HIP_LANGUAGE_EXTENSION ".hip.cpp")
+    set_property(GLOBAL PROPERTY CMAKE_HIP_LANGUAGE_EXTENSION ".hip")
 
     # Add ROCm cmake path so find_package can locate HIP
     list(APPEND CMAKE_PREFIX_PATH "/opt/rocm")
@@ -150,7 +150,7 @@ find_package(Eigen3 REQUIRED)
 # Add include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/cuda
+    # ${CMAKE_CURRENT_SOURCE_DIR}/include/cuda
     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cxxopts/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cutlass/include
     ${EIGEN3_INCLUDE_DIR}
@@ -224,9 +224,9 @@ function(add_hip_executable target_name source_file)
 
     add_executable(${target_name}
         ${source_file}
-        ${CMAKE_SOURCE_DIR}/src/hip/hip_utils.hip.cpp
+        ${CMAKE_SOURCE_DIR}/src/hip/hip_utils.hip
         ${CMAKE_SOURCE_DIR}/src/common/benchmark_options.cpp
-        ${CMAKE_SOURCE_DIR}/src/hip/benchmark.hip.cpp
+        ${CMAKE_SOURCE_DIR}/src/hip/benchmark.hip
     )
 
     separate_arguments(LOCAL_HIP_FLAGS UNIX_COMMAND ${DEFAULT_HIP_FLAGS})
@@ -241,8 +241,8 @@ function(add_hip_executable target_name source_file)
 
 
     # Set the language for HIP source files explicitly
-    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/hip/hip_utils.hip.cpp PROPERTIES LANGUAGE HIP)
-    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/hip/benchmark.hip.cpp PROPERTIES LANGUAGE HIP)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/hip/hip_utils.hip PROPERTIES LANGUAGE HIP)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/hip/benchmark.hip PROPERTIES LANGUAGE HIP)
 
     # Set HIP specific properties
     set_target_properties(${target_name} PROPERTIES
@@ -321,3 +321,111 @@ foreach(tech_dir cuda hip)
         endforeach()
     endif()
 endforeach()
+
+
+# ######### CLANGD COMPILE COMMAND TRICK ********************************
+# # The followiing CMake targets are only needed to force CMake to output
+# # compile commands in `compile_commands.json` for the fake source files
+# # that clangd will use to determine the compile commands for the header
+# # files. We call this mechanism the "clangd compile command trick".
+
+
+# # Find all .cu files in include/cuda directory recursively
+# file(GLOB_RECURSE CUDA_SOURCE_FILES
+#     "${CMAKE_CURRENT_SOURCE_DIR}/include/cuda/*.cu"
+# )
+
+# # Create CUDA library from all .cu files
+# if(CUDA_SOURCE_FILES)
+#     add_library(cuda_headers_clangd_compile_command_trick STATIC ${CUDA_SOURCE_FILES})
+#     set_target_properties(cuda_headers_clangd_compile_command_trick PROPERTIES LINKER_LANGUAGE CUDA)
+
+#     # Set CUDA specific properties for the library
+#     set_target_properties(cuda_headers_clangd_compile_command_trick PROPERTIES
+#         CUDA_SEPARABLE_COMPILATION ON
+#         CUDA_RUNTIME_LIBRARY Shared
+#         CUDA_ARCHITECTURES 89
+#         LINKER_LANGUAGE CUDA
+#     )
+
+#     # Apply CUDA compilation flags
+#     separate_arguments(LOCAL_CUDA_FLAGS UNIX_COMMAND ${DEFAULT_CUDA_FLAGS})
+#     target_compile_options(cuda_headers_clangd_compile_command_trick PRIVATE ${LOCAL_CUDA_FLAGS})
+
+#         # Set include directories for the library
+#     target_include_directories(cuda_headers_clangd_compile_command_trick PUBLIC
+#         ${CMAKE_SOURCE_DIR}/include
+#         ${CMAKE_SOURCE_DIR}/include/cuda
+#         ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
+#         ${CMAKE_SOURCE_DIR}/third-party/cutlass/include
+#         ${EIGEN3_INCLUDE_DIR}
+#     )
+
+#     # Link CUDA libraries
+#     target_link_directories(cuda_headers_clangd_compile_command_trick PUBLIC
+#         ${CUDAToolkit_LIBRARY_DIR}
+#         ${CUDA_HOST_COMPILER_LIBRARY_PATH}
+#     )
+
+#     target_link_libraries(cuda_headers_clangd_compile_command_trick PUBLIC
+#         CUDA::cudart
+#         CUDA::cuda_driver
+#         CUDA::cublas
+#         CUDA::cublasLt
+#         Eigen3::Eigen
+#         OpenMP::OpenMP_CXX
+#     )
+
+#         # Add this library to the cuda-targets meta-target
+#     add_dependencies(cuda-targets cuda_headers_clangd_compile_command_trick)
+
+#     list(LENGTH CUDA_SOURCE_FILES CUDA_SOURCE_COUNT)
+#     message(STATUS "Created CUDA library 'cuda_headers_clangd_compile_command_trick' with ${CUDA_SOURCE_COUNT} source files")
+#     foreach(cu_file ${CUDA_SOURCE_FILES})
+#         message(STATUS "  - ${cu_file}")
+#     endforeach()
+# else()
+#     message(STATUS "No .cu files found in include/cuda directory")
+# endif()
+
+# # Find all .cpp files in include/common directory recursively
+# file(GLOB_RECURSE COMMON_SOURCE_FILES
+#     "${CMAKE_CURRENT_SOURCE_DIR}/include/common/*.cpp"
+# )
+
+# # Create C++ library from all .cpp files
+# if(COMMON_SOURCE_FILES)
+#     add_library(common_headers_clangd_compile_command_trick STATIC ${COMMON_SOURCE_FILES})
+#     set_target_properties(common_headers_clangd_compile_command_trick PROPERTIES LINKER_LANGUAGE CXX)
+
+#     # Set C++ specific properties for the library
+#     set_target_properties(common_headers_clangd_compile_command_trick PROPERTIES
+#         CXX_STANDARD 20
+#         CXX_STANDARD_REQUIRED ON
+#     )
+
+#     # Set include directories for the library
+#     target_include_directories(common_headers_clangd_compile_command_trick PUBLIC
+#         ${CMAKE_SOURCE_DIR}/include
+#         ${CMAKE_SOURCE_DIR}/include/common
+#         ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
+#         ${EIGEN3_INCLUDE_DIR}
+#     )
+
+#     # Link libraries
+#     target_link_libraries(common_headers_clangd_compile_command_trick PUBLIC
+#         Eigen3::Eigen
+#         OpenMP::OpenMP_CXX
+#     )
+
+#     # Add this library to the cpp-targets meta-target
+#     add_dependencies(cpp-targets common_headers_clangd_compile_command_trick)
+
+#     list(LENGTH COMMON_SOURCE_FILES COMMON_SOURCE_COUNT)
+#     message(STATUS "Created C++ library 'common_headers_clangd_compile_command_trick' with ${COMMON_SOURCE_COUNT} source files")
+#     foreach(cpp_file ${COMMON_SOURCE_FILES})
+#         message(STATUS "  - ${cpp_file}")
+#     endforeach()
+# else()
+#     message(STATUS "No .cpp files found in include/common directory")
+# endif()

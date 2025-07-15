@@ -5,8 +5,7 @@
 
 set -euxo pipefail
 
-AMDCLANG_LIBRARY_PATH=
-
+# $(dirname ${0})/create_clangd_helper_files.sh
 cmake -Wno-dev --preset=debug
 cmake -Wno-dev --preset=release
 

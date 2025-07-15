@@ -6,9 +6,9 @@
 #include <cxxopts.hpp>
 
 #include "common/benchmark_options.hpp"
-#include "cuda/benchmark/benchmark_tensor3d_2in_1out.hpp"
+#include "cuda/benchmark/benchmark_tensor3d_2in_1out.cuh"
 
-#include "cuda/kernels/glm/glm_predict_naive.hpp"
+#include "cuda/kernels/glm/glm_predict_naive.cuh"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("glm_predict_naive", "Evaluate linear model");

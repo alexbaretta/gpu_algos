@@ -1,0 +1,26 @@
+CompileFlags:
+  Add:
+    - -I/usr/local/cuda/include # Or path to CUDA include directory
+    - -I/opt/rocm/include # Or path to HIP include directory
+    - -I/usr/local/cuda/targets/x86_64-linux/include
+    - -DCLANGD
+    - -std=c++20
+    - -xhip
+  Remove:
+    - --expt-relaxed-constexpr
+    - -forward-unknown-to-host-compiler
+    - --generate-code=*
+    - -rdc=*
+    - -Xcompiler*
+    - -xobjective-c++-header
+    - --options-file
+    - -diag-suppress
+    - -g
+    - -G
+    - -ccbin=g++-14
+    - --Werror
+    - -Werror
+    - -Wall
+    - -L
+    - -fopenmp
+    - --offload-arch

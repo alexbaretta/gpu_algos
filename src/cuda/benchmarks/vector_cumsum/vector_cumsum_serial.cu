@@ -5,10 +5,10 @@
 
 #include <cxxopts.hpp>
 
-#include "cuda/benchmark/benchmark_vector_1in_1out.hpp"
+#include "cuda/benchmark/benchmark_vector_1in_1out.cuh"
 #include "common/benchmark_options.hpp"
 
-#include "cuda/kernels/vector_cumsum/vector_cumsum_serial.hpp"
+#include "cuda/kernels/vector_cumsum/vector_cumsum_serial.cuh"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("vector_cumsum_serial", "Vector cumulative sum (serial algorithm)");

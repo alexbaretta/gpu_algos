@@ -46,6 +46,11 @@ Makefile
 compile_commands.json
 *.cmake
 
+# Clangd compile command trick
+include/**/*.cpp
+include/**/*.cu
+include/**/*.hip
+
 # CUDA specific
 .cache/
 *.cubin

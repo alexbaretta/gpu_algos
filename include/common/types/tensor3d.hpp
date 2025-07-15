@@ -158,7 +158,7 @@ public:
     }
 
     void randomize(const int seed) {
-        randomize_vector(vector_, seed);
+        randomize_container(vector_, seed);
     }
 
     Eigen::TensorMap<Tensor> as_eigen_tensor() {return {data(), ncols_, nrows_, nsheets_};}

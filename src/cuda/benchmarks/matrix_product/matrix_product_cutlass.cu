@@ -8,10 +8,10 @@
 #include <cxxopts.hpp>
 #include <cuda_fp16.h>
 
-#include "cuda/benchmark/benchmark_matrix_2in_1out.hpp"
+#include "cuda/benchmark/benchmark_matrix_2in_1out.cuh"
 #include "common/benchmark_options.hpp"
 
-#include "cuda/kernels/matrix_product/matrix_product_cutlass.hpp"
+#include "cuda/kernels/matrix_product/matrix_product_cutlass.cuh"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("matrix_product_cutlass", "Matrix multiplication (CUTLASS library)");

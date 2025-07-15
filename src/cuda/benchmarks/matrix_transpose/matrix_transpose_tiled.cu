@@ -6,9 +6,9 @@
 #include <cxxopts.hpp>
 
 #include "common/benchmark_options.hpp"
-#include "cuda/benchmark/benchmark_matrix_1in_1out.hpp"
+#include "cuda/benchmark/benchmark_matrix_1in_1out.cuh"
 
-#include "cuda/kernels/matrix_transpose/matrix_transpose_tiled.hpp"
+#include "cuda/kernels/matrix_transpose/matrix_transpose_tiled.cuh"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("matrix_transpose_tiled", "Matrix transpose (tiled algorithm)");

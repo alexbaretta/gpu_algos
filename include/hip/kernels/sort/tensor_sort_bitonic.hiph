@@ -1,0 +1,350 @@
+// Copyright (c) 2025 Alessandro Baretta
+// All rights reserved.
+
+// source path: include/hip/kernels/sort/tensor3d.sort__bitonic.hpp
+
+#pragma once
+#include <hip/hip_runtime.h>
+#include <string>
+#include <iostream>
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
+#include <algorithm>
+#include <vector>
+
+#include "common/types/tensor3d.hpp"
+#include "hip/type_traits.hiph"
+
+// Bitonic sort kernel for comparing and swapping elements along a specific dimension
+template <HIP_scalar HIP_Number>
+__global__ void bitonic_compare_and_swap_3d(
+    HIP_Number* data,
+    const long n_rows,
+    const long n_cols,
+    const long n_sheets,
+    const int sort_dim,  // 0=rows, 1=cols, 2=sheets
+    const long step,
+    const long stage
+) {
+    const long global_tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    long n_elements, n_problems, stride;
+
+    if (sort_dim == 0) {
+        // Sort along rows: each (sheet, col) pair is an independent problem
+        n_elements = n_rows;
+        n_problems = n_sheets * n_cols;
+        stride = n_cols;  // distance between consecutive row elements
+    } else if (sort_dim == 1) {
+        // Sort along columns: each (sheet, row) pair is an independent problem
+        n_elements = n_cols;
+        n_problems = n_sheets * n_rows;
+        stride = 1;  // consecutive elements in memory
+    } else {
+        // Sort along sheets: each (row, col) pair is an independent problem
+        n_elements = n_sheets;
+        n_problems = n_rows * n_cols;
+        stride = n_rows * n_cols;  // distance between consecutive sheet elements
+    }
+
+    // Check if this element size is valid for bitonic sort
+    if ((n_elements & (n_elements - 1)) != 0) return; // not power of 2
+    if (n_elements <= 1) return;
+
+    const long distance = 1L << (step - stage);
+    if (distance >= n_elements) return;
+
+    const long block_size = distance * 2;
+    const long big_block_size = 1L << (step + 1);
+
+    // Calculate how many comparison pairs exist per sort problem
+    const long pairs_per_problem = n_elements / 2;
+    const long total_pairs = n_problems * pairs_per_problem;
+
+    if (global_tid >= total_pairs) return;
+
+    // Determine which sort problem and which pair within that problem
+    const long problem_id = global_tid / pairs_per_problem;
+    const long pair_id = global_tid % pairs_per_problem;
+
+    // Calculate the coordinates for this sort problem
+    long col, row, sheet;
+    if (sort_dim == 0) {
+        sheet = problem_id / n_cols;
+        col = problem_id % n_cols;
+        row = 0;  // Will be calculated based on pair_id
+    } else if (sort_dim == 1) {
+        sheet = problem_id / n_rows;
+        row = problem_id % n_rows;
+        col = 0;  // Will be calculated based on pair_id
+    } else {
+        row = problem_id / n_cols;
+        col = problem_id % n_cols;
+        sheet = 0;  // Will be calculated based on pair_id
+    }
+
+    // Calculate base address for this sort problem
+    long base_addr;
+    if (sort_dim == 0) {
+        base_addr = sheet * n_rows * n_cols + col;
+    } else if (sort_dim == 1) {
+        base_addr = sheet * n_rows * n_cols + row * n_cols;
+    } else {
+        base_addr = row * n_cols + col;
+    }
+
+    // Calculate the two indices to compare based on pair_id and bitonic algorithm
+    const long block_id = pair_id / distance;
+    const long thread_in_block = pair_id % distance;
+
+    const long idx1 = block_id * block_size + thread_in_block;
+    const long idx2 = idx1 + distance;
+
+    if (idx2 >= n_elements) return;
+
+    // Calculate actual memory addresses
+    const long addr1 = base_addr + idx1 * stride;
+    const long addr2 = base_addr + idx2 * stride;
+
+    // Determine sort direction based on block position
+    const bool ascending = (idx1 / big_block_size) % 2 == 0;
+
+    HIP_Number val1 = data[addr1];
+    HIP_Number val2 = data[addr2];
+
+    // Swap if needed
+    bool should_swap = ascending ? (val1 > val2) : (val1 < val2);
+    if (should_swap) {
+        data[addr1] = val2;
+        data[addr2] = val1;
+    }
+}
+
+struct tensor3d_sort_bitonic_spec {
+    const std::string type_;
+    const std::string sort_dimension_;
+
+    // Input/output tensor dimensions
+    const long n_rows_C_;
+    const long n_cols_C_;
+    const long n_sheets_C_;
+
+    // Additional members expected by the benchmark interface
+    const long n_rows_A_;
+    const long n_cols_A_;
+    const long n_sheets_A_;
+
+    const long n_rows_temp_;
+    const long n_cols_temp_;
+    const long n_sheets_temp_;
+
+    const dim3 block_dim_;
+    const dim3 grid_dim_;
+    const size_t dynamic_shared_mem_words_;
+
+    constexpr static int DEFAULT_M = 16;  // Default small size for testing
+    constexpr static int DEFAULT_N = 16;
+    constexpr static int DEFAULT_K = 4;
+    constexpr static int DEFAULT_BLOCK_DIM_X = 256;
+    constexpr static int DEFAULT_BLOCK_DIM_Y = 1;
+    constexpr static int DEFAULT_BLOCK_DIM_Z = 1;
+
+    inline static void add_kernel_spec_options(cxxopts::Options& options) {
+        options.add_options()
+            ("m", "Number of rows", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
+            ("n", "Number of columns", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("k", "Number of sheets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("blockdimx,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("blockdimy,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("blockdimz,z", "Number of threads in the z dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Z)))
+            ("sortdim,d", "Sort dimension: rows, cols, sheets", cxxopts::value<std::string>()->default_value("rows"))
+            ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
+        ;
+    }
+
+    inline static tensor3d_sort_bitonic_spec make(
+        const cxxopts::ParseResult& options_parsed
+    ) {
+        // Validate the type option
+        const auto& type = options_parsed["type"].as<std::string>();
+        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "int16" && type != "int32" && type != "int64" && type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64") {
+            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
+            throw cxxopts::exceptions::exception("Invalid --type: " + type);
+        }
+
+        // Validate sort dimension
+        const auto& sort_dim = options_parsed["sortdim"].as<std::string>();
+        if (sort_dim != "rows" && sort_dim != "cols" && sort_dim != "sheets") {
+            std::cerr << "[ERROR] --sortdim must be one of: rows, cols, sheets" << std::endl;
+            throw cxxopts::exceptions::exception("Invalid --sortdim: " + sort_dim);
+        }
+
+        long m = options_parsed["m"].as<long>();
+        long n = options_parsed["n"].as<long>();
+        long k = options_parsed["k"].as<long>();
+
+        // Ensure the dimension we're sorting is a power of 2
+        long* target_dim;
+        if (sort_dim == "rows") target_dim = &m;
+        else if (sort_dim == "cols") target_dim = &n;
+        else target_dim = &k;
+
+        if ((*target_dim & (*target_dim - 1)) != 0) {
+            long next_pow2 = 1;
+            while (next_pow2 < *target_dim) next_pow2 <<= 1;
+            std::cout << "[WARNING] " << sort_dim << " dimension=" << *target_dim
+                      << " is not a power of 2, rounding up to " << next_pow2 << std::endl;
+            *target_dim = next_pow2;
+        }
+
+        return tensor3d_sort_bitonic_spec(
+            type,
+            sort_dim,
+            m, n, k,
+            options_parsed["blockdimx"].as<long>(),
+            options_parsed["blockdimy"].as<long>(),
+            options_parsed["blockdimz"].as<long>()
+        );
+    }
+
+    inline tensor3d_sort_bitonic_spec(
+        const std::string& type,
+        const std::string& sort_dimension,
+        const long m,
+        const long n,
+        const long k,
+        const long block_dim_x,
+        const long block_dim_y,
+        const long block_dim_z
+    ) : type_(type),
+        sort_dimension_(sort_dimension),
+        n_rows_C_(m),
+        n_cols_C_(n),
+        n_sheets_C_(k),
+        n_rows_A_(m),
+        n_cols_A_(n),
+        n_sheets_A_(k),
+        n_rows_temp_(0),
+        n_cols_temp_(0),
+        n_sheets_temp_(0),
+        block_dim_(block_dim_x, block_dim_y, block_dim_z),
+        grid_dim_(
+            // Calculate total number of comparison pairs across all sort problems
+            sort_dimension == "rows" ? (((k * n * m / 2) + block_dim_x - 1) / block_dim_x) :
+            sort_dimension == "cols" ? (((k * m * n / 2) + block_dim_x - 1) / block_dim_x) :
+                                      (((m * n * k / 2) + block_dim_x - 1) / block_dim_x),
+            1, 1
+        ),
+        dynamic_shared_mem_words_(0)
+    {}
+};
+
+template <HIP_scalar Number_>
+class tensor3d_sort_bitonic_kernel {
+    public:
+    using Number = Number_;
+    using Kernel_spec = tensor3d_sort_bitonic_spec;
+
+    const Kernel_spec spec_;
+
+    tensor3d_sort_bitonic_kernel(
+        const Kernel_spec spec
+    ) : spec_(spec) {}
+
+    void run_device_kernel(
+        Number* const gpu_data_A,
+        Number* const gpu_data_temp,
+        hipStream_t stream
+    ) {
+        // Determine sort dimension and parameters
+        int sort_dim;
+        long n_elements;
+        if (spec_.sort_dimension_ == "rows") {
+            sort_dim = 0;
+            n_elements = spec_.n_rows_C_;
+        } else if (spec_.sort_dimension_ == "cols") {
+            sort_dim = 1;
+            n_elements = spec_.n_cols_C_;
+        } else {
+            sort_dim = 2;
+            n_elements = spec_.n_sheets_C_;
+        }
+
+        // Check if size is power of 2
+        if ((n_elements & (n_elements - 1)) != 0) {
+            std::cerr << "[ERROR] Sort dimension size (" << n_elements
+                      << ") must be a power of 2 for bitonic sort" << std::endl;
+            return;
+        }
+
+        if (n_elements <= 1) {
+            std::cout << "[INFO] Sort dimension size is 1, no sorting needed" << std::endl;
+            return;
+        }
+
+        // Recursive bitonic sort: for each step (sequence length)
+        for (long step = 0; (1L << step) < n_elements; ++step) {
+            // For each stage within this step
+            for (long stage = 0; stage <= step; ++stage) {
+                bitonic_compare_and_swap_3d<<<spec_.grid_dim_, spec_.block_dim_, 0, stream>>>(
+                    gpu_data_A,
+                    spec_.n_rows_C_, spec_.n_cols_C_, spec_.n_sheets_C_,
+                    sort_dim, step, stage
+                );
+
+                // Check for kernel errors
+                hipError_t err = hipGetLastError();
+                if (err != hipSuccess) {
+                    std::cerr << "[ERROR] HIP kernel error: " << hipGetErrorString(err) << std::endl;
+                    return;
+                }
+            }
+        }
+    }
+
+    void run_host_kernel(
+        Tensor3D<Number>& tensor3d
+    ) {
+        // Sort along the specified dimension using std::sort
+        if (spec_.sort_dimension_ == "rows") {
+            // For each (sheet, col), sort all rows
+            for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
+                for (long col = 0; col < tensor3d.cols(); ++col) {
+                    // Create array of pointers to elements in this column
+                    std::vector<Number> column_data(tensor3d.rows());
+                    for (long row = 0; row < tensor3d.rows(); ++row) {
+                        column_data[row] = tensor3d(col, row, sheet);
+                    }
+                    std::sort(column_data.begin(), column_data.end());
+                    // Write back
+                    for (long row = 0; row < tensor3d.rows(); ++row) {
+                        tensor3d(col, row, sheet) = column_data[row];
+                    }
+                }
+            }
+        } else if (spec_.sort_dimension_ == "cols") {
+            // For each (sheet, row), sort all columns
+            for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
+                for (long row = 0; row < tensor3d.rows(); ++row) {
+                    Number* const row_start = &tensor3d(row, 0, sheet);
+                    std::sort(row_start, row_start + tensor3d.cols());
+                }
+            }
+        } else {
+            // For each (row, col), sort all sheets
+            for (long row = 0; row < tensor3d.rows(); ++row) {
+                for (long col = 0; col < tensor3d.cols(); ++col) {
+                    std::vector<Number> sheet_data(tensor3d.sheets());
+                    for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
+                        sheet_data[sheet] = tensor3d(col, row, sheet);
+                    }
+                    std::sort(sheet_data.begin(), sheet_data.end());
+                    // Write back
+                    for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
+                        tensor3d(col, row, sheet) = sheet_data[sheet];
+                    }
+                }
+            }
+        }
+    }
+};

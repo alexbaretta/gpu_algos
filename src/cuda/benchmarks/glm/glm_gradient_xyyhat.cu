@@ -6,9 +6,9 @@
 #include <cxxopts.hpp>
 
 #include "common/benchmark_options.hpp"
-#include "cuda/benchmark/benchmark_tensor3d_3in_1out.hpp"
+#include "cuda/benchmark/benchmark_tensor3d_3in_1out.cuh"
 
-#include "cuda/kernels/glm/glm_gradient_xyyhat.hpp"
+#include "cuda/kernels/glm/glm_gradient_xyyhat.cuh"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("glm_gradient_xyyhat", "Evaluate linear model");

@@ -6,9 +6,9 @@
 #include <cxxopts.hpp>
 
 #include "common/benchmark_options.hpp"
-#include "cuda/benchmark/benchmark_matrix_2in_1out.hpp"
+#include "cuda/benchmark/benchmark_matrix_2in_1out.cuh"
 
-#include "cuda/kernels/matrix_product/matrix_product_tiled.hpp"
+#include "cuda/kernels/matrix_product/matrix_product_tiled.cuh"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("matrix_product_tiled", "Matrix multiplication (tiled shared memory algorithm)");

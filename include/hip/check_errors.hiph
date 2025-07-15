@@ -1,0 +1,17 @@
+// Copyright (c) 2025 Alessandro Baretta
+// All rights reserved.
+
+// source path: include/hip/check_errors.hiph
+
+#pragma once
+
+#include <iostream>
+
+#define hip_check_error(hip_err, step_name) \
+    do { \
+        if (hip_err != hipSuccess) { \
+            auto msg = hipGetErrorString(hip_err); \
+            std::cerr << "[HIP error " << step_name << "] " << msg << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
+            exit(1); \
+        } \
+    } while (0)

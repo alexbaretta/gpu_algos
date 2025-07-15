@@ -6,9 +6,9 @@
 #include <cxxopts.hpp>
 
 #include "common/benchmark_options.hpp"
-#include "cuda/benchmark/benchmark_tensor3d_1inout.hpp"
+#include "cuda/benchmark/benchmark_tensor3d_1inout.cuh"
 
-#include "cuda/kernels/sort/tensor_sort_bitonic.hpp"
+#include "cuda/kernels/sort/tensor_sort_bitonic.cuh"
 
 int main(int argc, char** argv) {
     cxxopts::Options options("tensor_sort_bitonic", "Tensor sort (bitonic algorithm)");
