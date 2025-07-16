@@ -12,8 +12,9 @@
 #include <Eigen/Dense>
 
 #include "common/types/tensor3d.hpp"
-#include "cuda/kernel_api/tensor3d_2in_1out.cuh"
 #include "cuda/type_traits.cuh"
+#include "cuda_utils.cuh"
+#include "cuda/kernel_api/tensor3d_2in_1out.cuh"
 
 /*
 This kernel evaluates a Tensor3Dlinear model on a Tensor3D of covariates, resulting in a Tensor3D of predictions.
