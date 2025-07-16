@@ -10,6 +10,16 @@ All rights reserved.
 git submodule update --init --recursive
 ```
 
+## Development environment
+This project uses a combination of C++, CUDA, and HIP programming languages. In order to get useful
+syntax highlighting, code navigation, hover tooltip, and compiler errors and warnings, you need to
+use clangd in conjunction with your IDE. For example, clangd is available as an extension for vscode.
+Unfortunately, support for CUDA and HIP in the LLVM project's stock clangd is very limited, so you
+should use clangd from the following fork of LLVM, which correctly detects CUDA and HIP programming
+for header files based on their extensions.
+
+https://github.com/alexbaretta/llvm-project
+
 ## Use homebrew to install the necessary dependencies
 
 1. Install homebrew:
