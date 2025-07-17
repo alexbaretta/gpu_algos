@@ -30,7 +30,7 @@ versions of the algorithm and compute the speedup.
 ├── builds/                 # Build output directory
 │   ├── release/            # Release builds
 │   └── debug/              # Debug builds
-├── python/                 # GPU Algorithm Test Framework - comprehensive testing toolkit
+├── test/                   # GPU Algorithm Test Framework - comprehensive testing toolkit
 │   ├── gpu_algo_test/      # Main Python package with testing framework
 │   ├── tests/              # Python unit tests
 │   ├── pyproject.toml      # Python package configuration
