@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/eigen_utils.hpp
+// source path: include/cuda/eigen_utils.cuh
 
 #pragma once
 

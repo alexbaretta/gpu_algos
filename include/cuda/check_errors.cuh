@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/check_errors.hpp
+// source path: include/cuda/check_errors.cuh
 
 #pragma once
 

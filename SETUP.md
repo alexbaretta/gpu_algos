@@ -5,6 +5,8 @@ Copyright (c) 2025 Alessandro Baretta
 
 All rights reserved.
 
+<!-- source path: SETUP.md -->
+
 ## Initialize and update submodules
 ```bash
 git submodule update --init --recursive

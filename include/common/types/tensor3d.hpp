@@ -1,6 +1,8 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
+// source path: include/common/types/tensor3d.hpp
+
 #pragma once
 
 #include <vector>

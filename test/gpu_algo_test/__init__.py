@@ -6,6 +6,8 @@ problem sizes and data types.
 
 Copyright (c) 2025 Alessandro Baretta
 All rights reserved.
+
+source path: test/gpu_algo_test/__init__.py
 """
 
 from .gpu_algo_test import (

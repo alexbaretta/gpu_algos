@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Copyright (c) 2025 Alessandro Baretta
+# All rights reserved.
+
+# source path: scripts/download-install-rocm.sh
+
 
 # wget https://repo.radeon.com/rocm/installer/rocm-runfile-installer/rocm-rel-<rocm-version>/<distro>/<distro-version>/<installer-file>
 

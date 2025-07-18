@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/benchmark.hpp
+// source path: include/cuda/benchmark.cuh
 
 #pragma once
 

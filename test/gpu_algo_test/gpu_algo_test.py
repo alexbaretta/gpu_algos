@@ -5,6 +5,8 @@ GPU Algorithm Testing Module
 Copyright (c) 2025 Alessandro Baretta
 All rights reserved.
 
+source path: test/gpu_algo_test/gpu_algo_test.py
+
 This module provides functionality to test GPU algorithm executables with various
 problem sizes and data types. It can be used both as a Python package and as a
 command line script.
