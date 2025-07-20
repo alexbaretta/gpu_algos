@@ -7,6 +7,7 @@
 
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
+#include <type_traits>
 
 #include "check_errors.cuh"
 #include "type_traits.cuh"
@@ -132,8 +133,10 @@ struct cuda_max_op {
     }
 
     __host__ __device__ static Number identity() {
-        if constexpr (std::is_floating_point_v<Number>) {
-            return -INFINITY;
+        if constexpr (std::is_same_v<Number, __half>) {
+            return -CUDART_INF_FP16;
+        } else if constexpr (std::is_floating_point_v<Number>) {
+            return -std::numeric_limits<Number>::infinity();
         } else {
             return Number(1) << (sizeof(Number) * 8 - 1);
         }
@@ -143,12 +146,12 @@ struct cuda_max_op {
 template <>
 struct cuda_max_op<__half> {
     using Number = __half;
-    __host__ __device__ static __half apply(__half a, __half b) {
+    __host__ __device__ static Number apply(Number a, Number b) {
         return __hmax(a, b);
     }
 
-    __host__ __device__ static __half identity() {
-        return __hmax(__hneg(0x7c00), __hneg(0x7c00));
+    __host__ __device__ static Number identity() {
+        return -CUDART_INF_FP16;
     }
 };
 
@@ -160,8 +163,10 @@ struct cuda_min_op {
     }
 
     __host__ __device__ static Number identity() {
-        if constexpr (std::is_floating_point_v<Number>) {
-            return INFINITY;
+        if constexpr (std::is_same_v<Number, __half>) {
+            return CUDART_INF_FP16;
+        } else if constexpr (std::is_floating_point_v<Number>) {
+            return std::numeric_limits<Number>::infinity();
         } else {
             return ~(Number(1) << (sizeof(Number) * 8 - 1));
         }
@@ -171,12 +176,12 @@ struct cuda_min_op {
 template <>
 struct cuda_min_op<__half> {
     using Number = __half;
-    __host__ __device__ static __half apply(__half a, __half b) {
+    __host__ __device__ static Number apply(Number a, Number b) {
         return __hmin(a, b);
     }
 
-    __host__ __device__ static __half identity() {
-        return __hmin(__hneg(0x7c00), __hneg(0x7c00));
+    __host__ __device__ static Number identity() {
+        return CUDART_INF_FP16;
     }
 };
 
