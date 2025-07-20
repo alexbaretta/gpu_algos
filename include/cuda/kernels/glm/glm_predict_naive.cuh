@@ -13,7 +13,7 @@
 
 #include "common/types/tensor3d.hpp"
 #include "cuda/type_traits.cuh"
-#include "cuda_utils.cuh"
+#include "cuda/cuda_utils.cuh"
 #include "cuda/kernel_api/tensor3d_2in_1out.cuh"
 
 /*

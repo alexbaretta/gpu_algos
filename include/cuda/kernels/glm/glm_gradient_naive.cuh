@@ -13,8 +13,8 @@
 
 #include "common/types/tensor3d.hpp"
 #include "cuda/type_traits.cuh"
-#include "cuda_utils.cuh"
-#include "kernel_api/tensor3d_3in_1out.cuh"
+#include "cuda/cuda_utils.cuh"
+#include "cuda/kernel_api/tensor3d_3in_1out.cuh"
 
 /*
 This kernel computes the gradient of the loss of a linear regression
