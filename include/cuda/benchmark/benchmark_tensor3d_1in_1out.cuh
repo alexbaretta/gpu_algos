@@ -125,7 +125,7 @@ class Benchmark_Tensor3D_1In_1Out {
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Initializing tensors: ";
+        std::cout << "  - Initializing tensors: " << std::endl;
         if (is_random) {
             std::cout << "  - Randomizing tensors: ";
             tensor3d_A.randomize(seed);
