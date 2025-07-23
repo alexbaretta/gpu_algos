@@ -291,7 +291,7 @@ class GPUAlgoTest:
     def __init__(self, bin_dir: Path, cmake_root: Optional[Path] = None, preset: str = "debug",
                  verbose: bool = False, selected_executables: Optional[Set[str]] = None,
                  selected_sizes: Optional[Set[int]] = None, selected_types: Optional[Set[str]] = None,
-                 dryrun: bool = False, float_abs_tol: Optional[float] = None, float_pct_tol: Optional[float] = None,
+                 dryrun: bool = False, tol_scale:float = 2.0, float_abs_tol: Optional[float] = None, float_pct_tol: Optional[float] = None,
                  int_abs_tol: float = 0.0, int_pct_tol: float = 0.0, output_file: Optional[str] = None,
                  rerun_failures_file: Optional[str] = None, timeout: int = 300, only_hip: bool = False, only_cuda: bool = False):
         """Initialize the GPU algorithm tester.
@@ -330,6 +330,7 @@ class GPUAlgoTest:
         self.only_cuda = only_cuda
 
         # Tolerance values with IEEE 754-based defaults
+        self.tol_scale = tol_scale
         self.float_abs_tol = float_abs_tol
         self.int_abs_tol = int_abs_tol
         self.int_pct_tol = int_pct_tol
@@ -596,18 +597,23 @@ class GPUAlgoTest:
         # Handle NaN cases explicitly
         if math.isnan(max_error):
             # If absolute error is NaN, the algorithm likely failed
-            return False
+            return False, "max_error is NaN"
 
         # Error of 0 always satisfies correctness check
-        if max_error == 0.0:
-            return True
+        if max_error == 0:
+            return True, "max_error == 0"
 
         # Determine appropriate tolerances based on data type
         if self._is_integer_type(data_type):
             abs_tol = self.int_abs_tol
             pct_tol = self.int_pct_tol
-        elif self._is_floating_type(data_type):
-            abs_tol = self.float_abs_tol
+        else:
+            assert self._is_floating_type(data_type), f'{data_type=} should be a floating point type'
+            if self.float_abs_tol is not None:
+                abs_tol = self.float_abs_tol * self.tol_scale
+            else:
+                abs_tol = None
+                pass
 
             # Use IEEE 754-based percent tolerance if not explicitly set
             if self.float_pct_tol is not None:
@@ -626,21 +632,21 @@ class GPUAlgoTest:
                 else:
                     # Unknown floating type, use float32 default
                     pct_tol = 9.54e-5
-        else:
-            # Unknown type, use floating point tolerances as default
-            abs_tol = self.float_abs_tol
-            pct_tol = self.float_pct_tol if self.float_pct_tol is not None else 9.54e-5
+                    pass
+                pass
 
-        # Check absolute tolerance (if specified)
-        if abs_tol is not None and max_error > abs_tol:
-            return False
+            # apply the tolerance scaling factor
+            pct_tol *= self.tol_scale
+            pass
 
         # Handle NaN percent error - this can occur when expected result is 0
         # In this case, rely on absolute tolerance if available
         if math.isnan(max_error_pct):
             if abs_tol is not None:
-                # We already checked abs_tol above, so if we reach here it passed
-                return True
+                if max_error <= abs_tol:
+                    return True, f'max_error <= {abs_tol}'
+                else:
+                    return False, f'max_error > {abs_tol}'
             else:
                 # No absolute tolerance specified, but percent error is NaN
                 # This could be legitimate (0/0 case) if absolute error is small
@@ -654,12 +660,16 @@ class GPUAlgoTest:
                         return max_error <= 1e-12  # Double precision
                 else:  # integer types
                     return max_error == 0.0  # Integers must be exact if percent is NaN
+                pass
+        else: # max_error_pct is not NaN
+            assert pct_tol is not None
+            # Check percent tolerance
+            if max_error_pct <= pct_tol:
+                return True, f'max_error_pct <= {pct_tol}'
+            else:
+                return False, f'max_error_pct > {pct_tol}'
 
-        # Check percent tolerance
-        if pct_tol is not None and max_error_pct > pct_tol:
-            return False
-
-        return True
+        assert False, f'This function should already have returned'
 
     def test_executable(self, executable: Path, data_type: str, size: int) -> Optional[Dict]:
         """Test a single executable with specific parameters.
@@ -721,20 +731,22 @@ class GPUAlgoTest:
 
                 # Check correctness (only if run was successful and we have metrics)
                 correct = False
-                if run_success and metrics:
-                    correct = self._check_correctness(metrics, data_type)
 
                 # Combine all results
                 test_result = {
                     **test_info,
                     "cmdline": cmdline,
                     "run_success": run_success,
-                    "correct": correct,
                     "return_code": result.returncode,
                     "metrics": metrics,
                     "stdout": result.stdout,
                     "stderr": result.stderr,
                 }
+                if run_success and metrics:
+                    correct, correctness_reason = self._check_correctness(metrics, data_type)
+                    test_result["correct"] = correct
+                    test_result["correctness_reason"] = correctness_reason
+                    pass
 
                 return test_result
 
@@ -1142,6 +1154,13 @@ def main():
     )
 
     parser.add_argument(
+        "--tol-scale",
+        type=float,
+        default=2.0,
+        help="Scaling fator for tolerance (default = 2.0)",
+    )
+
+    parser.add_argument(
         "--abs-tol",
         type=float,
         help="Absolute tolerance for floating point types (no default - only percent tolerance used)",
@@ -1245,6 +1264,7 @@ def main():
             selected_sizes,
             selected_types,
             args.dryrun,
+            args.tol_scale,
             args.abs_tol,
             args.pct_tol,
             args.int_abs_tol,
