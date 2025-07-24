@@ -34,8 +34,8 @@ public:
     using Tensor = Eigen::Tensor<Number, 3>;
     using Tensor_const = Eigen::Tensor<const Number, 3>;
 
-    using Matrix = Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic>;
-    // using Matrix_const = Eigen::Matrix<const Number, Eigen::Dynamic, Eigen::Dynamic>;
+    using Matrix = Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+    // using Matrix_const = Eigen::Matrix<const Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
     using Vector = Eigen::Vector<Number, Eigen::Dynamic>;
     // using Vector_const = Eigen::Vector<const Number, Eigen::Dynamic>;
 
