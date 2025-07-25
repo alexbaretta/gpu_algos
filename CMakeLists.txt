@@ -120,7 +120,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 find_package(OpenMP REQUIRED)
 
 # Add OpenMP flags for CUDA (avoid duplication)
-set(REQUIRED_CUDA_FLAGS "${REQUIRED_CUDA_FLAGS} -Xcompiler=-fopenmp,-Wall,-Werror -diag-suppress 20012,20013 --expt-relaxed-constexpr")
+set(REQUIRED_CUDA_FLAGS "${REQUIRED_CUDA_FLAGS} -Xcompiler=-fopenmp,-Wall,-Werror -Werror all-warnings -diag-suppress 20012,20013 --expt-relaxed-constexpr")
 set(CMAKE_CUDA_FLAGS "${REQUIRED_CUDA_FLAGS}")
 set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS}")
 
