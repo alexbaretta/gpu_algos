@@ -121,13 +121,16 @@ __global__ void matrix_product_tensor_wmma(
     const int n,
     const int k
 ) {
+    using namespace nvcuda::wmma;
+
+    // Get warp ID within the block
+    const int wid = (threadIdx.y * blockDim.x + threadIdx.x) / warpSize;
+
     // WMMA fragment dimensions
     const int WMMA_M = 16;
     const int WMMA_N = 16;
     const int WMMA_K = 16;
 
-    // Shared memory for int8 conversion
-    __shared__ int shared_temp[WMMA_M * WMMA_N];
 
     // Calculate which 16x16 tile this block handles
     const int block_row = blockIdx.y;
@@ -137,31 +140,26 @@ __global__ void matrix_product_tensor_wmma(
     const int row_base = block_row * WMMA_M;
     const int col_base = block_col * WMMA_N;
 
+    // For matrices smaller than WMMA tile size, fall back to naive implementation
+    // if (m < WMMA_M || n < WMMA_K || k < WMMA_N) {
+    //     // Fallback to naive implementation for small matrices
+    //     const int row = blockIdx.y * blockDim.y + threadIdx.y;
+    //     const int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    //     if (row < m && col < k) {
+    //         Number sum = 0;
+    //         for (int i = 0; i < n; ++i) {
+    //             sum += A[row * n + i] * B[i * k + col];
+    //         }
+    //         C[row * k + col] = sum;
+    //     }
+    //     return;
+    // }
+
     if constexpr (std::is_same_v<Number, __half>) {
-        // For matrices smaller than WMMA tile size, fall back to naive implementation
-        if (m < WMMA_M || n < WMMA_K || k < WMMA_N) {
-            // Fallback to naive implementation for small matrices
-            const int row = blockIdx.y * blockDim.y + threadIdx.y;
-            const int col = blockIdx.x * blockDim.x + threadIdx.x;
-
-            if (row < m && col < k) {
-                __half sum = 0;
-                for (int i = 0; i < n; ++i) {
-                    sum += A[row * n + i] * B[i * k + col];
-                }
-                C[row * k + col] = sum;
-            }
-            return;
-        }
-
-        using namespace nvcuda::wmma;
-
-        // Get warp ID within the block
-        const int warpId = (threadIdx.y * blockDim.x + threadIdx.x) / warpSize;
-
         // For small matrices (single block), only first warp processes the entire matrix
         // For large matrices, each block processes one tile
-        if (warpId == 0) {
+        if (wid == 0) {
             // Declare WMMA fragments
             fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, __half, row_major> a_frag;
             fragment<matrix_b, WMMA_M, WMMA_N, WMMA_K, __half, row_major> b_frag;
@@ -213,30 +211,18 @@ __global__ void matrix_product_tensor_wmma(
             }
         }
     } else if constexpr (std::is_same_v<Number, std::int8_t>) {
-        // For matrices smaller than WMMA tile size, fall back to naive implementation
-        if (m < WMMA_M || n < WMMA_K || k < WMMA_N) {
-            // Fallback to naive implementation for small matrices
-            const int row = blockIdx.y * blockDim.y + threadIdx.y;
-            const int col = blockIdx.x * blockDim.x + threadIdx.x;
+        // Shared memory for int8 conversion
+        __shared__ int shared_temp[WMMA_M * WMMA_N];
 
-            if (row < m && col < k) {
-                Number sum = 0;
-                for (int i = 0; i < n; ++i) {
-                    sum += A[row * n + i] * B[i * k + col];
-                }
-                C[row * k + col] = sum;
-            }
-            return;
-        }
 
         using namespace nvcuda::wmma;
 
         // Get warp ID within the block
-        const int warpId = (threadIdx.y * blockDim.x + threadIdx.x) / warpSize;
+        const int wid = (threadIdx.y * blockDim.x + threadIdx.x) / warpSize;
 
         // For small matrices (single block), only first warp processes the entire matrix
         // For large matrices, each block processes one tile
-        if (warpId == 0) {
+        if (wid == 0) {
             // Declare WMMA fragments for INT8 inputs with INT32 accumulation
             fragment<matrix_a, WMMA_M, WMMA_N, WMMA_K, signed char, row_major> a_frag;
             fragment<matrix_b, WMMA_M, WMMA_N, WMMA_K, signed char, row_major> b_frag;
