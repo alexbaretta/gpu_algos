@@ -147,7 +147,7 @@ __global__ void vector_scan_by_blocks_parallel(
         // Now the warp totals live in shm. We need to scan shm to compute the block-level scan.
         // We use the same algorithm as above, but we execute with only one warp,
         // as the shared memory size is equal to blockSize / warpSize < warpSize
-        assert(compute_n_warps_per_block() <= warpSize);
+        assert(get_n_warps_per_block() <= warpSize);
         if (wid_block == 0) {
             // We pick warp 0 to perform the warp-shuffle scan on shared memory.
             Number shm_value = 0;

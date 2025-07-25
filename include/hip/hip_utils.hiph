@@ -25,29 +25,34 @@ int get_warp_size() {
     return props.warpSize;
 }
 __host__ __inline__
-long compute_n_threads_per_block(const dim3 block_dim) {
+unsigned int compute_n_threads_per_block(const dim3 block_dim) {
     return long(block_dim.x) * long(block_dim.y) * long(block_dim.z);
 }
 __device__ __inline__
-long compute_n_threads_per_block() {
+unsigned int compute_n_threads_per_block() {
     return long(blockDim.x) * long(blockDim.y) * long(blockDim.z);
 }
-__host__ __device__ __inline__
-long compute_n_warps_per_block(const long n_threads_per_block, const int warp_size) {
+
+template <std::integral T, std::integral U>
+__host__ __inline__
+unsigned int compute_n_warps_per_block(const T n_threads_per_block, const U warp_size = get_warp_size()) {
     return (n_threads_per_block + warp_size - 1) / warp_size;
 }
+
 __host__ __inline__
-long compute_n_warps_per_block(const dim3 block_dim, const int warp_size = get_warp_size()) {
-    return compute_n_warps_per_block(compute_n_threads_per_block(block_dim), warp_size);
+unsigned int compute_n_warps_per_block(const dim3& block_dim, const int warp_size = get_warp_size()) {
+    return compute_n_warps_per_block(compute_n_threads_per_block(dim3(block_dim)), warp_size);
 }
+
 __device__ __inline__
-long compute_n_warps_per_block(const long n_threads_per_block) {
+unsigned int get_n_warps_per_block(const long n_threads_per_block) {
     return (n_threads_per_block + warpSize - 1) / warpSize;
 }
 __device__ __inline__
-long compute_n_warps_per_block() {
+unsigned int get_n_warps_per_block() {
     return (compute_n_threads_per_block() + warpSize - 1) / warpSize;
 }
+
 
 __host__ __device__ __inline__
 void* align_pointer(void *ptr, const std::size_t alignment) {

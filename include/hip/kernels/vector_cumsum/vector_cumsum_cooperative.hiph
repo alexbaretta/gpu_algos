@@ -96,7 +96,7 @@ __device__ void vector_cumsum_cooperative(
             // Now the warp totals live in shm. We need to scan shm to compute
             // We use the same algorithm as above, but we execute with only one warp,
             // as the shared memory size is equal to blockSize / warpSize < warpSize
-            assert(compute_n_warps_per_block() <= warpSize);
+            assert(get_n_warps_per_block() <= warpSize);
             HIP_Number shm_value = 0;
             if (wid_block == 0) {
                 // We pick warp 0 to perform the warp-shuffle scan on shared memory.
