@@ -18,8 +18,8 @@ concept VECTOR_KERNEL_SPEC_3IN_1OUT = requires (Vector_kernel_spec_3In_1Out spec
     { spec.n_D_ } -> std::same_as<const long&>;
     { spec.n_temp_ } -> std::same_as<const long&>;
 
-    { spec.block_dim_ } -> std::same_as<const dim3&>;
-    { spec.grid_dim_ } -> std::same_as<const dim3&>;
+    { dim3(spec.block_dim_) } -> std::same_as<dim3>;
+    { dim3(spec.grid_dim_) } -> std::same_as<dim3>;
 };
 
 template <typename Vector_kernel_spec_3In_1Out>

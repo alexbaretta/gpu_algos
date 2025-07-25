@@ -29,8 +29,8 @@ concept TENSOR3D_KERNEL_SPEC_2IN_1OUT = requires (Tensor3D_kernel_spec_2In_1Out 
     { spec.n_cols_temp_ } -> std::same_as<const long&>;
     { spec.n_sheets_temp_ } -> std::same_as<const long&>;
 
-    { spec.block_dim_ } -> std::same_as<const dim3&>;
-    { spec.grid_dim_ } -> std::same_as<const dim3&>;
+    { dim3(spec.block_dim_) } -> std::same_as<dim3>;
+    { dim3(spec.grid_dim_) } -> std::same_as<dim3>;
 };
 
 template <typename Tensor3D_kernel_spec_2In_1Out>
@@ -51,8 +51,8 @@ struct Check_tensor3d_kernel_spec_2In_1Out {
     static_assert(std::same_as<decltype(std::declval<Tensor3D_kernel_spec_2In_1Out>().n_cols_temp_), const long>);
     static_assert(std::same_as<decltype(std::declval<Tensor3D_kernel_spec_2In_1Out>().n_sheets_temp_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Tensor3D_kernel_spec_2In_1Out>().block_dim_), const dim3>);
-    static_assert(std::same_as<decltype(std::declval<Tensor3D_kernel_spec_2In_1Out>().grid_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Tensor3D_kernel_spec_2In_1Out>().block_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Tensor3D_kernel_spec_2In_1Out>().grid_dim_), const dim3>);
 
     static_assert(TENSOR3D_KERNEL_SPEC_2IN_1OUT<Tensor3D_kernel_spec_2In_1Out>, "not a valid TENSOR3D_KERNEL_SPEC_2IN_1OUT");
 

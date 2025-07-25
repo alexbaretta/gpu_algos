@@ -14,8 +14,8 @@ template <typename Vector_kernel_spec_1Inout>
 concept VECTOR_KERNEL_SPEC_1INOUT = requires (Vector_kernel_spec_1Inout spec) {
     { spec.n_A_ } -> std::same_as<const long&>;
 
-    { spec.block_dim_ } -> std::same_as<const dim3&>;
-    { spec.grid_dim_ } -> std::same_as<const dim3&>;
+    { dim3(spec.block_dim_) } -> std::same_as<dim3>;
+    { dim3(spec.grid_dim_) } -> std::same_as<dim3>;
 };
 
 template <typename Vector_kernel_spec_1Inout>

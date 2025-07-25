@@ -24,8 +24,8 @@ concept MATRIX_KERNEL_SPEC_2IN_1OUT = requires (Matrix_kernel_spec_2In_1Out spec
     { spec.n_rows_temp_ } -> std::same_as<const long&>;
     { spec.n_cols_temp_ } -> std::same_as<const long&>;
 
-    { spec.block_dim_ } -> std::same_as<const dim3&>;
-    { spec.grid_dim_ } -> std::same_as<const dim3&>;
+    { dim3(spec.block_dim_) } -> std::same_as<dim3>;
+    { dim3(spec.grid_dim_) } -> std::same_as<dim3>;
 };
 
 template <typename Matrix_kernel_spec_2In_1Out>
@@ -42,8 +42,8 @@ struct Check_matrix_kernel_spec_2In_1Out {
     static_assert(std::same_as<decltype(std::declval<Matrix_kernel_spec_2In_1Out>().n_rows_temp_), const long>);
     static_assert(std::same_as<decltype(std::declval<Matrix_kernel_spec_2In_1Out>().n_cols_temp_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Matrix_kernel_spec_2In_1Out>().block_dim_), const dim3>);
-    static_assert(std::same_as<decltype(std::declval<Matrix_kernel_spec_2In_1Out>().grid_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Matrix_kernel_spec_2In_1Out>().block_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Matrix_kernel_spec_2In_1Out>().grid_dim_), const dim3>);
 
     static_assert(MATRIX_KERNEL_SPEC_2IN_1OUT<Matrix_kernel_spec_2In_1Out>, "not a valid MATRIX_KERNEL_SPEC_2IN_1OUT");
 

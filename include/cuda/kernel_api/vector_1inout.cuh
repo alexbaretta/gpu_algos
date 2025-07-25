@@ -14,16 +14,16 @@ template <typename Vector_kernel_spec_1Inout>
 concept VECTOR_KERNEL_SPEC_1INOUT = requires (Vector_kernel_spec_1Inout spec) {
     { spec.n_A_ } -> std::same_as<const long&>;
 
-    { spec.block_dim_ } -> std::same_as<const dim3&>;
-    { spec.grid_dim_ } -> std::same_as<const dim3&>;
+    { dim3(spec.block_dim_) } -> std::same_as<dim3>;
+    { dim3(spec.grid_dim_) } -> std::same_as<dim3>;
 };
 
 template <typename Vector_kernel_spec_1Inout>
 struct Check_vector_kernel_spec_1Inout {
     static_assert(std::same_as<decltype(std::declval<Vector_kernel_spec_1Inout>().n_A_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Vector_kernel_spec_1Inout>().block_dim_), const dim3>);
-    static_assert(std::same_as<decltype(std::declval<Vector_kernel_spec_1Inout>().grid_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Vector_kernel_spec_1Inout>().block_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Vector_kernel_spec_1Inout>().grid_dim_), const dim3>);
 
     static_assert(VECTOR_KERNEL_SPEC_1INOUT<Vector_kernel_spec_1Inout>, "not a valid VECTOR_KERNEL_SPEC_1INOUT");
 

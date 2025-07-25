@@ -17,8 +17,8 @@ concept VECTOR_KERNEL_SPEC_2IN_1OUT = requires (Vector_kernel_spec_2In_1Out spec
     { spec.n_C_ } -> std::same_as<const long&>;
     { spec.n_temp_ } -> std::same_as<const long&>;
 
-    { spec.block_dim_ } -> std::same_as<const dim3&>;
-    { spec.grid_dim_ } -> std::same_as<const dim3&>;
+    { dim3(spec.block_dim_) } -> std::same_as<dim3>;
+    { dim3(spec.grid_dim_) } -> std::same_as<dim3>;
 };
 
 template <typename Vector_kernel_spec_2In_1Out>
@@ -28,8 +28,8 @@ struct Check_vector_kernel_spec_2In_1Out {
     static_assert(std::same_as<decltype(std::declval<Vector_kernel_spec_2In_1Out>().n_C_), const long>);
     static_assert(std::same_as<decltype(std::declval<Vector_kernel_spec_2In_1Out>().n_temp_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Vector_kernel_spec_2In_1Out>().block_dim_), const dim3>);
-    static_assert(std::same_as<decltype(std::declval<Vector_kernel_spec_2In_1Out>().grid_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Vector_kernel_spec_2In_1Out>().block_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Vector_kernel_spec_2In_1Out>().grid_dim_), const dim3>);
 
     static_assert(VECTOR_KERNEL_SPEC_2IN_1OUT<Vector_kernel_spec_2In_1Out>, "not a valid VECTOR_KERNEL_SPEC_2IN_1OUT");
 

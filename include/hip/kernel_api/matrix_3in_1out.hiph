@@ -27,8 +27,8 @@ concept MATRIX_KERNEL_SPEC_3IN_1OUT = requires (Matrix_kernel_spec_3In_1Out spec
     { spec.n_rows_temp_ } -> std::same_as<const long&>;
     { spec.n_cols_temp_ } -> std::same_as<const long&>;
 
-    { spec.block_dim_ } -> std::same_as<const dim3&>;
-    { spec.grid_dim_ } -> std::same_as<const dim3&>;
+    { dim3(spec.block_dim_) } -> std::same_as<dim3>;
+    { dim3(spec.grid_dim_) } -> std::same_as<dim3>;
 };
 
 template <typename Matrix_kernel_spec_3In_1Out>
