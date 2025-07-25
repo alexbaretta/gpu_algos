@@ -6,6 +6,8 @@
 #pragma once
 
 #include <cassert>
+#include <cmath>
+#include <algorithm>
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 #include <iostream>
@@ -116,7 +118,7 @@ namespace glm {
         assert(gridDim.z == 1);
 
         // We use one block per location in grad_M to sum over obs and over feature
-        const auto& bid_grid = blockIdx.x; // We use a 1D grid
+        const auto bid_grid = blockIdx.x; // We use a 1D grid
         // const auto& tid_block = threadIdx.x; // We use a 1D block
         const auto tid_warp = threadIdx.x % WARP_SIZE;
         const auto wid_block = threadIdx.x / WARP_SIZE;
@@ -256,7 +258,81 @@ namespace glm {
             }
             grad_M[grad_M_idx] = Number(2) * sum_obs;
         }
-    }
+    } // glm_gradient_XYYhat_fixed_grid
+
+    template <CUDA_scalar Number>
+    __global__ void glm_gradient_XYYhat_warp(
+        const Number* const X,     // (nfeatures, ntasks, nobs)
+        const Number* const Y,     // (ntargets, ntasks, nobs)
+        const Number* const Yhat,  // (ntargets, ntasks, nobs)
+        Number* const grad_M,      // (nfeatures, ntargets, ntasks)
+        const long nfeatures,
+        const long ntargets,
+        const long ntasks,
+        const long nobs
+    ) {
+        // We need one word of dynamic shm per warp per block
+        Number* shm  = get_dynamic_shared_memory<Number>();
+
+        assert(blockDim.x % WARP_SIZE == 0); // Number of threads is a multiple of a warp
+        assert(blockDim.y == 1);
+        assert(blockDim.z == 1);
+        assert(gridDim.y == 1);
+        assert(gridDim.z == 1);
+
+        // We use one warp per location in grad_M to sum over obs and over feature
+        // const auto bid_grid = blockIdx.x;
+        // We use a 1D grid
+        const auto tid_grid = blockIdx.x * blockDim.x + threadIdx.x;
+        const auto wid = tid_grid/WARP_SIZE;
+        // const auto& tid_block = threadIdx.x; // We use a 1D block
+        const auto tid_warp = threadIdx.x % WARP_SIZE;
+        const auto X_sheet_size = nfeatures * ntasks;
+        const auto Y_sheet_size = ntargets * ntasks;
+        const auto M_sheet_size = nfeatures * ntargets;
+        const auto M_output_size = M_sheet_size * ntasks;
+
+        const auto nthreads = (long)gridDim.x * (long)blockDim.x;
+        static_assert(std::same_as<decltype(nthreads), const long>);
+        const auto nwarps = nthreads / WARP_SIZE;
+
+        Number sum_obs;
+        for (auto grad_M_idx = wid; grad_M_idx < M_output_size; grad_M_idx += nwarps) {
+            sum_obs = 0;
+            const auto dst_task = grad_M_idx / M_sheet_size;
+            const auto dst_task_idx = grad_M_idx % M_sheet_size;
+            const auto dst_target = dst_task_idx / nfeatures;
+            const auto dst_feature = dst_task_idx % nfeatures;
+            assert(grad_M_idx == dst_feature + dst_target * nfeatures + dst_task * M_sheet_size);
+            for (long obs = tid_warp; obs < nobs; obs += WARP_SIZE) {
+                const auto Y_idx = dst_target + dst_task * ntargets + obs * Y_sheet_size;
+                const Number yhat = Yhat[Y_idx];
+                const Number y = Y[Y_idx];
+
+                // compute ( Yhat[target',task',obs] - Y[target',task',obs]) * X[feature',task',obs]
+                sum_obs += (
+                    // compute ( Yhat[target',task',obs] - Y[target',task',obs])
+                    yhat - y
+                ) * (
+                    // compute X[feature',task',obs]
+                    X[dst_feature + dst_task * nfeatures + obs * X_sheet_size]
+                );
+            }
+            // Now we need to reduce/sum over the threads of the warp to get the aggregate sum_feature
+            // First a warp shuffle reduction down to lane 0
+            printf("[DEBUG] lane=%d, grad_M_idx=%u, sum_obs=%f\n", tid_warp, grad_M_idx, float(sum_obs));
+            for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+                sum_obs += __shfl_down_sync(__activemask(), sum_obs, reduced_lanes);
+            }
+
+            // Now lane 0 can write the total to the output array
+            if (tid_warp == 0) {
+                printf("[DEBUG] reduced: grad_M_idx=%ud, grad_m=%f\n", grad_M_idx, float(Number(2)*sum_obs));
+                assert(grad_M[grad_M_idx] == Number(0));
+                grad_M[grad_M_idx] = Number(2) * sum_obs;
+            }
+        }
+    } // glm_gradient_XYYhat_warp
 
 
 } // namespace glm
@@ -297,7 +373,8 @@ struct Glm_gradient_xyyhat_spec {
     const long n_rows_temp_;
     const long n_sheets_temp_;
 
-    const dim3 block_dim_;
+    const unsigned block_dim_;
+    const unsigned fixed_grid_block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_;
     // const bool optimize_launch_;
@@ -320,7 +397,7 @@ struct Glm_gradient_xyyhat_spec {
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"))
 
             // Commenting out --cpu-algo as the Eigen matrix implementation is broken. More debugging necessary before it can be enabled.
-            ("gpu-algo", "GPU algo to use (fixed-grid, naive, block)", cxxopts::value<std::string>()->default_value(DEFAULT_GPU_ALGO))
+            ("gpu-algo", "GPU algo to use (fixed-grid, naive, warp, block)", cxxopts::value<std::string>()->default_value(DEFAULT_GPU_ALGO))
             ("cpu-algo", "CPU algo variant to benchmark against (nested-loop, matrix)", cxxopts::value<std::string>()->default_value("nested-loop"))
             ;
         }
@@ -330,8 +407,8 @@ struct Glm_gradient_xyyhat_spec {
     ) {
         // Validate gpu_algo
         const auto gpu_algo = options_parsed["gpu-algo"].as<std::string>();
-        if (gpu_algo != "fixed-grid" && gpu_algo != "naive" && gpu_algo != "block") {
-            std::cerr << "[ERROR] --gpu-algo must be one of: fixed-grid, naive, block" << std::endl;
+        if (gpu_algo != "fixed-grid" && gpu_algo != "naive" && gpu_algo != "warp" && gpu_algo != "block") {
+            std::cerr << "[ERROR] --gpu-algo must be one of: fixed-grid, naive, warp, block" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --gpu-algo: " + gpu_algo);
         }
         // Validate cpu_algo
@@ -346,12 +423,8 @@ struct Glm_gradient_xyyhat_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        // Validate block-dim
-        const auto block_dim = options_parsed["block-dim"].as<long>();
-        if (gpu_algo == "fixed-grid" && block_dim > 10) {
-            std::cerr << "[ERROR] --block-dim " << block_dim << " too big when --gpu-algo fixed-grid (must be <= 10)" << std::endl;
-            throw cxxopts::exceptions::exception("--block-dim " + std::to_string(block_dim) + " too big when --gpu-algo fixed-grid (must be <= 10)");
-        }
+        // Parse and transform block-dim
+        const auto block_dim = std::min(options_parsed["block-dim"].as<long>(), 1024L);
         return {
             type,
             gpu_algo,
@@ -360,7 +433,7 @@ struct Glm_gradient_xyyhat_spec {
             options_parsed["ntargets"].as<long>(),
             options_parsed["ntasks"].as<long>(),
             options_parsed["nobs"].as<long>(),
-            options_parsed["block-dim"].as<long>(),
+            block_dim,
             // options_parsed.count("optimize-launch") > 0
         };
     }
@@ -409,24 +482,19 @@ struct Glm_gradient_xyyhat_spec {
         n_rows_temp_(ntasks),
         n_sheets_temp_(nobs),
 
-        // block_dim_(block_dim),
-        // grid_dim_((niterations_ + block_dim - 1)/ block_dim * 32),
-
-        block_dim_(gpu_algo == "fixed-grid" ? dim3(block_dim, block_dim, block_dim) : dim3(block_dim)),
-        grid_dim_(gpu_algo == "fixed-grid" ? dim3(
-            (nfeatures + block_dim - 1)/block_dim,
-            (ntargets + block_dim - 1)/block_dim,
-            (ntasks + block_dim - 1)/block_dim
-        ) : dim3(niterations_ * 32)),
-
-
+        block_dim_(block_dim),
+        fixed_grid_block_dim_(std::floor(std::cbrt(block_dim_))),
+        grid_dim_((gpu_algo == "fixed-grid") ? dim3(
+            (nfeatures + fixed_grid_block_dim_ - 1)/fixed_grid_block_dim_,
+            (ntargets + fixed_grid_block_dim_ - 1)/fixed_grid_block_dim_,
+            (ntasks + fixed_grid_block_dim_ - 1)/fixed_grid_block_dim_
+        )
+        : (gpu_algo == "naive") ? dim3(niterations_)
+        : dim3(niterations_ * 32)),
         dynamic_shared_mem_words_(0)
         // optimize_launch_(optimize_launch)
     {
-        assert(block_dim_.x > 0);
-        assert(block_dim_.y > 0);
-        assert(block_dim_.z > 0);
-
+        assert(block_dim_ > 0);
         assert(grid_dim_.x > 0);
         assert(grid_dim_.y > 0);
         assert(grid_dim_.z > 0);
@@ -456,14 +524,15 @@ class Glm_gradient_xyyhat_kernel {
         Number* const gpu_data_Yhat,
         cudaStream_t stream
     ) {
-        dim3 block_dim;
+        long block_dim;
         dim3 grid_dim;
 
         // We initialize block_dim and grid_dim after declaring them because we might want to add support --optimize-launch
         block_dim = spec_.block_dim_;
         grid_dim = spec_.grid_dim_;
-        const int dynamic_shared_mem_words = compute_n_warps_per_block(block_dim);
-        const int predict_shm_size = dynamic_shared_mem_words * sizeof(Number);
+        const auto dynamic_shared_mem_words = compute_n_warps_per_block(block_dim);
+        const auto predict_shm_size = dynamic_shared_mem_words * sizeof(Number);
+        const dim3 fixed_grid_block_dim3{spec_.fixed_grid_block_dim_, spec_.fixed_grid_block_dim_, spec_.fixed_grid_block_dim_};
 
         const Glm_predict_naive_spec glm_predict_naive_spec{
             spec_.type_,
@@ -472,10 +541,10 @@ class Glm_gradient_xyyhat_kernel {
             spec_.ntargets_,
             spec_.ntasks_,
             spec_.nobs_,
-            /* block_dim = */ 8
+            spec_.fixed_grid_block_dim_
         };
         // Compute Yhat
-        std::cout << "[INFO] kernel launch: glm::glm_predict_opt<<<" << glm_predict_naive_spec.grid_dim_.x << ", " << glm_predict_naive_spec.block_dim_.x << ", " << predict_shm_size
+        std::cout << "[INFO] kernel launch: glm::glm_predict_fixed_grid<<<" << glm_predict_naive_spec.grid_dim_.x << ", " << glm_predict_naive_spec.block_dim_.x << ", " << predict_shm_size
             << ">>>(..., " << glm_predict_naive_spec.nfeatures_ << ", " << glm_predict_naive_spec.ntargets_ << ", " << glm_predict_naive_spec.ntasks_ << ", " << glm_predict_naive_spec.nobs_ << ")" << std::endl;
         std::cout << "[INFO] niterations = " << glm_predict_naive_spec.nobs_ * glm_predict_naive_spec.ntasks_ * glm_predict_naive_spec.ntargets_ << std::endl;
         glm::glm_predict_fixed_grid<<<
@@ -496,15 +565,16 @@ class Glm_gradient_xyyhat_kernel {
         if (spec_.gpu_algo_ == "fixed-grid") {
             const int dynamic_shared_mem_words = 0;
             const int shm_size = dynamic_shared_mem_words * sizeof(Number);
+
             std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
-            std::cout << "[INFO] block_dim_: " << block_dim.x << ", " << block_dim.y << ", " << block_dim.z << std::endl;
+            std::cout << "[INFO] block_dim_: " << fixed_grid_block_dim3.x << ", " << fixed_grid_block_dim3.y << ", " << fixed_grid_block_dim3.z << std::endl;
             std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_fixed_grid<<<(" << spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << "), ("
-                << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << "), " << dynamic_shared_mem_words
+                << spec_.block_dim_ << "), " << dynamic_shared_mem_words
                 << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
             std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
             glm::glm_gradient_XYYhat_fixed_grid<<<
                 grid_dim,
-                block_dim,
+                fixed_grid_block_dim3,
                 shm_size,
                 stream
             >>>(
@@ -518,8 +588,8 @@ class Glm_gradient_xyyhat_kernel {
             const int dynamic_shared_mem_words = 0;
             const int shm_size = dynamic_shared_mem_words * sizeof(Number);
             std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
-            std::cout << "[INFO] block_dim_: " << block_dim.x << ", " << block_dim.y << ", " << block_dim.z << std::endl;
-            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_naive<<<" << grid_dim.x << ", " << block_dim.x << ", " << shm_size
+            std::cout << "[INFO] block_dim_: " << block_dim << std::endl;
+            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_naive<<<" << grid_dim.x << ", " << block_dim << ", " << shm_size
                 << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
             std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
             glm::glm_gradient_XYYhat_naive<<<
@@ -534,12 +604,32 @@ class Glm_gradient_xyyhat_kernel {
                 gpu_data_grad_M,
                 spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_
             );
-        } else if (spec_.gpu_algo_ == "block") {
+        } else if (spec_.gpu_algo_ == "warp") {
             const int dynamic_shared_mem_words = spec_.dynamic_shared_mem_words_;
             const int shm_size = dynamic_shared_mem_words * sizeof(Number);
             std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
-            std::cout << "[INFO] block_dim_: " << block_dim.x << ", " << block_dim.y << ", " << block_dim.z << std::endl;
-            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_block<<<" << grid_dim.x << ", " << block_dim.x << ", " << shm_size
+            std::cout << "[INFO] block_dim_: " << block_dim << std::endl;
+            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_warp<<<" << grid_dim.x << ", " << block_dim << ", " << shm_size
+                << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
+            std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
+            glm::glm_gradient_XYYhat_warp<<<
+                grid_dim,
+                block_dim,
+                shm_size,
+                stream
+            >>>(
+                gpu_data_X,
+                gpu_data_Y,
+                gpu_data_Yhat,
+                gpu_data_grad_M,
+                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_
+            );
+        }  else if (spec_.gpu_algo_ == "block") {
+            const int dynamic_shared_mem_words = spec_.dynamic_shared_mem_words_;
+            const int shm_size = dynamic_shared_mem_words * sizeof(Number);
+            std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
+            std::cout << "[INFO] block_dim_: " << block_dim << std::endl;
+            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_block<<<" << grid_dim.x << ", " << block_dim << ", " << shm_size
                 << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
             std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
             glm::glm_gradient_XYYhat_block<<<
@@ -555,7 +645,7 @@ class Glm_gradient_xyyhat_kernel {
                 spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_
             );
         } else {
-            std::cerr << "[ERROR] --gpu-algo must be one of: fixed-grid, naive, block" << std::endl;
+            std::cerr << "[ERROR] --gpu-algo must be one of: fixed-grid, naive, warp, block" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --gpu-algo: " + spec_.gpu_algo_);
             assert(false); // We should have printed this error when parsing the command line
         }

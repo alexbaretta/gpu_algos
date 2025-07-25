@@ -163,7 +163,7 @@ namespace glm {
         // We use one block per location in Yhat
         const auto tid_warp = threadIdx.x % WARP_SIZE;
         const auto tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
-        const auto wid_grid = tid_grid / WARP_SIZE;
+        const auto wid = tid_grid / WARP_SIZE;
         const auto nthreads_per_grid = blockDim.x * gridDim.x;
         const auto nwarps_per_grid = nthreads_per_grid / WARP_SIZE;
         const auto X_sheet_size = nfeatures * ntasks;
@@ -171,7 +171,7 @@ namespace glm {
         const auto M_sheet_size = nfeatures * ntargets;
         const auto Y_output_size = Y_sheet_size * nobs;
 
-        for (auto Yhat_idx = wid_grid; Yhat_idx < Y_output_size; Yhat_idx += nwarps_per_grid) {
+        for (auto Yhat_idx = wid; Yhat_idx < Y_output_size; Yhat_idx += nwarps_per_grid) {
             const auto dst_obs = Yhat_idx / Y_sheet_size;
             const auto dst_obs_idx = Yhat_idx % Y_sheet_size;
             const auto dst_task = dst_obs_idx / ntargets;
@@ -313,10 +313,13 @@ namespace glm {
         const auto dst_target = blockIdx.x * blockDim.x + threadIdx.x;
         const auto dst_task = blockIdx.y * blockDim.y + threadIdx.y;
         const auto dst_obs = blockIdx.z * blockDim.z + threadIdx.z;
+
+        const auto X_sheet_size = nfeatures * ntasks;
+        const auto Y_sheet_size = ntargets * ntasks;
+        const auto M_sheet_size = nfeatures * ntargets;
+        const auto Yhat_idx = dst_target + dst_task * ntargets + dst_obs * Y_sheet_size;
+
         if (dst_target < ntargets && dst_task < ntasks && dst_obs < nobs) {
-            const auto X_sheet_size = nfeatures * ntasks;
-            const auto Y_sheet_size = ntargets * ntasks;
-            const auto M_sheet_size = nfeatures * ntargets;
 
             // compute SUM_feature M[feature,target',task'] * X[feature,task',obs]
             Number sum_feature{0};
@@ -330,7 +333,9 @@ namespace glm {
                     X[feature + dst_task * nfeatures + dst_obs * X_sheet_size]
                 );
             }
-            Yhat[dst_target + dst_task * ntargets + dst_obs * Y_sheet_size] = sum_feature;
+            Yhat[Yhat_idx] = sum_feature;
+            // printf("[DEBUG] glm_predict_fixed_grid: dst_target=%d, dst_task=%d, dst_obs=%d -> sum_feature=%f, Yhat[%ld]=%f\n",
+            //     dst_target, dst_task, dst_obs, float(sum_feature), Yhat_idx, float(Yhat[Yhat_idx]));
         }
     }
 } // namespace glm
