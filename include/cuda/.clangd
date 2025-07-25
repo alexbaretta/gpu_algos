@@ -8,6 +8,7 @@ CompileFlags:
     - -xcuda
     - --cuda-path=/usr/local/cuda
     - --cuda-gpu-arch=sm_89
+    - -Wformat=2
   Remove:
     - --expt-relaxed-constexpr
     - -forward-unknown-to-host-compiler
