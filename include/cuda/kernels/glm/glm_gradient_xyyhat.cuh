@@ -15,6 +15,7 @@
 #include "cuda/type_traits.cuh"
 #include "cuda/cuda_utils.cuh"
 #include "cuda/kernel_api/tensor3d_3in_1out.cuh"
+
 #include "glm_predict_naive.cuh"
 
 /*
@@ -86,7 +87,7 @@ dL/dM[feature',target',task'] =
     = SUM_target,task,obs 2 * ( (SUM_feature M[feature,target,task] * X[feature,task,obs]) - Y[target,task,obs]) * ( (SUM_feature delta[feature=feature',target=target',task=task'] * X[feature,task,obs])   - 0)
     = SUM_target,task,obs 2 * ( (SUM_feature M[feature,target,task] * X[feature,task,obs]) - Y[target,task,obs]) * delta[target=target',task=task'] * X[feature',task,obs]
     = 2 * SUM_obs ( (SUM_feature M[feature,target',task'] * X[feature,task',obs]) - Y[target',task',obs]) * X[feature',task',obs]
-    = 2 * SUM_obs ( Y[target',task',obs] - Y[target',task',obs]) * X[feature',task',obs]
+    = 2 * SUM_obs ( Ŷ[target',task',obs] - Y[target',task',obs]) * X[feature',task',obs]
 */
 
 namespace glm {
@@ -319,7 +320,7 @@ struct Glm_gradient_xyyhat_spec {
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"))
 
             // Commenting out --cpu-algo as the Eigen matrix implementation is broken. More debugging necessary before it can be enabled.
-            ("gpu-algo", "GPU algo to use (fixed-grid, naive, vector, warp, group, block)", cxxopts::value<std::string>()->default_value(DEFAULT_GPU_ALGO))
+            ("gpu-algo", "GPU algo to use (fixed-grid, naive, block)", cxxopts::value<std::string>()->default_value(DEFAULT_GPU_ALGO))
             ("cpu-algo", "CPU algo variant to benchmark against (nested-loop, matrix)", cxxopts::value<std::string>()->default_value("nested-loop"))
             ;
         }
@@ -329,7 +330,7 @@ struct Glm_gradient_xyyhat_spec {
     ) {
         // Validate gpu_algo
         const auto gpu_algo = options_parsed["gpu-algo"].as<std::string>();
-        if (gpu_algo != "fixed-grid" && gpu_algo != "naive" && gpu_algo != "group" && gpu_algo != "warp" && gpu_algo != "block") {
+        if (gpu_algo != "fixed-grid" && gpu_algo != "naive" && gpu_algo != "block") {
             std::cerr << "[ERROR] --gpu-algo must be one of: fixed-grid, naive, block" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --gpu-algo: " + gpu_algo);
         }
@@ -438,6 +439,7 @@ template <CUDA_scalar Number_>
 class Glm_gradient_xyyhat_kernel {
     public:
     using Number = Number_;
+    using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
     using Kernel_spec = Glm_gradient_xyyhat_spec;
 
     const Kernel_spec spec_;
@@ -588,16 +590,33 @@ dL/dM[feature',target',task'] =
                 }
             }
         } else {
+            // Tensor dimensions: innermost, intermediate, outermost
             // X: (nfeatures, ntasks, nobs)
             // Y: (ntargets, ntasks, nobs)
             // M: (nfeatures, ntargets, ntasks)
+            // const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
             for (int task = 0; task < spec_.ntasks_; ++task) {
-                auto X_task_matrix = X.chip_at_dim1(task);
-                auto Y_task_matrix = Y.chip_at_dim1(task);
-                auto M_task_matrix = M.sheet_at(task);
-                auto grad_M_task_matrix = grad_M.sheet_at(task);
-                // for each slice: grad_M = \(2X^{T}(X*M-Y)\)
-                grad_M_task_matrix.noalias() = X_task_matrix.transpose() * (X_task_matrix * M_task_matrix - Y_task_matrix);
+                // Matrix dimensions: [nrows (outer), ncols (inner)]
+                auto X_task_matrix = X.chip_at_dim1(task);  // tensor:(nfeatures, nobs) -> matrix:[nobs, nfeatures]
+                auto Y_task_matrix = Y.chip_at_dim1(task);  // tensor:(ntargets,  nobs) -> matrix:[nobs, ntargets]
+                auto M_task_matrix = M.sheet_at(task);    // tensor:(nfeatures, ntargets) -> matrix:[ntargets, nfeatures]
+                auto grad_M_task_matrix = grad_M.sheet_at(task); // tensor:(nfeatures, ntargets) -> matrix:[ntargets, nfeatures]
+                assert(X_task_matrix.rows() == spec_.nobs_);
+                assert(X_task_matrix.cols() == spec_.nfeatures_);
+                assert(Y_task_matrix.rows() == spec_.nobs_);
+                assert(Y_task_matrix.cols() == spec_.ntargets_);
+                assert(M_task_matrix.rows() == spec_.ntargets_);
+                assert(M_task_matrix.cols() == spec_.nfeatures_);
+                assert(grad_M_task_matrix.rows() == spec_.ntargets_);
+                assert(grad_M_task_matrix.cols() == spec_.nfeatures_);
+                // for each slice: grad_M = (M*X^T - Y^T)*X
+                // grad_M_task_matrix.noalias() = X_task_matrix.transpose() * (X_task_matrix * M_task_matrix - Y_task_matrix);
+                grad_M_task_matrix.noalias() = 2*(M_task_matrix * X_task_matrix.transpose() - Y_task_matrix.transpose()) * X_task_matrix;
+                // std::cout << "X_task_matrix =\n" << X_task_matrix.template cast<Printable_Number>().format(eigen_format)
+                //     << "\n Y_task_matrix =\n" << Y_task_matrix.template cast<Printable_Number>().format(eigen_format)
+                //     << "\n M_task_matrix =\n" << M_task_matrix.template cast<Printable_Number>().format(eigen_format)
+                //     << "\n grad_M_task_matrix =\n" << grad_M_task_matrix.template cast<Printable_Number>().format(eigen_format)
+                //     << std::endl;
             }
         }
         return grad_M;
