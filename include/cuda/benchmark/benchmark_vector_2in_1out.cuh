@@ -19,14 +19,20 @@
 #include "cuda/eigen_utils.cuh"
 #include "cuda/check_errors.cuh"
 #include "cuda/cuda_utils.cuh"
-#include "cuda/kernel_api/vector_2in_1out.cuh"
+#include "cuda/kernel_api.cuh"
 
 template <VECTOR_KERNEL_2IN_1OUT Vector_Kernel_2In_1Out>
 class Benchmark_Vector_2In_1Out {
     public:
     using Kernel_spec = typename Vector_Kernel_2In_1Out::Kernel_spec;
-    using Number = typename Vector_Kernel_2In_1Out::Number;
-    using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
+    using Kernel = Vector_Kernel_2In_1Out;
+    using Numbers = detect::Numbers<Kernel>;
+    using NumberA = typename Numbers::A;
+    using NumberB = typename Numbers::B;
+    using NumberC = typename Numbers::C;
+    using NumberD = typename Numbers::D;
+    using NumberE = typename Numbers::E;
+    using NumberTemp = typename Numbers::Temp;
 
     const Kernel_spec spec;
     const int seed;
@@ -78,10 +84,10 @@ class Benchmark_Vector_2In_1Out {
         const size_t size_B = size_t(spec.n_B_);
         const size_t size_C = size_t(spec.n_C_);
         const size_t size_temp = size_t(spec.n_temp_);
-        const size_t size_A_bytes = size_A * sizeof(Number);
-        const size_t size_B_bytes = size_B * sizeof(Number);
-        const size_t size_C_bytes = size_C * sizeof(Number);
-        const size_t size_temp_bytes = size_temp * sizeof(Number);
+        const size_t size_A_bytes = size_A * sizeof(NumberA);
+        const size_t size_B_bytes = size_B * sizeof(NumberB);
+        const size_t size_C_bytes = size_C * sizeof(NumberC);
+        const size_t size_temp_bytes = size_temp * sizeof(NumberTemp);
         const size_t input_size_bytes = size_A_bytes + size_B_bytes;
         const size_t output_size_bytes = size_C_bytes;
         const size_t temp_size_bytes = size_temp_bytes;
@@ -124,10 +130,10 @@ class Benchmark_Vector_2In_1Out {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        std::vector<Number> vec_A(size_A, 0);
-        std::vector<Number> vec_B(size_B, 0);
-        std::vector<Number> vec_C(size_C, 0);
-        std::vector<Number> vec_temp(size_temp, 0);
+        std::vector<NumberA> vec_A(size_A, 0);
+        std::vector<NumberB> vec_B(size_B, 0);
+        std::vector<NumberC> vec_C(size_C, 0);
+        std::vector<NumberTemp> vec_temp(size_temp, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
@@ -138,11 +144,13 @@ class Benchmark_Vector_2In_1Out {
             randomize_container(vec_A, seed);
             randomize_container(vec_B, seed+1);
         } else if (is_increasing) {
-            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
-            for (size_t i = 0; i < size_B; ++i) vec_B[i] = Number(i);
-        } else if (is_decreasing) {
-            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
-            for (size_t i = 0; i < size_B; ++i) vec_B[i] = Number(size_B - i);
+            std::cout << "  (increasing) ";
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(i);
+            for (size_t i = 0; i < size_B; ++i) vec_B[i] = NumberB(i);
+        } else if (is_increasing) {
+            std::cout << "  (decreasing) ";
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(size_A - i);
+            for (size_t i = 0; i < size_B; ++i) vec_B[i] = NumberB(size_B - i);
         } else {
             std::cerr << "[ERROR] Invalid initialization method" << std::endl;
             exit(1);
@@ -178,10 +186,10 @@ class Benchmark_Vector_2In_1Out {
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number* gpu_data_A = nullptr;
-        Number* gpu_data_B = nullptr;
-        Number* gpu_data_C = nullptr;
-        Number* gpu_data_temp = nullptr;
+        NumberA* gpu_data_A = nullptr;
+        NumberB* gpu_data_B = nullptr;
+        NumberC* gpu_data_C = nullptr;
+        NumberTemp* gpu_data_temp = nullptr;
 
         cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaMallocAsync(&gpu_data_B, size_B_bytes, stream), "cudaMallocAsync");
@@ -284,9 +292,9 @@ class Benchmark_Vector_2In_1Out {
         constexpr int check_field_width = 26;
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Eigen";
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> A{vec_A.data(), spec.n_A_};
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> B{vec_B.data(), spec.n_B_};
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> C_gpu{vec_C.data(), spec.n_C_};
+        const Eigen::Map<Eigen::Vector<NumberA, Eigen::Dynamic>> A{vec_A.data(), spec.n_A_};
+        const Eigen::Map<Eigen::Vector<NumberB, Eigen::Dynamic>> B{vec_B.data(), spec.n_B_};
+        const Eigen::Map<Eigen::Vector<NumberC, Eigen::Dynamic>> C_gpu{vec_C.data(), spec.n_C_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
@@ -320,12 +328,12 @@ class Benchmark_Vector_2In_1Out {
             std::cout << "Non-zero error elements:\n";
             bool found_errors = false;
             for (int i = 0; i < E.size(); ++i) {
-                if (E(i) != Number(0)) {
+                if (E(i) != NumberE(0)) {
                     found_errors = true;
                     std::cout << "(" << i << "): "
-                              << "C_gpu=" << static_cast<Printable_Number>(C_gpu(i)) << ", "
-                              << "C_cpu=" << static_cast<Printable_Number>(C_cpu(i)) << ", "
-                              << "E=" << static_cast<Printable_Number>(E(i)) << "\n";
+                              << "C_gpu=" << static_cast<Printable_Number<NumberC>>(C_gpu(i)) << ", "
+                              << "C_cpu=" << static_cast<Printable_Number<NumberC>>(C_cpu(i)) << ", "
+                              << "E=" << static_cast<Printable_Number<NumberE>>(E(i)) << "\n";
                 }
             }
             if (!found_errors) {
@@ -336,20 +344,20 @@ class Benchmark_Vector_2In_1Out {
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
             std::cout << "A    :\n";
-            std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << A.template cast<Printable_Number<NumberA>>().format(eigen_format) << std::endl;
             std::cout << "B    :\n";
-            std::cout << B.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << B.template cast<Printable_Number<NumberB>>().format(eigen_format) << std::endl;
             std::cout << "C_gpu:\n";
-            std::cout << C_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << C_gpu.template cast<Printable_Number<NumberC>>().format(eigen_format) << std::endl;
             std::cout << "C_cpu:\n";
-            std::cout << C_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << C_cpu.template cast<Printable_Number<NumberC>>().format(eigen_format) << std::endl;
             if (spec.n_temp_ > 0) {
-                const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> tmp_gpu{vec_temp.data(), spec.n_temp_};
+                const Eigen::Map<Eigen::Vector<NumberTemp, Eigen::Dynamic>> tmp_gpu{vec_temp.data(), spec.n_temp_};
                 std::cout << "tmp  :\n";
-                std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+                std::cout << tmp_gpu.template cast<Printable_Number<NumberTemp>>().format(eigen_format) << std::endl;
             }
             std::cout << "E    :\n";
-            std::cout << E.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << E.template cast<Printable_Number<NumberE>>().format(eigen_format) << std::endl;
             std::cout << "E_pct:\n";
             std::cout << E_pct.format(eigen_format) << std::endl;
         }

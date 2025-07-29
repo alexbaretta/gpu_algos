@@ -17,14 +17,20 @@
 #include "common/types/tensor3d.hpp"
 #include "cuda/check_errors.cuh"
 #include "cuda/cuda_utils.cuh"
-#include "cuda/kernel_api/tensor3d_1in_1out.cuh"
+#include "cuda/kernel_api.cuh"
 
 template <TENSOR3D_KERNEL_1IN_1OUT Tensor3D_Kernel_1In_1Out>
 class Benchmark_Tensor3D_1In_1Out {
     public:
     using Kernel_spec = typename Tensor3D_Kernel_1In_1Out::Kernel_spec;
-    using Number = typename Tensor3D_Kernel_1In_1Out::Number;
-    using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
+    using Kernel = Tensor3D_Kernel_1In_1Out;
+    using Numbers = detect::Numbers<Kernel>;
+    using NumberA = typename Numbers::A;
+    using NumberB = typename Numbers::B;
+    using NumberC = typename Numbers::C;
+    using NumberD = typename Numbers::D;
+    using NumberE = typename Numbers::E;
+    using NumberTemp = typename Numbers::Temp;
 
     const Kernel_spec spec;
     const int seed;
@@ -74,9 +80,9 @@ class Benchmark_Tensor3D_1In_1Out {
         const size_t size_A = size_t(spec.n_rows_A_) * size_t(spec.n_cols_A_) * size_t(spec.n_sheets_A_);
         const size_t size_C = size_t(spec.n_rows_C_) * size_t(spec.n_cols_C_) * size_t(spec.n_sheets_C_);
         const size_t size_temp = size_t(spec.n_rows_temp_) * size_t(spec.n_cols_temp_) * size_t(spec.n_sheets_temp_);
-        const size_t size_A_bytes = size_A * sizeof(Number);
-        const size_t size_C_bytes = size_C * sizeof(Number);
-        const size_t size_temp_bytes = size_temp * sizeof(Number);
+        const size_t size_A_bytes = size_A * sizeof(NumberA);
+        const size_t size_C_bytes = size_C * sizeof(NumberC);
+        const size_t size_temp_bytes = size_temp * sizeof(NumberTemp);
         const size_t input_size_bytes = size_A_bytes;
         const size_t output_size_bytes = size_C_bytes;
         const size_t temp_size_bytes = size_temp_bytes;
@@ -118,21 +124,23 @@ class Benchmark_Tensor3D_1In_1Out {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        Tensor3D<Number> tensor3d_A(spec.n_cols_A_, spec.n_rows_A_, spec.n_sheets_A_, 0);
-        Tensor3D<Number> tensor3d_C(spec.n_cols_C_, spec.n_rows_C_, spec.n_sheets_C_, 0);
-        Tensor3D<Number> tensor3d_temp(spec.n_cols_temp_, spec.n_rows_temp_, spec.n_sheets_temp_, 0);
+        Tensor3D<NumberA> tensor3d_A(spec.n_cols_A_, spec.n_rows_A_, spec.n_sheets_A_, 0);
+        Tensor3D<NumberC> tensor3d_C(spec.n_cols_C_, spec.n_rows_C_, spec.n_sheets_C_, 0);
+        Tensor3D<NumberTemp> tensor3d_temp(spec.n_cols_temp_, spec.n_rows_temp_, spec.n_sheets_temp_, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Initializing tensors: " << std::endl;
+        std::cout << "  - Initializing tensors: ";
         if (is_random) {
-            std::cout << "  - Randomizing tensors: ";
+            std::cout << "  (random) ";
             tensor3d_A.randomize(seed);
         } else if (is_increasing) {
-            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(i);
-        } else if (is_decreasing) {
-            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(size_A - i);
+            std::cout << "  (increasing) ";
+            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = NumberA(i);
+        } else if (is_increasing) {
+            std::cout << "  (decreasing) ";
+            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = NumberA(size_A - i);
         } else {
             std::cerr << "[ERROR] Invalid initialization method" << std::endl;
             exit(1);
@@ -168,9 +176,9 @@ class Benchmark_Tensor3D_1In_1Out {
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number* gpu_data_A = nullptr;
-        Number* gpu_data_C = nullptr;
-        Number* gpu_data_temp = nullptr;
+        NumberA* gpu_data_A = nullptr;
+        NumberC* gpu_data_C = nullptr;
+        NumberTemp* gpu_data_temp = nullptr;
 
         cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
         cuda_check_error(cudaMallocAsync(&gpu_data_C, size_C_bytes, stream), "cudaMallocAsync");
@@ -340,9 +348,9 @@ class Benchmark_Tensor3D_1In_1Out {
                         if (tensor3d_E(i, j, k) != 0.0) {
                             found_errors = true;
                             std::cout << "(" << i << ", " << j << ", " << k << "): "
-                                    << "result gpu =" << static_cast<Printable_Number>(tensor3d_result_gpu(i, j, k)) << ", "
-                                    << "result cpu =" << static_cast<Printable_Number>(tensor3d_result_cpu(i, j, k)) << ", "
-                                    << "E          =" << static_cast<Printable_Number>(tensor3d_E(i, j, k)) << "\n";
+                                    << "result gpu =" << static_cast<Printable_Number<NumberC>>(tensor3d_result_gpu(i, j, k)) << ", "
+                                    << "result cpu =" << static_cast<Printable_Number<NumberC>>(tensor3d_result_cpu(i, j, k)) << ", "
+                                    << "E          =" << static_cast<Printable_Number<NumberE>>(tensor3d_E(i, j, k)) << "\n";
                         }
                     }
                 }

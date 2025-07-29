@@ -18,14 +18,20 @@
 #include "common/random.hpp"
 #include "cuda/check_errors.cuh"
 #include "cuda/cuda_utils.cuh"
-#include "cuda/kernel_api/matrix_1inout.cuh"
+#include "cuda/kernel_api.cuh"
 
 template <MATRIX_KERNEL_1INOUT Matrix_Kernel_1Inout>
 class Benchmark_Matrix_1Inout {
     public:
     using Kernel_spec = typename Matrix_Kernel_1Inout::Kernel_spec;
-    using Number = typename Matrix_Kernel_1Inout::Number;
-    using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
+    using Kernel = Matrix_Kernel_1Inout;
+    using Numbers = detect::Numbers<Kernel>;
+    using NumberA = typename Numbers::A;
+    using NumberB = typename Numbers::B;
+    using NumberC = typename Numbers::C;
+    using NumberD = typename Numbers::D;
+    using NumberE = typename Numbers::E;
+    using NumberTemp = typename Numbers::Temp;
 
     const Kernel_spec spec;
     const int seed;
@@ -73,8 +79,8 @@ class Benchmark_Matrix_1Inout {
     int run() {
         const size_t size_A = size_t(spec.n_rows_A_) * size_t(spec.n_cols_A_);
         const size_t size_temp = size_t(spec.n_rows_temp_) * size_t(spec.n_cols_temp_);
-        const size_t size_A_bytes = size_A * sizeof(Number);
-        const size_t size_temp_bytes = size_temp * sizeof(Number);
+        const size_t size_A_bytes = size_A * sizeof(NumberA);
+        const size_t size_temp_bytes = size_temp * sizeof(NumberTemp);
         const size_t inout_size_bytes = size_A_bytes;
         const size_t temp_size_bytes = size_temp_bytes;
         const size_t mem_size_bytes = inout_size_bytes + temp_size_bytes;
@@ -112,20 +118,22 @@ class Benchmark_Matrix_1Inout {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        std::vector<Number> vec_A(size_A, 0);
-        std::vector<Number> vec_temp(size_temp, 0);
+        std::vector<NumberA> vec_A(size_A, 0);
+        std::vector<NumberTemp> vec_temp(size_temp, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
         std::cout << "  - Initializing matrices: ";
         if (is_random) {
-            std::cout << "  - Randomizing matrices: ";
+            std::cout << "  (random) ";
             randomize_container(vec_A, seed);
         } else if (is_increasing) {
-            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
-        } else if (is_decreasing) {
-            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
+            std::cout << "  (increasing) ";
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(i);
+        } else if (is_increasing) {
+            std::cout << "  (decreasing) ";
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(size_A - i);
         } else {
             std::cerr << "[ERROR] Invalid initialization method" << std::endl;
             exit(1);
@@ -161,8 +169,8 @@ class Benchmark_Matrix_1Inout {
         cuda_check_error(cudaEventRecord(e0, stream), "cudaEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number* gpu_data_A = nullptr;
-        Number* gpu_data_temp = nullptr;
+        NumberA* gpu_data_A = nullptr;
+        NumberTemp* gpu_data_temp = nullptr;
 
         cuda_check_error(cudaMallocAsync(&gpu_data_A, size_A_bytes, stream), "cudaMallocAsync");
         if (size_temp_bytes > 0) {
@@ -185,7 +193,7 @@ class Benchmark_Matrix_1Inout {
         cuda_check_error(cudaStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "cudaStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
-        auto vec_A_result_gpu = std::vector<Number>(size_A, 0);
+        auto vec_A_result_gpu = std::vector<NumberA>(size_A, 0);
         cuda_check_error(cudaMemcpyAsync(vec_A_result_gpu.data(), gpu_data_A, size_A_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
         if (size_temp_bytes > 0) {
             cuda_check_error(cudaMemcpyAsync(vec_temp.data(), gpu_data_temp, size_temp_bytes, cudaMemcpyDeviceToHost, stream), "cudaMemcpyAsync");
@@ -262,9 +270,9 @@ class Benchmark_Matrix_1Inout {
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Eigen, call copy constructor on A";
         auto vec_A_result_cpu{vec_A}; // Copy constructor
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A{vec_A.data(), spec.n_rows_A_, spec.n_cols_A_};
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_result_gpu{vec_A_result_gpu.data(), spec.n_rows_A_, spec.n_cols_A_};
-        Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_result_cpu{vec_A_result_cpu.data(), spec.n_rows_A_, spec.n_cols_A_};
+        const Eigen::Map<Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A{vec_A.data(), spec.n_rows_A_, spec.n_cols_A_};
+        const Eigen::Map<Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_result_gpu{vec_A_result_gpu.data(), spec.n_rows_A_, spec.n_cols_A_};
+        Eigen::Map<Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> A_result_cpu{vec_A_result_cpu.data(), spec.n_rows_A_, spec.n_cols_A_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
@@ -300,12 +308,12 @@ class Benchmark_Matrix_1Inout {
             bool found_errors = false;
             for (int i = 0; i < E.rows(); ++i) {
                 for (int j = 0; j < E.cols(); ++j) {
-                    if (E(i, j) != Number(0)) {
+                    if (E(i, j) != NumberA(0)) {
                         found_errors = true;
                         std::cout << "(" << i << ", " << j << "): "
-                                  << "result gpu=" << static_cast<Printable_Number>(A_result_gpu(i, j)) << ", "
-                                  << "result cpu=" << static_cast<Printable_Number>(A_result_cpu(i, j)) << ", "
-                                  << "E=" << static_cast<Printable_Number>(E(i, j)) << "\n";
+                                  << "result gpu=" << static_cast<Printable_Number<NumberA>>(A_result_gpu(i, j)) << ", "
+                                  << "result cpu=" << static_cast<Printable_Number<NumberA>>(A_result_cpu(i, j)) << ", "
+                                  << "E=" << static_cast<Printable_Number<NumberE>>(E(i, j)) << "\n";
                     }
                 }
             }
@@ -317,18 +325,18 @@ class Benchmark_Matrix_1Inout {
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
             std::cout << "A    :\n";
-            std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << A.template cast<Printable_Number<NumberA>>().format(eigen_format) << std::endl;
             std::cout << "A_gpu:\n";
-            std::cout << A_result_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << A_result_gpu.template cast<Printable_Number<NumberA>>().format(eigen_format) << std::endl;
             std::cout << "A_cpu:\n";
-            std::cout << A_result_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << A_result_cpu.template cast<Printable_Number<NumberA>>().format(eigen_format) << std::endl;
             if ((spec.n_rows_temp_ > 0) && (spec.n_cols_temp_ > 0)) {
-                const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, 1>> tmp_gpu{vec_temp.data(), spec.n_temp_};
+                const Eigen::Map<Eigen::Matrix<NumberTemp, Eigen::Dynamic, 1>> tmp_gpu{vec_temp.data(), spec.n_temp_};
                 std::cout << "tmp  :\n";
-                std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+                std::cout << tmp_gpu.template cast<Printable_Number<NumberTemp>>().format(eigen_format) << std::endl;
             }
             std::cout << "E    :\n";
-            std::cout << E.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << E.template cast<Printable_Number<NumberE>>().format(eigen_format) << std::endl;
             std::cout << "E_pct:\n";
             std::cout << E_pct.format(eigen_format) << std::endl;
         }

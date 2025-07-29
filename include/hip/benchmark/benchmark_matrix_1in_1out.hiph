@@ -129,11 +129,13 @@ class Benchmark_Matrix_1In_1Out {
 
         std::cout << "  - Initializing matrices: ";
         if (is_random) {
-            std::cout << "  - Randomizing matrices: ";
+            std::cout << "  (random) ";
             randomize_container(vec_A, seed);
         } else if (is_increasing) {
+            std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
-        } else if (is_decreasing) {
+        } else if (is_increasing) {
+            std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
         } else {
             std::cerr << "[ERROR] Invalid initialization method" << std::endl;

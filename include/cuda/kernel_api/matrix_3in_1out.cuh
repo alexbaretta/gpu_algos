@@ -5,9 +5,12 @@
 
 #pragma once
 
+#include <concepts>
+#include <utility>
 #include <cuda_runtime.h>
 #include <Eigen/Dense>
 
+#include "cuda/kernel_detect_types.cuh"
 #include "cuda/type_traits.cuh"
 
 template <typename Matrix_kernel_spec_3In_1Out>

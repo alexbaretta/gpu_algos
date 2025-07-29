@@ -122,8 +122,10 @@ class Benchmark_Vector_1Inout {
             std::cout << "  - Randomizing vectors: ";
             randomize_container(vec_A, seed);
         } else if (is_increasing) {
+            std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
-        } else if (is_decreasing) {
+        } else if (is_increasing) {
+            std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
         } else {
             std::cerr << "[ERROR] Invalid initialization method" << std::endl;

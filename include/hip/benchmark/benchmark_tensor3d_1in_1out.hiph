@@ -124,13 +124,15 @@ class Benchmark_Tensor3D_1In_1Out {
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Initializing tensors: " << std::endl;
+        std::cout << "  - Initializing tensors: ";
         if (is_random) {
-            std::cout << "  - Randomizing tensors: ";
+            std::cout << "  (random) ";
             tensor3d_A.randomize(seed);
         } else if (is_increasing) {
+            std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(i);
-        } else if (is_decreasing) {
+        } else if (is_increasing) {
+            std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(size_A - i);
         } else {
             std::cerr << "[ERROR] Invalid initialization method" << std::endl;

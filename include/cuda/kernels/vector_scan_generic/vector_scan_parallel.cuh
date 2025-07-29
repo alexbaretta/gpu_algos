@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 #include <cassert>
 #include <concepts>
+#include <utility>
 #include <type_traits>
 
 #include "cuda/kernel_api/vector_1in_1out.cuh"

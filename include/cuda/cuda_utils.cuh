@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 #include <type_traits>
@@ -17,9 +18,28 @@ constexpr size_t NULL_FLAGS = 0;
 constexpr static long MAX_BLOCK_SIZE = 1024;
 constexpr static unsigned FULL_MASK = std::numeric_limits<unsigned>::max();
 
+#define STATIC_WARP_SIZE 32 // TODO: How can I check that warpSize is less than or equal to this?
 #define WARP_SIZE warpSize
 #define MAX_N_WARPS (MAX_BLOCK_SIZE / WARP_SIZE)
 #define LAST_LANE (WARP_SIZE - 1)
+
+// Utility macros for thread indexing
+#define BLOCK_1D_NTHREADS   (blockDim.x)
+#define BLOCK_2D_NTHREADS   (BLOCK_1D_NTHREADS * blockDim.y)
+#define BLOCK_3D_NTHREADS   (BLOCK_3D_NTHREADS * blockDim.Z)
+#define BLOCK_1D_NWARPS     (BLOCK_1D_NTHREADS / warpSize)
+#define BLOCK_2D_NWARPS     (BLOCK_2D_NTHREADS / warpSize)
+#define BLOCK_3D_NWARPS     (BLOCK_3D_NTHREADS / warpSize)
+#define GRID_1D_BID         (blockIdx.x)
+#define GRID_2D_BID         (GRID_1D_BID + blockIdx.y * gridDim.x)
+#define GRID_3D_BID         (GRID_2D_BID + blockIdx.z * gridDim.y * gridDim.x)
+#define BLOCK_1D_TID_BLOCK  (threadIdx.x)
+#define BLOCK_2D_TID_BLOCK  (BLOCK_1D_TID_BLOCK + blockDim.x * threadIdx.y)
+#define BLOCK_3D_TID_BLOCK  (BLOCK_2D_TID_BLOCK + blockDim.x * blockDim.y * threadIdx.z)
+#define BLOCK_1D_WID_BLOCK  (BLOCK_1D_TID_BLOCK / warpSize)
+#define BLOCK_2D_WID_BLOCK  (BLOCK_2D_TID_BLOCK / warpSize)
+#define BLOCK_3D_WID_BLOCK  (BLOCK_3D_TID_BLOCK / warpSize)
+
 
 __host__ __inline__
 unsigned int get_warp_size() {

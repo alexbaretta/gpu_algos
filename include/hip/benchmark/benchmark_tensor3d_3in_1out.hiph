@@ -134,17 +134,19 @@ class Benchmark_Tensor3D_3In_1Out {
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
 
-        std::cout << "  - Initializing tensors: " << std::endl;
+        std::cout << "  - Initializing tensors: ";
         if (is_random) {
-            std::cout << "  - Randomizing tensors: ";
+            std::cout << "  (random) ";
             tensor3d_A.randomize(seed);
             tensor3d_B.randomize(seed+1);
             tensor3d_C.randomize(seed+2);
         } else if (is_increasing) {
+            std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(i);
             for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector_[i] = Number(i);
             for (size_t i = 0; i < size_C; ++i) tensor3d_C.vector_[i] = Number(i);
-        } else if (is_decreasing) {
+        } else if (is_increasing) {
+            std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(size_A - i);
             for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector_[i] = Number(size_B - i);
             for (size_t i = 0; i < size_C; ++i) tensor3d_C.vector_[i] = Number(size_C - i);

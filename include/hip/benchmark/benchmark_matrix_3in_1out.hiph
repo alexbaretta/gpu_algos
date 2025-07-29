@@ -138,15 +138,17 @@ class Benchmark_Matrix_3In_1Out {
 
         std::cout << "  - Initializing matrices: ";
         if (is_random) {
-            std::cout << "  - Randomizing matrices: ";
+            std::cout << "  (random) ";
             randomize_container(vec_A, seed);
             randomize_container(vec_B, seed+1);
             randomize_container(vec_C, seed+2);
         } else if (is_increasing) {
+            std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
             for (size_t i = 0; i < size_B; ++i) vec_B[i] = Number(i);
             for (size_t i = 0; i < size_C; ++i) vec_C[i] = Number(i);
-        } else if (is_decreasing) {
+        } else if (is_increasing) {
+            std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
             for (size_t i = 0; i < size_B; ++i) vec_B[i] = Number(size_B - i);
             for (size_t i = 0; i < size_C; ++i) vec_C[i] = Number(size_C - i);

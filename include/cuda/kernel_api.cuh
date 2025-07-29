@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "cuda/kernel_detect_types.cuh"
+
 #include "cuda/kernel_api/matrix_1inout.cuh"
 #include "cuda/kernel_api/matrix_1in_1out.cuh"
 #include "cuda/kernel_api/matrix_2in_1out.cuh"

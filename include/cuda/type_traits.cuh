@@ -66,3 +66,6 @@ concept is_matrix_like = (
     std::is_same_v<std::decay_t<MATRIX_LIKE>, Eigen::Matrix<typename MATRIX_LIKE::Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
     || std::is_same_v<std::decay_t<MATRIX_LIKE>, Eigen::Map<Eigen::Matrix<typename MATRIX_LIKE::Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>>
 ) && is_CUDA_scalar_v<typename MATRIX_LIKE::Scalar>;
+
+template <CUDA_scalar T>
+using Printable_Number = std::conditional_t<std::is_same_v<T, __half>, float, T>;
