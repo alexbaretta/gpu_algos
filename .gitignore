@@ -92,3 +92,6 @@ include/**/*.hip
 *.blg
 *.fls
 *.fdb_latexmk
+
+# Unit test output
+*.jsonl

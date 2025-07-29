@@ -50,16 +50,16 @@ struct Matrix_product_tensor_spec {
     const size_t dynamic_shared_mem_words_ = 0;
 
     constexpr static int DEFAULT_M = 3000; // Rows of first matrix
-    constexpr static int DEFAULT_N = 300;  // Columns of first matrix / Rows of second matrix
-    constexpr static int DEFAULT_K = 1000; // Columns of second matrix
+    constexpr static int DEFAULT_K = 300;  // Columns of first matrix / Rows of second matrix
+    constexpr static int DEFAULT_N = 1000; // Columns of second matrix
     constexpr static int DEFAULT_BLOCK_DIM_WARPS_X = 4;
     constexpr static int DEFAULT_BLOCK_DIM_WARPS_Y = 4;
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
             ("m", "Number of rows in first matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
-            ("k", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("n", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("k", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("n", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("block-dim-tiles-x,x", "Number of tiles in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_WARPS_X)))
             ("block-dim-tiles-y,y", "Number of tiles in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_WARPS_Y)))
             ("type", "Numeric type (half*, int8*, single/float, double, uint8) (* = tensor cores)", cxxopts::value<std::string>()->default_value("float"));
@@ -370,8 +370,8 @@ __global__ void matrix_product_tensor_wmma(
     const typename Wmma_config::argument_type* const B, // k by n
     typename Wmma_config::result_type* const C,         // m by n
     const int m,
-    const int n,
-    const int k
+    const int k,
+    const int n
 ) {
     extern __shared__ char temp_tile[];
     // Block is 3D: warp lane, tile_col in block, tile_row in block
@@ -469,7 +469,7 @@ class Matrix_product_tensor_kernel {
             block_dim,
             shared_memory_size,
             stream
-        >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.n_, spec_.k_);
+        >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.k_, spec_.n_);
     }
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
         const Eigen::Map<Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,

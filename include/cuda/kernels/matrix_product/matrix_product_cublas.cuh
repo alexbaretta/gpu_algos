@@ -19,8 +19,8 @@ struct Matrix_product_cublas_spec {
     const std::string type_;
 
     const long m_;    // Rows of first matrix
-    const long n_;    // Columns of first matrix and rows of second matrix
-    const long k_;    // Columns of second matrix
+    const long k_;    // Columns of first matrix and rows of second matrix
+    const long n_;    // Columns of second matrix
 
     const long n_rows_A_;
     const long n_cols_A_;
@@ -40,16 +40,16 @@ struct Matrix_product_cublas_spec {
     const size_t dynamic_shared_mem_words_ = 0;
 
     constexpr static int DEFAULT_M = 3000; // Rows of first matrix
-    constexpr static int DEFAULT_N = 300;  // Columns of first matrix / Rows of second matrix
-    constexpr static int DEFAULT_K = 1000; // Columns of second matrix
+    constexpr static int DEFAULT_K = 300;  // Columns of first matrix / Rows of second matrix
+    constexpr static int DEFAULT_N = 1000; // Columns of second matrix
     constexpr static int DEFAULT_BLOCK_DIM_X = 16;
     constexpr static int DEFAULT_BLOCK_DIM_Y = 16;
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
             ("m", "Number of rows in first matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
-            ("n", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("k", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("k", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("n", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("block-dim-x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("block-dim-y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
@@ -68,8 +68,8 @@ struct Matrix_product_cublas_spec {
         return Matrix_product_cublas_spec(
             type,
             options_parsed["m"].as<long>(),
-            options_parsed["n"].as<long>(),
             options_parsed["k"].as<long>(),
+            options_parsed["n"].as<long>(),
             options_parsed["block-dim-x"].as<long>(),
             options_parsed["block-dim-y"].as<long>()
         );
@@ -78,25 +78,25 @@ struct Matrix_product_cublas_spec {
     inline Matrix_product_cublas_spec(
         const std::string& type,
         const long m,
-        const long n,
         const long k,
+        const long n,
         const long block_dim_x,
         const long block_dim_y
     ) : type_(type),
         m_(m),
-        n_(n),
         k_(k),
+        n_(n),
         n_rows_A_(m),
-        n_cols_A_(n),
-        n_rows_B_(n),
-        n_cols_B_(k),
+        n_cols_A_(k),
+        n_rows_B_(k),
+        n_cols_B_(n),
         n_rows_C_(m),
-        n_cols_C_(k),
+        n_cols_C_(n),
         n_rows_temp_(0),
         n_cols_temp_(0),
         block_dim_(block_dim_x, block_dim_y),
         grid_dim_(
-            (k_ + block_dim_.x - 1) / block_dim_.x,
+            (n_ + block_dim_.x - 1) / block_dim_.x,
             (m_ + block_dim_.y - 1) / block_dim_.y
         )
     {}
@@ -155,9 +155,9 @@ class Matrix_product_cublas_kernel {
 
             // Create matrix descriptors
             cublasLtMatmulDescCreate(&matmul_desc, CUBLAS_COMPUTE_16F, CUDA_R_16F);
-            cublasLtMatrixLayoutCreate(&A_desc, CUDA_R_16F, spec_.m_, spec_.n_, spec_.n_);
-            cublasLtMatrixLayoutCreate(&B_desc, CUDA_R_16F, spec_.n_, spec_.k_, spec_.k_);
-            cublasLtMatrixLayoutCreate(&C_desc, CUDA_R_16F, spec_.m_, spec_.k_, spec_.k_);
+            cublasLtMatrixLayoutCreate(&A_desc, CUDA_R_16F, spec_.m_, spec_.k_, spec_.k_);
+            cublasLtMatrixLayoutCreate(&B_desc, CUDA_R_16F, spec_.k_, spec_.n_, spec_.n_);
+            cublasLtMatrixLayoutCreate(&C_desc, CUDA_R_16F, spec_.m_, spec_.n_, spec_.n_);
 
             // Perform matrix multiplication: C = A * B
             cublasLtMatmul(cublaslt_handle_,
@@ -179,22 +179,22 @@ class Matrix_product_cublas_kernel {
             // Use cuBLAS for single precision
             cublasSgemm(cublas_handle_,
                        CUBLAS_OP_N, CUBLAS_OP_N,
-                       spec_.k_, spec_.m_, spec_.n_,
+                       spec_.n_, spec_.m_, spec_.k_,
                        &alpha,
-                       gpu_data_B, spec_.k_,
-                       gpu_data_A, spec_.n_,
+                       gpu_data_B, spec_.n_,
+                       gpu_data_A, spec_.k_,
                        &beta,
-                       gpu_data_C, spec_.k_);
+                       gpu_data_C, spec_.n_);
         } else if constexpr (std::is_same_v<Number, double>) {
             // Use cuBLAS for double precision
             cublasDgemm(cublas_handle_,
                        CUBLAS_OP_N, CUBLAS_OP_N,
-                       spec_.k_, spec_.m_, spec_.n_,
+                       spec_.n_, spec_.m_, spec_.k_,
                        &alpha,
-                       gpu_data_B, spec_.k_,
-                       gpu_data_A, spec_.n_,
+                       gpu_data_B, spec_.n_,
+                       gpu_data_A, spec_.k_,
                        &beta,
-                       gpu_data_C, spec_.k_);
+                       gpu_data_C, spec_.n_);
         }
     }
     Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
