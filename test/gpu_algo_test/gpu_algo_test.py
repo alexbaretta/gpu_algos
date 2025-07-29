@@ -104,6 +104,9 @@ EXECUTABLE_TYPE_SUPPORT = {
     # Cooperative kernels might have limitations (can be updated as issues are discovered)
     "*cooperative*": set(DATA_TYPES),  # Assume full support for now
 
+    # Tensor core implementations support a specific subset of types
+    "*tensor*": {"half", "int8", "float", "double", "uint8"},
+
     # Default: all implementations support all types unless specified otherwise
     # Note: This catch-all pattern must be last
     "*": set(DATA_TYPES),
@@ -581,12 +584,13 @@ class GPUAlgoTest:
         """Check if a data type is a floating point type."""
         return data_type in ["half", "float", "double"]
 
-    def _check_correctness(self, metrics: Dict[str, float], data_type: str) -> bool:
+    def _check_correctness(self, metrics: Dict[str, float], data_type: str, executable: Path) -> tuple[bool, str]:
         """Check if results are correct based on error thresholds.
 
         Args:
             metrics: Dictionary containing max_error and optionally max_error_pct
             data_type: The data type being tested
+            executable: Path to the executable being tested
 
         Returns:
             True if results are correct (errors below thresholds), False otherwise
@@ -604,6 +608,12 @@ class GPUAlgoTest:
         # Error of 0 always satisfies correctness check
         if max_error == 0:
             return True, "max_error == 0"
+
+        # Check if this executable uses tensor cores
+        exe_name = executable.name.lower()
+        uses_tensor_cores = any(pattern in exe_name for pattern in [
+            "matrix_product_tensor"
+        ])
 
         # Determine appropriate tolerances based on data type
         if self._is_integer_type(data_type):
@@ -626,8 +636,12 @@ class GPUAlgoTest:
                     # half precision: 10-bit significand + 1 implicit → 11-4=7 bits → 2^(-7) ≈ 0.0078 → 0.78%
                     pct_tol = 0.78
                 elif data_type in ["float", "single"]:
-                    # float32: 23-bit significand + 1 implicit → 24-4=20 bits → 2^(-20) ≈ 9.54e-7 → 9.54e-5%
-                    pct_tol = 9.54e-5
+                    if uses_tensor_cores:
+                        # TF32 precision used internally by tensor cores: 10-bit significand + 1 implicit → 11-4=7 bits → 2^(-7) ≈ 0.0078 → 0.78%
+                        pct_tol = 0.78
+                    else:
+                        # float32: 23-bit significand + 1 implicit → 24-4=20 bits → 2^(-20) ≈ 9.54e-7 → 9.54e-5%
+                        pct_tol = 9.54e-5
                 elif data_type == "double":
                     # float64: 52-bit significand + 1 implicit → 53-4=49 bits → 2^(-49) ≈ 1.78e-15 → 1.78e-13%
                     pct_tol = 1.78e-13
@@ -655,13 +669,31 @@ class GPUAlgoTest:
                 # Use a reasonable default based on data type
                 if self._is_floating_type(data_type):
                     if data_type == "half":
-                        return max_error <= 1e-3  # Allow small absolute errors for half precision
+                        if max_error <= 1e-3:
+                            return True, f'max_error <= 1e-3 (half precision default)'
+                        else:
+                            return False, f'max_error > 1e-3 (half precision default)'
                     elif data_type in ["float", "single"]:
-                        return max_error <= 1e-6  # Standard float precision
+                        if uses_tensor_cores:
+                            if max_error <= 1e-3:
+                                return True, f'max_error <= 1e-3 (TF32 precision default)'
+                            else:
+                                return False, f'max_error > 1e-3 (TF32 precision default)'
+                        else:
+                            if max_error <= 1e-6:
+                                return True, f'max_error <= 1e-6 (float precision default)'
+                            else:
+                                return False, f'max_error > 1e-6 (float precision default)'
                     else:  # double
-                        return max_error <= 1e-12  # Double precision
+                        if max_error <= 1e-12:
+                            return True, f'max_error <= 1e-12 (double precision default)'
+                        else:
+                            return False, f'max_error > 1e-12 (double precision default)'
                 else:  # integer types
-                    return max_error == 0.0  # Integers must be exact if percent is NaN
+                    if max_error == 0.0:
+                        return True, f'max_error == 0.0 (integer exact default)'
+                    else:
+                        return False, f'max_error != 0.0 (integer exact default)'
                 pass
         else: # max_error_pct is not NaN
             assert pct_tol is not None
@@ -745,7 +777,7 @@ class GPUAlgoTest:
                     "stderr": result.stderr,
                 }
                 if run_success and metrics:
-                    correct, correctness_reason = self._check_correctness(metrics, data_type)
+                    correct, correctness_reason = self._check_correctness(metrics, data_type, executable)
                     test_result["correct"] = correct
                     test_result["correctness_reason"] = correctness_reason
                     pass
@@ -1201,13 +1233,13 @@ def main():
     )
 
     parser.add_argument(
-        "--hip",
+        "--only-hip",
         action="store_true",
         help="Only test HIP executables (executables with 'hip_' prefix)",
     )
 
     parser.add_argument(
-        "--cuda",
+        "--only-cuda",
         action="store_true",
         help="Only test CUDA executables (executables without 'hip_' prefix)",
     )
@@ -1216,8 +1248,8 @@ def main():
 
     try:
         # Validate mutually exclusive options
-        if args.hip and args.cuda:
-            print("Error: --hip and --cuda options are mutually exclusive", file=sys.stderr)
+        if args.only_hip and args.only_cuda:
+            print("Error: --only-hip and --only-cuda options are mutually exclusive", file=sys.stderr)
             return 1
 
         # Parse selected executables
@@ -1274,8 +1306,8 @@ def main():
             args.output,
             args.rerun_failures,
             args.timeout,
-            args.hip,
-            args.cuda,
+            args.only_hip,
+            args.only_cuda,
         )
 
         # Run all tests
@@ -1284,23 +1316,23 @@ def main():
         elif args.rerun_failures:
             if selected_executables:
                 platform_msg = ""
-                if args.hip:
+                if args.only_hip:
                     platform_msg = " (HIP only)"
-                elif args.cuda:
+                elif args.only_cuda:
                     platform_msg = " (CUDA only)"
                 print(f"Rerunning failed tests for executables: {', '.join(selected_executables)}{platform_msg}")
             else:
                 platform_msg = ""
-                if args.hip:
+                if args.only_hip:
                     platform_msg = " (HIP executables only)"
-                elif args.cuda:
+                elif args.only_cuda:
                     platform_msg = " (CUDA executables only)"
                 print(f"Rerunning all failed tests from previous results{platform_msg}...")
         else:
             platform_msg = ""
-            if args.hip:
+            if args.only_hip:
                 platform_msg = " (HIP executables only)"
-            elif args.cuda:
+            elif args.only_cuda:
                 platform_msg = " (CUDA executables only)"
             print(f"Starting GPU algorithm tests{platform_msg}...")
 
