@@ -430,6 +430,7 @@ class Matrix_product_tensor_kernel {
     using NumberA = typename Wmma_config::argument_type;
     using NumberB = typename Wmma_config::argument_type;
     using NumberC = typename Wmma_config::result_type;
+    using NumberInternal = typename Wmma_config::operand_type;
 
     using Kernel_spec = Matrix_product_tensor_spec;
 

@@ -5,7 +5,7 @@
 
 #pragma once
 
-
+#include <concepts>
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -31,6 +31,7 @@ class Benchmark_Tensor3D_1Inout {
     using NumberD = typename Numbers::D;
     using NumberE = typename Numbers::E;
     using NumberTemp = typename Numbers::Temp;
+    using Tolerance = typename Numbers::Tolerance;
 
     const Kernel_spec spec;
     const int seed;
@@ -39,6 +40,7 @@ class Benchmark_Tensor3D_1Inout {
     const bool errors;
     const bool force;
     const std::string init_method;
+    const int tol_bits;
 
     Tensor3D_Kernel_1Inout kernel;
 
@@ -55,12 +57,18 @@ class Benchmark_Tensor3D_1Inout {
         errors(options_parsed["errors"].as<bool>()),
         force(options_parsed["force"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
+        tol_bits(std::integral<typename Tolerance::type> ? 0 : options_parsed["tol-bits"].as<int>()),
         kernel(spec, args...)
     {
         // Handle help option first
         if (options_parsed.count("help")) {
             std::cout << options.help() << std::endl;
             exit(0);
+        }
+        if (std::integral<typename Tolerance::type> && options_parsed.count("tol-bits")) {
+            std::cout << "[ERROR] You may not use --tol-bits with integral types, which have no tolerance" << std::endl;
+            std::cout << options.help() << std::endl;
+            exit(1);
         }
         if (verbose && (
             (spec.n_rows_A_ > 10000 || spec.n_cols_A_ * spec.n_sheets_A_ > 1000)
@@ -371,12 +379,19 @@ class Benchmark_Tensor3D_1Inout {
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
+        const auto tolerance_pct = Tolerance::tolerance_pct(tol_bits);
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
         std::cout << "Max error     : " << E_max << " at (" << E_max_row << ", " << E_max_col << ", " << E_max_sheet << ")" << std::endl;
         std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ", " << E_pct_max_sheet << ")" << std::endl;
+        std::cout << "Precision     : " << Tolerance::precision << " (" << Tolerance::name() << " with " << Tolerance::precision_bits << " bits of precision)" << std::endl;
+        std::cout << "Tolerance pct : " << tolerance_pct << "% assuming a loss of " << tol_bits << " bits of precision" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
-
+        if (E_max_pct <= tolerance_pct) {
+            std::cout << "[SUCCESS]     : Max error pct is within tolerance" << std::endl;
+        } else {
+            std::cout << "[FAILURE]     : Max error pct exceeds tolerance" << std::endl;
+        }
         return 0;
     }
 };
