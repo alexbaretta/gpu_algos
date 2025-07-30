@@ -360,7 +360,7 @@ class Benchmark_Matrix_1Inout {
         std::cout << "Tolerance pct : " << tolerance_pct << "% assuming a loss of " << tol_bits << " bits of precision" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
-        if (E_max_pct <= tolerance_pct) {
+        if (E_max == 0 || E_max_pct <= tolerance_pct) {
             std::cout << "[SUCCESS]     : Max error pct is within tolerance" << std::endl;
         } else {
             std::cout << "[FAILURE]     : Max error pct exceeds tolerance" << std::endl;
