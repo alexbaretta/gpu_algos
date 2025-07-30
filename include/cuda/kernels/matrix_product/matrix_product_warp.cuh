@@ -13,6 +13,7 @@
 
 #include "cuda/kernel_api/matrix_2in_1out.cuh"
 #include "cuda/type_traits.cuh"
+#include "cuda/cuda_utils.cuh"
 
 /*
     This kernel uses a "one warp per result element" threading strategy.
@@ -32,7 +33,6 @@
 */
 
 struct Matrix_product_warp_spec {
-    constexpr static int WARP_SIZE = 32;   // Shouldn't this come from the CUDA API?
     constexpr static int TILE_SIZE = 4;
     constexpr static int DEFAULT_M = 3000; // Rows of first matrix
     constexpr static int DEFAULT_K = 300;  // Columns of first matrix / Rows of second matrix
@@ -104,9 +104,9 @@ struct Matrix_product_warp_spec {
         n_cols_C_(n),
         n_rows_temp_(0),
         n_cols_temp_(0),
-        warp_size_(WARP_SIZE),
+        warp_size_(get_warp_size()),
         block_dim_(warp_size_, TILE_SIZE, TILE_SIZE),
-        grid_dim_(warp_size_, (n_ + TILE_SIZE - 1) / TILE_SIZE, (m_ + TILE_SIZE - 1) / TILE_SIZE)
+        grid_dim_((n_ + TILE_SIZE - 1) / TILE_SIZE, (m_ + TILE_SIZE - 1) / TILE_SIZE)
     {}
 };
 
@@ -124,16 +124,21 @@ __global__ void matrix_product_warp(
     // thread id is (x + y Dx + z Dx Dy, see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#thread-hierarchy
     // int thread_id = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
     // but blockDim.x is 32, so the lane id is just threadIdx.x
-    int thread_id = threadIdx.x;
-    int lane = thread_id % warpSize;
-    int col = threadIdx.y + blockIdx.y * blockDim.y;
-    int row = threadIdx.z + blockIdx.z * blockDim.z;
 
-    CUDA_Number sum = 0.0f;
+    int tid_warp = threadIdx.x;
+    int col = threadIdx.y + blockIdx.x * blockDim.y;
+    int row = threadIdx.z + blockIdx.y * blockDim.z;
 
-    // Compute the partial sum for the current thread
-    for (int i = lane; i < n; i += warpSize) {
-        sum += A[row * n + i] * B[i * k + col];
+    // Bounds checking to prevent out-of-bounds memory access
+    if (row >= m || col >= n) {
+        return;
+    }
+
+    CUDA_Number sum{0};
+
+    // Compute the partial sum for the current thread by iterating over shared dimension k
+    for (int i = tid_warp; i < k; i += warpSize) {
+        sum += A[row * k + i] * B[i * n + col];
     }
 
     // Reduce the partial sum using warp-reduction
@@ -142,8 +147,8 @@ __global__ void matrix_product_warp(
     }
 
     // Store the result
-    if (lane == 0) {
-        C[row * k + col] = sum;
+    if (tid_warp == 0) {
+        C[row * n + col] = sum;
     }
 }
 
