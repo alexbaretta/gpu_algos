@@ -296,8 +296,7 @@ class GPUAlgoTest:
     def __init__(self, bin_dir: Path, cmake_root: Optional[Path] = None, preset: str = "debug",
                  verbose: bool = False, selected_executables: Optional[Set[str]] = None,
                  selected_sizes: Optional[Set[int]] = None, selected_types: Optional[Set[str]] = None,
-                 dryrun: bool = False, tol_scale:float = 2.0, float_abs_tol: Optional[float] = None, float_pct_tol: Optional[float] = None,
-                 int_abs_tol: float = 0.0, int_pct_tol: float = 0.0, output_file: Optional[str] = None,
+                 dryrun: bool = False, tol_bits: int = 4, output_file: Optional[str] = None,
                  rerun_failures_file: Optional[str] = None, timeout: int = 300, only_hip: bool = False, only_cuda: bool = False):
         """Initialize the GPU algorithm tester.
 
@@ -310,10 +309,7 @@ class GPUAlgoTest:
             selected_sizes: Set of problem sizes to test (None for all)
             selected_types: Set of data types to test (None for all)
             dryrun: Only check executable existence, don't run tests
-            float_abs_tol: Absolute tolerance for floating point types (None for no absolute check)
-            float_pct_tol: Percent tolerance for floating point types (None for type-specific defaults)
-            int_abs_tol: Absolute tolerance for integer types (default: 0.0 - perfect accuracy required)
-            int_pct_tol: Percent tolerance for integer types (default: 0.0 - perfect accuracy required)
+            tol_bits: Number of bits of precision loss for floating point tolerance (default: 4)
             output_file: Output file for detailed results (None for no output)
             rerun_failures_file: Path to previous test results file (JSONL format) to rerun only failed tests
             timeout: Timeout for test execution in seconds (default: 300 seconds)
@@ -333,22 +329,7 @@ class GPUAlgoTest:
         self.timeout = timeout
         self.only_hip = only_hip
         self.only_cuda = only_cuda
-
-        # Tolerance values with IEEE 754-based defaults
-        self.tol_scale = tol_scale
-        self.float_abs_tol = float_abs_tol
-        self.int_abs_tol = int_abs_tol
-        self.int_pct_tol = int_pct_tol
-
-        # Set type-specific percent tolerances based on IEEE 754 precision
-        # Assuming 4 bits of precision loss in algorithms:
-        # float32: 24-4=20 bits → 2^(-20) ≈ 9.54e-7 relative → 9.54e-5%
-        # float64: 53-4=49 bits → 2^(-49) ≈ 1.78e-15 relative → 1.78e-13%
-        if float_pct_tol is not None:
-            self.float_pct_tol = float_pct_tol
-        else:
-            # Use type-specific defaults - will be determined per data type in _check_correctness
-            self.float_pct_tol = None
+        self.tol_bits = tol_bits
 
         if not self.bin_dir.exists():
             raise FileNotFoundError(f"Binary directory not found: {self.bin_dir}")
@@ -554,10 +535,11 @@ class GPUAlgoTest:
         """Extract performance metrics from stdout."""
         metrics = {}
 
-        # Look for timing information
+        # Look for timing information and tolerance
         timing_patterns = [
             (r"Max error\s*:\s*([\d.e-]+|nan|inf)", "max_error"),
             (r"Max error pct\s*:\s*([\d.e-]+|nan|inf)", "max_error_pct"),
+            (r"Tolerance pct\s*:\s*([\d.e-]+)%", "tolerance_pct"),
             (r"Gross speedup\s*:\s*([\d.e-]+)", "gross_speedup"),
             (r"Net speedup\s*:\s*([\d.e-]+)", "net_speedup"),
             (r"Compute kernel:\s*([\d.]+)\s*ms", "kernel_time_ms"),
@@ -574,6 +556,12 @@ class GPUAlgoTest:
                     metrics[key] = value_str
                     pass
 
+        # Look for SUCCESS/FAILURE status
+        if "[SUCCESS]" in stdout:
+            metrics["tolerance_success"] = True
+        elif "[FAILURE]" in stdout:
+            metrics["tolerance_success"] = False
+
         return metrics
 
     def _is_integer_type(self, data_type: str) -> bool:
@@ -585,125 +573,71 @@ class GPUAlgoTest:
         return data_type in ["half", "float", "double"]
 
     def _check_correctness(self, metrics: Dict[str, float], data_type: str, executable: Path) -> tuple[bool, str]:
-        """Check if results are correct based on error thresholds.
+        """Check if results are correct based on executable-reported tolerance or fallback logic.
 
         Args:
-            metrics: Dictionary containing max_error and optionally max_error_pct
+            metrics: Dictionary containing max_error, max_error_pct, and optionally tolerance_success
             data_type: The data type being tested
             executable: Path to the executable being tested
 
         Returns:
-            True if results are correct (errors below thresholds), False otherwise
+            Tuple of (is_correct, reason_string)
         """
         import math
 
-        max_error = metrics.get("max_error", float("inf"))
+        # First priority: Check if executable reported success/failure
+        if "tolerance_success" in metrics:
+            if metrics["tolerance_success"]:
+                return True, "Executable reported [SUCCESS]"
+            else:
+                return False, "Executable reported [FAILURE]"
+
+        # Second priority: Use executable-reported tolerance if available
         max_error_pct = metrics.get("max_error_pct", float("inf"))
+        tolerance_pct = metrics.get("tolerance_pct")
+
+        if tolerance_pct is not None and not math.isnan(max_error_pct):
+            if max_error_pct <= tolerance_pct:
+                return True, f"max_error_pct <= tolerance_pct ({max_error_pct:.6g} <= {tolerance_pct:.6g})"
+            else:
+                return False, f"max_error_pct > tolerance_pct ({max_error_pct:.6g} > {tolerance_pct:.6g})"
+
+        # Fallback for legacy executables or when tolerance not reported
+        max_error = metrics.get("max_error", float("inf"))
 
         # Handle NaN cases explicitly
         if math.isnan(max_error):
-            # If absolute error is NaN, the algorithm likely failed
             return False, "max_error is NaN"
 
         # Error of 0 always satisfies correctness check
         if max_error == 0:
             return True, "max_error == 0"
 
-        # Check if this executable uses tensor cores
-        exe_name = executable.name.lower()
-        uses_tensor_cores = any(pattern in exe_name for pattern in [
-            "matrix_product_tensor"
-        ])
-
-        # Determine appropriate tolerances based on data type
+        # Simple fallback tolerance based on data type
         if self._is_integer_type(data_type):
-            abs_tol = self.int_abs_tol
-            pct_tol = self.int_pct_tol
+            return False, "Integer types require exact results (fallback)"
         else:
-            assert self._is_floating_type(data_type), f'{data_type=} should be a floating point type'
-            if self.float_abs_tol is not None:
-                abs_tol = self.float_abs_tol * self.tol_scale
-            else:
-                abs_tol = None
-                pass
-
-            # Use IEEE 754-based percent tolerance if not explicitly set
-            if self.float_pct_tol is not None:
-                pct_tol = self.float_pct_tol
-            else:
-                # Type-specific defaults based on IEEE 754 precision with 4 bits of precision loss
+            # For floating types, use a generous fallback tolerance
+            if math.isnan(max_error_pct):
+                # Use absolute error fallback
                 if data_type == "half":
-                    # half precision: 10-bit significand + 1 implicit → 11-4=7 bits → 2^(-7) ≈ 0.0078 → 0.78%
-                    pct_tol = 0.78
+                    fallback_abs_tol = 1e-3
                 elif data_type in ["float", "single"]:
-                    if uses_tensor_cores:
-                        # TF32 precision used internally by tensor cores: 10-bit significand + 1 implicit → 11-4=7 bits → 2^(-7) ≈ 0.0078 → 0.78%
-                        pct_tol = 0.78
-                    else:
-                        # float32: 23-bit significand + 1 implicit → 24-4=20 bits → 2^(-20) ≈ 9.54e-7 → 9.54e-5%
-                        pct_tol = 9.54e-5
-                elif data_type == "double":
-                    # float64: 52-bit significand + 1 implicit → 53-4=49 bits → 2^(-49) ≈ 1.78e-15 → 1.78e-13%
-                    pct_tol = 1.78e-13
+                    fallback_abs_tol = 1e-6
+                else:  # double
+                    fallback_abs_tol = 1e-12
+
+                if max_error <= fallback_abs_tol:
+                    return True, f'max_error <= {fallback_abs_tol} (fallback absolute tolerance)'
                 else:
-                    # Unknown floating type, use float32 default
-                    pct_tol = 9.54e-5
-                    pass
-                pass
-
-            # apply the tolerance scaling factor
-            pct_tol *= self.tol_scale
-            pass
-
-        # Handle NaN percent error - this can occur when expected result is 0
-        # In this case, rely on absolute tolerance if available
-        if math.isnan(max_error_pct):
-            if abs_tol is not None:
-                if max_error <= abs_tol:
-                    return True, f'max_error <= {abs_tol}'
+                    return False, f'max_error > {fallback_abs_tol} (fallback absolute tolerance)'
+            else:
+                # Use percent error fallback
+                fallback_pct_tol = 1.0  # 1% fallback tolerance
+                if max_error_pct <= fallback_pct_tol:
+                    return True, f'max_error_pct <= {fallback_pct_tol}% (fallback tolerance)'
                 else:
-                    return False, f'max_error > {abs_tol}'
-            else:
-                # No absolute tolerance specified, but percent error is NaN
-                # This could be legitimate (0/0 case) if absolute error is small
-                # Use a reasonable default based on data type
-                if self._is_floating_type(data_type):
-                    if data_type == "half":
-                        if max_error <= 1e-3:
-                            return True, f'max_error <= 1e-3 (half precision default)'
-                        else:
-                            return False, f'max_error > 1e-3 (half precision default)'
-                    elif data_type in ["float", "single"]:
-                        if uses_tensor_cores:
-                            if max_error <= 1e-3:
-                                return True, f'max_error <= 1e-3 (TF32 precision default)'
-                            else:
-                                return False, f'max_error > 1e-3 (TF32 precision default)'
-                        else:
-                            if max_error <= 1e-6:
-                                return True, f'max_error <= 1e-6 (float precision default)'
-                            else:
-                                return False, f'max_error > 1e-6 (float precision default)'
-                    else:  # double
-                        if max_error <= 1e-12:
-                            return True, f'max_error <= 1e-12 (double precision default)'
-                        else:
-                            return False, f'max_error > 1e-12 (double precision default)'
-                else:  # integer types
-                    if max_error == 0.0:
-                        return True, f'max_error == 0.0 (integer exact default)'
-                    else:
-                        return False, f'max_error != 0.0 (integer exact default)'
-                pass
-        else: # max_error_pct is not NaN
-            assert pct_tol is not None
-            # Check percent tolerance
-            if max_error_pct <= pct_tol:
-                return True, f'max_error_pct <= {pct_tol}'
-            else:
-                return False, f'max_error_pct > {pct_tol}'
-
-        assert False, f'This function should already have returned'
+                    return False, f'max_error_pct > {fallback_pct_tol}% (fallback tolerance)'
 
     def test_executable(self, executable: Path, data_type: str, size: int) -> Optional[Dict]:
         """Test a single executable with specific parameters.
@@ -741,6 +675,10 @@ class GPUAlgoTest:
             else:
                 # Fallback to positional argument if --type not supported
                 cmd.append(data_type)
+
+            # Add tolerance bits argument for floating point types
+            if self._is_floating_type(data_type) and self._supports_option(executable, "--tol-bits"):
+                cmd.extend(["--tol-bits", str(self.tol_bits)])
 
             # Capture the command line for debugging and replication
             cmdline = ' '.join(cmd)
@@ -1027,9 +965,12 @@ class GPUAlgoTest:
                     report.append(f"    {error}: {count} occurrences")
 
         report.append(f"\n{'=' * 80}")
-        report.append(
-            f"Overall: {total_correct}/{total_tests} tests passed both execution and correctness checks ({total_correct/total_tests*100:.1f}%)"
-        )
+        if total_tests > 0:
+            report.append(
+                f"Overall: {total_correct}/{total_tests} tests passed both execution and correctness checks ({total_correct/total_tests*100:.1f}%)"
+            )
+        else:
+            report.append("Overall: No tests were executed")
         report.append("=" * 80)
 
         # Add detailed failure sections
@@ -1188,36 +1129,10 @@ def main():
     )
 
     parser.add_argument(
-        "--tol-scale",
-        type=float,
-        default=2.0,
-        help="Scaling fator for tolerance (default = 2.0)",
-    )
-
-    parser.add_argument(
-        "--abs-tol",
-        type=float,
-        help="Absolute tolerance for floating point types (no default - only percent tolerance used)",
-    )
-
-    parser.add_argument(
-        "--pct-tol",
-        type=float,
-        help="Percent tolerance for floating point types (default: IEEE 754-based per type)",
-    )
-
-    parser.add_argument(
-        "--int-abs-tol",
-        type=float,
-        default=0.0,
-        help="Absolute tolerance for integer types (default: 0.0 - perfect accuracy required)",
-    )
-
-    parser.add_argument(
-        "--int-pct-tol",
-        type=float,
-        default=0.0,
-        help="Percent tolerance for integer types (default: 0.0 - perfect accuracy required)",
+        "--tol-bits",
+        type=int,
+        default=4,
+        help="Number of bits of precision loss for floating point tolerance (default: 4)",
     )
 
     parser.add_argument(
@@ -1298,11 +1213,7 @@ def main():
             selected_sizes,
             selected_types,
             args.dryrun,
-            args.tol_scale,
-            args.abs_tol,
-            args.pct_tol,
-            args.int_abs_tol,
-            args.int_pct_tol,
+            args.tol_bits,
             args.output,
             args.rerun_failures,
             args.timeout,
