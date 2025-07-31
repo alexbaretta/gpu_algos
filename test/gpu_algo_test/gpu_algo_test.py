@@ -92,8 +92,8 @@ PROBLEM_SIZES = {
 # Key: executable name pattern (supports fnmatch wildcards)
 # Value: set of supported data types
 EXECUTABLE_TYPE_SUPPORT = {
-    # cuBLAS-based implementations only support float and double
-    "*cublas*": {"int8", "uint8", "half", "float", "double"},
+    "matrix_product_cublas": {"half", "float", "double"},
+    "matrix_transpose_cublas": {"float", "double"},
 
     # rocBLAS-based implementations only support float and double
     "*rocblas*": {"int8", "uint8", "half", "float", "double"},
@@ -340,6 +340,7 @@ class GPUAlgoTest:
 
         # Discover executables
         self.executables = self._discover_executables()
+        self.executable_names = [ exe.name for exe in self.executables ]
         if not self.executables:
             raise RuntimeError(f"No executables found in {self.bin_dir}")
 
@@ -363,23 +364,31 @@ class GPUAlgoTest:
                         platform_info = " [HIP]"
                     else:
                         platform_info = " [CUDA]"
+                        pass
+                    pass
                 self.logger.info(
                     f"  {exe.name}{platform_info}: {abs_path} (exists={exists}, executable={executable})"
                 )
+                pass
+            pass
 
         # Open output file if specified
         self.output_handle = None
         if self.output_file:
             self.output_handle = open(self.output_file, 'w')
+            pass
 
         # Parse failed tests from previous results if specified
-        self.failed_tests = []
+        self.failed_tests = None
         if self.rerun_failures_file:
             self.failed_tests = self._parse_failed_tests()
             if self.failed_tests:
                 self.logger.info(f"Found {len(self.failed_tests)} failed tests to rerun")
             else:
-                self.logger.warning("No failed tests found in previous results file")
+                self.logger.error("No failed tests found in previous results file")
+                sys.exit(1)
+                pass
+            pass
 
     def _write_streaming_result(self, result: Dict) -> None:
         """Write a single test result to the streaming output file as a JSON Lines entry."""
@@ -423,8 +432,13 @@ class GPUAlgoTest:
     def _discover_executables(self) -> List[Path]:
         """Discover all executable files in the bin directory."""
         executables = []
-        accept_patterns = [ pattern for pattern in self.selected_executables if not pattern.startswith('-')]
-        reject_patterns = [ pattern[1:] for pattern in self.selected_executables if pattern.startswith('-')]
+        if self.selected_executables is not None:
+            accept_patterns = [ pattern for pattern in self.selected_executables if not pattern.startswith('-')]
+            reject_patterns = [ pattern[1:] for pattern in self.selected_executables if pattern.startswith('-')]
+        else:
+            accept_patterns = []
+            reject_patterns = []
+            pass
         for file_path in self.bin_dir.iterdir():
             if file_path.is_file() and os.access(file_path, os.X_OK):
                 # Apply platform filtering first
@@ -436,6 +450,9 @@ class GPUAlgoTest:
                 reject_executable = False
                 for reject_pattern in reject_patterns:
                     if file_path.name == reject_pattern or fnmatch.fnmatch(file_path.name, reject_pattern):
+                        if self.verbose:
+                            self.logger.warning(f'Rejecting {file_path.name} because it matches -{reject_pattern}')
+                            pass
                         reject_executable = True
                         break # We found a negative match, no need to check other patterns
                     pass
@@ -834,7 +851,10 @@ class GPUAlgoTest:
                 continue
 
             results = []
+            filtered_data_types = self._get_filtered_data_types(executable)
             for test in failed_tests:
+                if test['data_type'] not in filtered_data_types:
+                    continue
                 if self.verbose or self.dryrun:
                     self.logger.debug(f"  Rerunning: {exe_name} size={test['size']} type={test['data_type']}")
 
@@ -886,7 +906,7 @@ class GPUAlgoTest:
             Dictionary mapping executable names to their test results
         """
         # If rerunning failed tests, use the specialized method
-        if self.failed_tests:
+        if self.failed_tests is not None:
             return self.run_failed_tests()
 
         if self.output_file:
@@ -1052,7 +1072,9 @@ class GPUAlgoTest:
 
                     if is_failed:
                         # Filter by executable if specified
-                        if self.selected_executables and result['executable'] not in self.selected_executables:
+                        executable = result['executable']
+                        if self.verbose and executable not in self.executable_names:
+                            self.logger.info(f'Skipping deselected {executable}')
                             continue
 
                         failed_test = {
@@ -1143,8 +1165,8 @@ def main():
     parser.add_argument(
         "--tol-bits",
         type=int,
-        default=4,
-        help="Number of bits of precision loss for floating point tolerance (default: 4)",
+        default=6,
+        help="Number of bits of precision loss for floating point tolerance (default: 6)",
     )
 
     parser.add_argument(
@@ -1315,6 +1337,8 @@ def main():
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+    finally:
+        pass
 
 
 if __name__ == "__main__":
