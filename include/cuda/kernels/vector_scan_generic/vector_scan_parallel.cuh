@@ -282,7 +282,7 @@ struct Vector_scan_parallel_spec {
 static_assert(Check_vector_kernel_spec_1In_1Out<Vector_scan_parallel_spec>::check_passed, "Vector_scan_parallel_spec is not a valid kernel spec");
 
 
-template <CUDA_scalar Number_, typename Operation_>
+template <CUDA_scalar Number_, typename Operation_= cuda_sum_op<Number_>>
 class Vector_scan_parallel_kernel {
     public:
     using Number = Number_;
@@ -400,3 +400,5 @@ class Vector_scan_parallel_kernel {
         return result;
     }
 };
+
+static_assert(Check_vector_kernel_1In_1Out_template<Vector_scan_parallel_kernel>::check_passed, "Vector_scan_parallel_kernel is not a valid kernel template");
