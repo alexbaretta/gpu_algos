@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/matrix_product_tensor.hpp
+// source path: include/cuda/kernels/matrix/matrix_product_tensor.cuh
 
 #pragma once
 
@@ -15,12 +15,12 @@
 #include <string>
 #include <tuple>
 #include <type_traits>
-#include <cstdint>
 #include <cuda_fp16.h>
 
 #include "cuda/kernel_api/matrix_2in_1out.cuh"
 #include "cuda/type_traits.cuh"
 #include "cuda/cuda_utils.cuh"
+#include "cuda/wmma.cuh"
 
 struct Matrix_product_tensor_spec {
     const std::string type_;
@@ -141,98 +141,6 @@ struct Matrix_product_tensor_spec {
 };
 
 static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_tensor_spec>::check_passed, "Matrix_product_tensor_spec is not a valid kernel spec");
-
-// Looks like nvcc does not actually enforce this.
-constexpr static long wmma_alignment_requirement_bits = 256;
-constexpr static long wmma_alignment_requirement_bytes = wmma_alignment_requirement_bits/8;
-
-template <typename T>
-struct wmma_config;
-
-template <>
-struct wmma_config<std::int8_t> {
-    using argument_type = std::int8_t;
-    using operand_type = std::int8_t;
-    using accumulator_type = int;
-    using result_type = int;
-    constexpr static unsigned M = 16;
-    constexpr static unsigned N = 16;
-    constexpr static unsigned K = 16;
-    constexpr static unsigned temp_tile_bytes = std::max(std::max(M*K, K*N)*sizeof(argument_type), M*N*sizeof(result_type));
-
-    // static_assert(M*sizeof(argument_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_a");
-    // static_assert(K*sizeof(argument_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_a");
-    // static_assert(M*sizeof(result_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_c");
-};
-
-template <>
-struct wmma_config<std::uint8_t> {
-    using argument_type = uint8_t;
-    using operand_type = std::uint8_t;
-    using accumulator_type = int;
-    using result_type = int;
-    using temp_type = int;
-    constexpr static unsigned M = 16;
-    constexpr static unsigned N = 16;
-    constexpr static unsigned K = 16;
-    constexpr static unsigned temp_tile_bytes = std::max(std::max(M*K, K*N)*sizeof(argument_type), M*N*sizeof(result_type));
-
-    // static_assert(M*sizeof(argument_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_a");
-    // static_assert(K*sizeof(argument_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_a");
-    // static_assert(M*sizeof(result_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_c");
-};
-
-template <>
-struct wmma_config<__half> {
-    using argument_type = __half;
-    using operand_type = __half;
-    using accumulator_type = __half;
-    using result_type = __half;
-    using temp_type = __half;
-    constexpr static unsigned M = 16;
-    constexpr static unsigned N = 16;
-    constexpr static unsigned K = 16;
-    constexpr static unsigned temp_tile_bytes = std::max(std::max(M*K, K*N)*sizeof(argument_type), M*N*sizeof(result_type));
-
-    // static_assert(M*sizeof(argument_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_a");
-    // static_assert(K*sizeof(argument_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_a");
-    // static_assert(M*sizeof(result_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_c");
-};
-
-template <>
-struct wmma_config<float> {
-    // tf32 is just a placeholder type declared as a struct without a definition (an incomplete type)
-    using argument_type = float;
-    using operand_type = nvcuda::wmma::precision::tf32;
-    using accumulator_type = float;
-    using result_type = float;
-    using temp_type = float;
-    constexpr static unsigned M = 16;
-    constexpr static unsigned N = 16;
-    constexpr static unsigned K = 8;
-    constexpr static unsigned temp_tile_bytes = std::max(std::max(M*K, K*N)*sizeof(argument_type), M*N*sizeof(result_type));
-
-    // static_assert(M*sizeof(argument_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_a");
-    // static_assert(K*sizeof(argument_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_a");
-    // static_assert(M*sizeof(result_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_c");
-};
-
-template <>
-struct wmma_config<double> {
-    using argument_type = double;
-    using operand_type = double;
-    using accumulator_type = double;
-    using result_type = double;
-    using temp_type = double;
-    constexpr static unsigned M = 8;
-    constexpr static unsigned N = 8;
-    constexpr static unsigned K = 4;
-    constexpr static unsigned temp_tile_bytes = std::max(std::max(M*K, K*N)*sizeof(argument_type), M*N*sizeof(result_type));
-
-    // static_assert(M*sizeof(argument_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_a");
-    // static_assert(K*sizeof(argument_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_a");
-    // static_assert(M*sizeof(result_type) % wmma_alignment_requirement_bytes == 0, "alignment requirement not met for matrix_c");
-};
 
 template <typename Use, int M, int N, int K, typename T, typename Layout, CUDA_scalar Number>
 __device__ inline void safe_load_operand_sync(
@@ -424,12 +332,13 @@ __global__ void matrix_product_tensor_wmma(
 
 template <CUDA_scalar Number_>
 class Matrix_product_tensor_kernel {
-    public:
+public:
     using Number = Number_;
     using Wmma_config = wmma_config<Number>;
     using NumberA = typename Wmma_config::argument_type;
     using NumberB = typename Wmma_config::argument_type;
     using NumberC = typename Wmma_config::result_type;
+    using NumberTemp = typename Wmma_config::result_type; // Unused, but required
     using NumberInternal = typename Wmma_config::operand_type;
 
     using Kernel_spec = Matrix_product_tensor_spec;
@@ -443,7 +352,7 @@ class Matrix_product_tensor_kernel {
         const NumberA* const gpu_data_A,
         const NumberB* const gpu_data_B,
         NumberC*       const gpu_data_C,
-        Number*        const gpu_data_temp,
+        NumberTemp*    const gpu_data_temp,
         cudaStream_t stream
     ) {
         const auto warp_size = get_warp_size();
@@ -472,7 +381,7 @@ class Matrix_product_tensor_kernel {
             stream
         >>>(gpu_data_A, gpu_data_B, gpu_data_C, spec_.m_, spec_.k_, spec_.n_);
     }
-    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
+    Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
         const Eigen::Map<Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
         const Eigen::Map<Eigen::Matrix<NumberB, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& B
     ) {
