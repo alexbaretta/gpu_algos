@@ -26,10 +26,6 @@ int main(int argc, char** argv) {
             return Benchmark_Matrix_2In_1Out<Matrix_product_cublas_kernel<float>>(spec, options, options_parsed).run();
         } else if (spec.type_ == "double") {
             return Benchmark_Matrix_2In_1Out<Matrix_product_cublas_kernel<double>>(spec, options, options_parsed).run();
-        } else if (spec.type_ == "int8") {
-            return Benchmark_Matrix_2In_1Out<Matrix_product_cublas_kernel<std::int8_t>>(spec, options, options_parsed).run();
-        } else if (spec.type_ == "uint8") {
-            return Benchmark_Matrix_2In_1Out<Matrix_product_cublas_kernel<std::uint8_t>>(spec, options, options_parsed).run();
         } else {
             throw cxxopts::exceptions::exception("Invalid type: " + spec.type_);
         }
