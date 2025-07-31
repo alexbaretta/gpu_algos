@@ -17,7 +17,10 @@
 
 #include "cuda/kernel_api/matrix_2in_1out.cuh"
 #include "cuda/type_traits.cuh"
-#include "cuda/wmma.cuh"
+#include "cutlass/half.h"
+#include "cutlass/tfloat32.h"
+
+
 
 struct Matrix_product_cutlass_spec {
     const std::string type_;
@@ -99,23 +102,16 @@ template <CUDA_scalar Number_>
 class Matrix_product_cutlass_kernel {
     public:
     using Number = Number_;
-    using Wmma_config = wmma_config<Number>;
-    using NumberA = typename Wmma_config::argument_type;
-    using NumberB = typename Wmma_config::argument_type;
-    using NumberC = typename Wmma_config::result_type;
-    using NumberTemp = typename Wmma_config::result_type; // Unused, but required
-    using NumberInternal = typename Wmma_config::operand_type;
     using Kernel_spec = Matrix_product_cutlass_spec;
 
     const Kernel_spec spec_;
 
     // Define CUTLASS GEMM type based on Number template parameter
     using Gemm = cutlass::gemm::device::Gemm<
-        NumberA, cutlass::layout::RowMajor, // datatype and layout of A matrix
-        NumberB, cutlass::layout::RowMajor, // datatype and layout of B matrix
-        NumberC, cutlass::layout::RowMajor, // datatype and layout of C matrix
-        typename Wmma_config::accumulator_type, // tensor core accumulator type
-        cutlass::arch::OpClassTensorOp
+        Number, cutlass::layout::RowMajor, // datatype and layout of A matrix
+        Number, cutlass::layout::RowMajor, // datatype and layout of B matrix
+        Number, cutlass::layout::RowMajor, // datatype and layout of C matrix
+        Number // tensor core accumulator type
     >;
 
     Matrix_product_cutlass_kernel(
@@ -123,37 +119,54 @@ class Matrix_product_cutlass_kernel {
     ) : spec_(spec) {}
 
     void run_device_kernel(
-        const NumberA* const gpu_data_A,
-        const NumberB* const gpu_data_B,
-        NumberC* const gpu_data_C,
-        NumberTemp* const gpu_data_temp,
+        const Number* const gpu_data_A,
+        const Number* const gpu_data_B,
+        Number* const gpu_data_C,
+        Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
         // Scalars for GEMM operation (alpha=1.0, beta=0.0 for C = A * B)
         // The following cannot be declared constexpr as __half does not support constexpr
-        const Number alpha = Number(1);
-        const Number beta = Number(0);
+        // const Number alpha = Number(1);
+        // const Number beta = Number(0);
 
         // Leading dimensions for row-major layout
-        const int lda = spec_.k_;  // A is m x k, so leading dimension is k
-        const int ldb = spec_.n_;  // B is k x n, so leading dimension is n
-        const int ldc = spec_.n_;  // C is m x n, so leading dimension is n
+        const int m = static_cast<int>(spec_.m_);
+        const int k = static_cast<int>(spec_.k_);
+        const int n = static_cast<int>(spec_.n_);
+        const int lda = k;  // A is m x k, so leading dimension is k
+        const int ldb = n;  // B is k x n, so leading dimension is n
+        const int ldc = n;  // C is m x n, so leading dimension is n
+
+        // Use the exact element types from the GEMM template
+        using GemmElementA = typename Gemm::ElementA;
+        using GemmElementB = typename Gemm::ElementB;
+        using GemmElementC = typename Gemm::ElementC;
+
+        const GemmElementA* const cutlass_data_A = reinterpret_cast<const GemmElementA*>(gpu_data_A);
+        const GemmElementB* const cutlass_data_B = reinterpret_cast<const GemmElementB*>(gpu_data_B);
+        const GemmElementC* const cutlass_data_C = reinterpret_cast<const GemmElementC*>(gpu_data_C);
+        GemmElementC* const cutlass_data_D = reinterpret_cast<GemmElementC*>(gpu_data_C);
+
+        const cutlass::gemm::GemmCoord problem_size{m, n, k};
+        const cutlass::TensorRef<const GemmElementA, cutlass::layout::RowMajor> tensor_ref_A {cutlass_data_A, lda};
+        const cutlass::TensorRef<const GemmElementB, cutlass::layout::RowMajor> tensor_ref_B {cutlass_data_B, ldb};
+        const cutlass::TensorRef<const GemmElementC, cutlass::layout::RowMajor> tensor_ref_C {cutlass_data_C, ldc};
+        cutlass::TensorRef<GemmElementC, cutlass::layout::RowMajor> tensor_ref_D {cutlass_data_D, ldc};
+
+        // Create epilogue parameters (alpha=1.0, beta=0.0 for C = A * B)
+        // typename Gemm::EpilogueOutputOp::Params epilogue_params{};
 
         // Construct CUTLASS GEMM arguments
         typename Gemm::Arguments args(
-            {spec_.m_, spec_.n_, spec_.k_}, // Problem dimensions (M, N, K)
-            {gpu_data_A, lda},    // Tensor-ref for source matrix A
-            {gpu_data_B, ldb},    // Tensor-ref for source matrix B
-            {gpu_data_C, ldc},    // Tensor-ref for source matrix C
-            {gpu_data_C, ldc},    // Tensor-ref for destination matrix D
-            {alpha, beta}         // Scalars for epilogue
+            problem_size, tensor_ref_A, tensor_ref_B, tensor_ref_C, tensor_ref_D
         );
 
         // Create the GEMM kernel object
         Gemm gemm_operator;
 
-        // Initialize and run the CUTLASS GEMM kernel
-        cutlass::Status status = gemm_operator.initialize(args);
+        // Run the CUTLASS GEMM kernel
+        cutlass::Status status = gemm_operator(args);
 
         if (status != cutlass::Status::kSuccess) {
             // Handle initialization error
@@ -171,9 +184,9 @@ class Matrix_product_cutlass_kernel {
         }
     }
 
-    Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
-        const Eigen::Map<Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
-        const Eigen::Map<Eigen::Matrix<NumberB, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& B
+    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
+        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& B
     ) {
         return (A * B).eval();
     }
