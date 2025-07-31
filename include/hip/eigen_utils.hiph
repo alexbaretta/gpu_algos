@@ -11,7 +11,7 @@
 
 struct ComputeError {
     template <std::floating_point Scalar>
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar lhs, const Scalar rhs) const {
+    Scalar operator()(const Scalar lhs, const Scalar rhs) const {
         if (std::isnan(lhs) && std::isnan(rhs)) {
             // Both are NaN, so there is no error
             return 0;
@@ -28,7 +28,7 @@ struct ComputeError {
             return lhs - rhs;
         }
     }
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE __half operator()(const __half lhs, const __half rhs) const {
+    __half operator()(const __half lhs, const __half rhs) const {
         if (__hisnan(lhs) && __hisnan(rhs)) {
             // Both are NaN, so there is no error
             return 0;
@@ -46,8 +46,10 @@ struct ComputeError {
         }
     }
     template <HIP_integer Scalar>
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator() (const Scalar lhs, const Scalar rhs) const {
+    Scalar operator() (const Scalar lhs, const Scalar rhs) const {
         // For integers, we do nothing special.
         return lhs - rhs;
     }
 };
+
+constexpr static ComputeError compute_error{};

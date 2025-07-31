@@ -296,8 +296,9 @@ class Benchmark_Vector_1Inout {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
 
         const auto cpu_step_3 = "Compute error vector";
-        const auto E = A_result_gpu.binaryExpr(A_result_cpu, ComputeError()).eval();
-        const auto E_pct = 100.0 * E.cwiseAbs().template cast<double>().array() / A_result_cpu.cwiseAbs().template cast<double>().array();
+        // const auto compute_error = ComputeError();
+        const auto E = A_result_gpu.binaryExpr(A_result_cpu, compute_error).template cast<double>().eval();
+        const auto E_pct = 100.0 * E.cwiseAbs().array() / A_result_cpu.template cast<double>().cwiseAbs().array();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
@@ -316,7 +317,7 @@ class Benchmark_Vector_1Inout {
             std::cout << "Non-zero error elements:\n";
             bool found_errors = false;
             for (int i = 0; i < E.size(); ++i) {
-                if (E(i) != NumberE(0)) {
+                if (E(i) != 0.0) {
                     found_errors = true;
                     std::cout << "(" << i << "): "
                               << "A           =" << static_cast<Printable_Number<NumberA>>(A(i)) << ", "
