@@ -232,7 +232,7 @@ struct Glm_gradient_naive_spec {
             ("ntargets,Y", "Number of targets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTARGETS)))
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
-            ("block-dim,n", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("optimize-launch", "Use occupancy API to determine optimal launch configuration")
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"))
 
@@ -403,13 +403,13 @@ class Glm_gradient_naive_kernel {
         const Tensor3D<Number>& Y,
         const Tensor3D<Number>& M
     ) {
-/*
-dL/dM[feature',target',task'] =
-    = 2 * SUM_obs (
-                     (SUM_feature M[feature,target',task'] * X[feature,task',obs])
-                    - Y[target',task',obs]
-                ) * X[feature',task',obs]
-*/
+        /*
+        dL/dM[feature',target',task'] =
+            = 2 * SUM_obs (
+                (SUM_feature M[feature,target',task'] * X[feature,task',obs])
+                - Y[target',task',obs]
+            ) * X[feature',task',obs]
+        */
         Tensor3D<Number> grad_M{spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_};
 
         if (spec_.cpu_algo_ == "nested-loop") {

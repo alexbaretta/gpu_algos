@@ -48,7 +48,7 @@ struct Vector_cumsum_serial_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("n", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("N", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }

@@ -151,9 +151,9 @@ struct tensor3d_sort_bitonic_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("m", "Number of rows", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
-            ("n", "Number of columns", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("k", "Number of sheets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("M", "Number of rows", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
+            ("N", "Number of columns", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
+            ("K", "Number of sheets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("blockdimx,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("blockdimy,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("blockdimz,z", "Number of threads in the z dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Z)))

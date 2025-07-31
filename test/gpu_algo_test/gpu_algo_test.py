@@ -327,6 +327,7 @@ class GPUAlgoTest:
         self.only_hip = only_hip
         self.only_cuda = only_cuda
         self.tol_bits = tol_bits
+        self.size_option_regex = re.compile(r"-[A-Z][ ,]")
 
         if not self.bin_dir.exists():
             raise FileNotFoundError(f"Binary directory not found: {self.bin_dir}")
@@ -508,19 +509,12 @@ class GPUAlgoTest:
         help_text = self._get_executable_help(executable)
         return "--type" in help_text
 
-    def _get_size_option(self, executable: Path) -> Optional[str]:
+    def _get_size_options(self, executable: Path) -> List[str]:
         """Determine the size option for an executable (-n, -m, etc.)."""
         help_text = self._get_executable_help(executable)
-
-        # Look for common size options
-        if "-n " in help_text or "-n, " in help_text:
-            return "-n"
-        elif "-m " in help_text or "-m, " in help_text:
-            return "-m"
-        elif "--size" in help_text:
-            return "--size"
-
-        return None
+        found_options = self.size_option_regex.findall(help_text)
+        one_letter_options = [ ('-' + opt[1]) for opt in found_options]
+        return one_letter_options
 
     def _get_supported_data_types(self, executable: Path) -> Set[str]:
         """Get the set of data types supported by a specific executable.
@@ -668,13 +662,14 @@ class GPUAlgoTest:
                 else:
                     return False, f'max_error_pct > {fallback_pct_tol}% (fallback tolerance)'
 
-    def test_executable(self, executable: Path, data_type: str, size: int) -> Optional[Dict]:
+    def test_executable(self, executable: Path, data_type: str, size_i: int, sizes: List[int]) -> Optional[Dict]:
         """Test a single executable with specific parameters.
 
         Args:
             executable: Path to the executable file
             data_type: Data type to test (e.g., "float", "int32")
-            size: Problem size to test
+            size_i: Index of size for first problem dimension
+            sizes: List of available sizes
 
         Returns:
             Dictionary containing test results and performance metrics
@@ -682,21 +677,34 @@ class GPUAlgoTest:
         test_info = {
             "executable": executable.name,
             "data_type": data_type,
-            "size": size,
+            "size_i": size_i,
+            "sizes": sizes,
             "timestamp": datetime.now().isoformat(),
         }
 
         try:
             # Build command arguments using helper methods
+            command_name = executable.name
             cmd = [str(executable)]
 
+            if self.verbose or self.dryrun:
+                self.logger.debug(f"    {command_name}: Testing type={data_type}, size_i={size_i}, sizes={str(sizes)}")
+                pass
+
             # Add size argument
-            size_option = self._get_size_option(executable)
-            if size_option:
-                cmd.extend([size_option, str(size)])
+            size_options = self._get_size_options(executable)
+            if size_options:
+                # Cycle through the size options, and correspondingly through the available size values
+                i = size_i
+                for size_option in size_options:
+                    size = sizes[i % len(sizes)]
+                    cmd.extend([size_option, str(size)])
+                    i += 1
+                    pass
             else:
                 # Fallback to positional argument if no size option found
-                cmd.append(str(size))
+                raise Exception(f"no size option found in executable {command_name}")
+                pass
 
             # Add data type argument
             if self._supports_data_type(executable, data_type):
@@ -704,10 +712,12 @@ class GPUAlgoTest:
             else:
                 # Fallback to positional argument if --type not supported
                 cmd.append(data_type)
+                pass
 
             # Add tolerance bits argument for floating point types
             if self._is_floating_type(data_type) and self._supports_option(executable, "--tol-bits"):
                 cmd.extend(["--tol-bits", str(self.tol_bits)])
+                pass
 
             # Capture the command line for debugging and replication
             cmdline = ' '.join(cmd)
@@ -717,7 +727,7 @@ class GPUAlgoTest:
                 print(f"dryrun: {cmdline}")
                 return None
             else:
-                self.logger.debug(f"Running: {cmdline}")
+                # self.logger.debug(f"Running: {cmdline}")
 
                 # Execute the command
                 result = subprocess.run(
@@ -747,6 +757,13 @@ class GPUAlgoTest:
                     correct, correctness_reason = self._check_correctness(metrics, data_type, executable)
                     test_result["correct"] = correct
                     test_result["correctness_reason"] = correctness_reason
+                    if correct:
+                        self.logger.debug(f"       Correct: {cmdline}")
+                    else:
+                        self.logger.debug(f"       Tolerance exceeded: {cmdline}")
+                        pass
+                else:
+                    self.logger.debug(f"       Failed: {cmdline}")
                     pass
 
                 return test_result
@@ -773,6 +790,8 @@ class GPUAlgoTest:
                 "stdout": "",
                 "stderr": "",
             }
+        finally:
+            pass
 
     def test_all_sizes_and_types(self, executable: Path) -> List[Dict]:
         """Test an executable with all problem sizes and data types."""
@@ -791,12 +810,9 @@ class GPUAlgoTest:
         for category, sizes in problem_sizes.items():
             self.logger.debug(f"  Testing {category}")
 
-            for size in sizes:
+            for size_i in range(len(sizes)):
                 for data_type in filtered_data_types:
-                    if self.verbose or self.dryrun:
-                        self.logger.debug(f"    Testing size={size}, type={data_type}")
-
-                    result = self.test_executable(executable, data_type, size)
+                    result = self.test_executable(executable, data_type, size_i, sizes)
                     if result is not None:
                         result["category"] = category
                         results.append(result)
@@ -1015,10 +1031,11 @@ class GPUAlgoTest:
             for i, failure in enumerate(execution_failures, 1):
                 exe_name = failure.get("executable", "unknown")
                 data_type = failure.get("data_type", "unknown")
-                size = failure.get("size", "unknown")
+                size_i = failure.get("size_i", "unknown")
+                sizes = failure.get("sizes", "unknown")
                 cmdline = failure.get("cmdline", "No command line available")
                 error = failure.get("error", "Unknown error")
-                report.append(f"{i:3d}. {exe_name} (type={data_type}, size={size})")
+                report.append(f"{i:3d}. {exe_name} (type={data_type}, size_i={size_i}, sizes={str(sizes)})")
                 report.append(f"     Command: {cmdline}")
                 report.append(f"     Error: {error}")
 
@@ -1031,12 +1048,13 @@ class GPUAlgoTest:
             for i, failure in enumerate(correctness_failures, 1):
                 exe_name = failure.get("executable", "unknown")
                 data_type = failure.get("data_type", "unknown")
-                size = failure.get("size", "unknown")
+                size_i = failure.get("size_i", "unknown")
+                sizes = failure.get("sizes", "unknown")
                 cmdline = failure.get("cmdline", "No command line available")
                 metrics = failure.get("metrics", {})
                 max_error = metrics.get("max_error", "N/A")
                 max_error_pct = metrics.get("max_error_pct", "N/A")
-                report.append(f"{i:3d}. {exe_name} (type={data_type}, size={size})")
+                report.append(f"{i:3d}. {exe_name} (type={data_type}, size_i={size_i}, sizes={str(sizes)})")
                 report.append(f"     Command: {cmdline}")
                 report.append(f"     Max error: {max_error}, Max error %: {max_error_pct}")
 
@@ -1046,7 +1064,7 @@ class GPUAlgoTest:
         """Parse failed tests from previous results file.
 
         Returns:
-            List of test specifications for failed tests (executable, data_type, size)
+            List of test specifications for failed tests (executable, data_type, size_i, sizes)
         """
         failed_tests = []
         results_file = Path(self.rerun_failures_file)
@@ -1058,7 +1076,7 @@ class GPUAlgoTest:
             with open(results_file, 'r') as f:
                 for result in ijson.items(f, '', multiple_values=True):
                     # Skip entries that don't have the required fields
-                    if not all(key in result for key in ['executable', 'data_type', 'size']):
+                    if not all(key in result for key in ['executable', 'data_type', 'size_i', 'sizes']):
                         continue
 
                     # Check if this test failed (either execution failure or correctness failure)
@@ -1080,7 +1098,8 @@ class GPUAlgoTest:
                         failed_test = {
                             'executable': result['executable'],
                             'data_type': result['data_type'],
-                            'size': result['size'],
+                            'size_i': result['size_i'],
+                            'sizes': result['sizes'],
                             'category': result.get('category', 'unknown'),
                             'previous_run_success': run_success,
                             'previous_correct': correct,
@@ -1094,7 +1113,7 @@ class GPUAlgoTest:
         seen = set()
         unique_failed_tests = []
         for test in failed_tests:
-            key = (test['executable'], test['data_type'], test['size'])
+            key = (test['executable'], test['data_type'], test['size_i'], test['sizes'])
             if key not in seen:
                 seen.add(key)
                 unique_failed_tests.append(test)
