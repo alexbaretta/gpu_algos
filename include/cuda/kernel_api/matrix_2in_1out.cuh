@@ -55,6 +55,7 @@ struct Check_matrix_kernel_spec_2In_1Out {
 
 template <typename Kernel>
 concept MATRIX_KERNEL_2IN_1OUT = requires (Kernel kernel) {
+    typename Kernel::Number;
     typename Kernel::Kernel_spec;
 
     { kernel.spec_ } -> std::same_as<const typename Kernel::Kernel_spec&>;
@@ -93,7 +94,7 @@ struct Check_matrix_kernel_2In_1Out {
     static_assert(std::same_as<decltype(std::declval<Kernel>().run_host_kernel(
         std::declval<const Eigen::Map<Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>&>(),
         std::declval<const Eigen::Map<Eigen::Matrix<NumberB, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>&>()
-    )), Eigen::Matrix<typename Kernel::Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>);
+    )), Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>);
 
     static_assert(MATRIX_KERNEL_2IN_1OUT<Kernel>, "not a valid MATRIX_KERNEL_2IN_1OUT");
 
@@ -102,6 +103,8 @@ struct Check_matrix_kernel_2In_1Out {
 
 template <template <CUDA_scalar CUDA_Number> class Kernel>
 struct Check_matrix_kernel_2In_1Out_template {
+    static_assert(Check_matrix_kernel_2In_1Out<Kernel<std::int8_t>>::check_passed);
+    static_assert(Check_matrix_kernel_2In_1Out<Kernel<std::uint8_t>>::check_passed);
     static_assert(Check_matrix_kernel_2In_1Out<Kernel<__half>>::check_passed);
     static_assert(Check_matrix_kernel_2In_1Out<Kernel<float>>::check_passed);
     static_assert(Check_matrix_kernel_2In_1Out<Kernel<double>>::check_passed);

@@ -13,8 +13,8 @@
 #include "cuda/kernel_detect_types.cuh"
 #include "cuda/type_traits.cuh"
 
-template <typename Kernel>
-concept MATRIX_KERNEL_SPEC_1IN_1OUT = requires (Kernel spec) {
+template <typename Kernel_spec>
+concept MATRIX_KERNEL_SPEC_1IN_1OUT = requires (Kernel_spec spec) {
     { spec.n_rows_A_ } -> std::same_as<const long&>;
     { spec.n_cols_A_ } -> std::same_as<const long&>;
 
@@ -28,27 +28,28 @@ concept MATRIX_KERNEL_SPEC_1IN_1OUT = requires (Kernel spec) {
     { dim3(spec.grid_dim_) } -> std::same_as<dim3>;
 };
 
-template <typename Kernel>
+template <typename Kernel_spec>
 struct Check_matrix_kernel_spec_1In_1Out {
-    static_assert(std::same_as<decltype(std::declval<Kernel>().n_rows_A_), const long>);
-    static_assert(std::same_as<decltype(std::declval<Kernel>().n_cols_A_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_rows_A_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_cols_A_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Kernel>().n_rows_C_), const long>);
-    static_assert(std::same_as<decltype(std::declval<Kernel>().n_cols_C_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_rows_C_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_cols_C_), const long>);
 
-    static_assert(std::same_as<decltype(std::declval<Kernel>().n_rows_temp_), const long>);
-    static_assert(std::same_as<decltype(std::declval<Kernel>().n_cols_temp_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_rows_temp_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_cols_temp_), const long>);
 
-    static_assert(std::convertible_to<decltype(std::declval<Kernel>().block_dim_), const dim3>);
-    static_assert(std::convertible_to<decltype(std::declval<Kernel>().grid_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Kernel_spec>().block_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Kernel_spec>().grid_dim_), const dim3>);
 
-    static_assert(MATRIX_KERNEL_SPEC_1IN_1OUT<Kernel>, "not a valid MATRIX_KERNEL_SPEC_1IN_1OUT");
+    static_assert(MATRIX_KERNEL_SPEC_1IN_1OUT<Kernel_spec>, "not a valid MATRIX_KERNEL_SPEC_1IN_1OUT");
 
     constexpr static bool check_passed = true;
 };
 
 template <typename Kernel>
 concept MATRIX_KERNEL_1IN_1OUT = requires (Kernel kernel) {
+    typename Kernel::Number;
     typename Kernel::Kernel_spec;
 
     { kernel.spec_ } -> std::same_as<const typename Kernel::Kernel_spec&>;
@@ -92,6 +93,8 @@ struct Check_matrix_kernel_1In_1Out {
 
 template <template <CUDA_scalar CUDA_Number> class Kernel>
 struct Check_matrix_kernel_1In_1Out_template {
+    static_assert(Check_matrix_kernel_1In_1Out<Kernel<std::int8_t>>::check_passed);
+    static_assert(Check_matrix_kernel_1In_1Out<Kernel<std::uint8_t>>::check_passed);
     static_assert(Check_matrix_kernel_1In_1Out<Kernel<__half>>::check_passed);
     static_assert(Check_matrix_kernel_1In_1Out<Kernel<float>>::check_passed);
     static_assert(Check_matrix_kernel_1In_1Out<Kernel<double>>::check_passed);
