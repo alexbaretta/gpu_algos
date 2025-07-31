@@ -55,7 +55,7 @@ struct Matrix_product_cutlass_spec {
             ("m", "Number of rows in first matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
             ("k", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("n", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("type", "Numeric type (half, single/float, double, int8, uint8)", cxxopts::value<std::string>()->default_value("float"));
+            ("type", "Numeric type (half, single/float, double, int<>, uint<>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
 
@@ -64,8 +64,8 @@ struct Matrix_product_cutlass_spec {
     ) {
         // Validate the type option
         const auto& type = options_parsed["type"].as<std::string>();
-        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "uint8") {
-            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int8, uint8" << std::endl;
+        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "int16" && type != "int32" && type != "int64" && type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64" ) {
+            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<>, uint<>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
         return Matrix_product_cutlass_spec(
