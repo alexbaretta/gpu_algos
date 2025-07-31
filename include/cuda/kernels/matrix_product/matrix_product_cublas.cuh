@@ -4,16 +4,23 @@
 // source path: include/cuda/kernels/matrix/matrix_product_cublas.hpp
 
 #pragma once
+#include <iostream>
+#include <stdexcept>
+#include <string>
+
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <cublasLt.h>
-#include <cxxopts.hpp>
-#include <iostream>
-#include <Eigen/Dense>
 #include <cuda_fp16.h>
 
-#include "cuda/kernel_api/matrix_2in_1out.cuh"
+// #include "cuda/kernel_api/matrix_2in_1out.cuh"
+
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
+
+#include "cuda/kernel_api.cuh"
 #include "cuda/type_traits.cuh"
+#include "cuda/wmma.cuh"
 
 struct Matrix_product_cublas_spec {
     const std::string type_;
@@ -35,24 +42,20 @@ struct Matrix_product_cublas_spec {
     const long n_cols_temp_;
 
     // Note: block_dim and grid_dim are not used with cuBLAS but kept for compatibility
-    const dim3 block_dim_;
-    const dim3 grid_dim_;
+    const dim3 block_dim_ = dim3(0);
+    const dim3 grid_dim_ = dim3(0);
     const size_t dynamic_shared_mem_words_ = 0;
 
     constexpr static int DEFAULT_M = 3000; // Rows of first matrix
     constexpr static int DEFAULT_K = 300;  // Columns of first matrix / Rows of second matrix
     constexpr static int DEFAULT_N = 1000; // Columns of second matrix
-    constexpr static int DEFAULT_BLOCK_DIM_X = 16;
-    constexpr static int DEFAULT_BLOCK_DIM_Y = 16;
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
             ("m", "Number of rows in first matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
             ("k", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("n", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("block-dim-x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("block-dim-y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
-            ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
+            ("type", "Numeric type (half, single/float, double, int8, uint8)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
 
@@ -61,17 +64,15 @@ struct Matrix_product_cublas_spec {
     ) {
         // Validate the type option
         const auto& type = options_parsed["type"].as<std::string>();
-        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "int16" && type != "int32" && type != "int64" && type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64") {
-            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
+        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "uint8" ) {
+            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int8, uint8" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
         return Matrix_product_cublas_spec(
             type,
             options_parsed["m"].as<long>(),
             options_parsed["k"].as<long>(),
-            options_parsed["n"].as<long>(),
-            options_parsed["block-dim-x"].as<long>(),
-            options_parsed["block-dim-y"].as<long>()
+            options_parsed["n"].as<long>()
         );
     }
 
@@ -79,9 +80,7 @@ struct Matrix_product_cublas_spec {
         const std::string& type,
         const long m,
         const long k,
-        const long n,
-        const long block_dim_x,
-        const long block_dim_y
+        const long n
     ) : type_(type),
         m_(m),
         k_(k),
@@ -93,116 +92,124 @@ struct Matrix_product_cublas_spec {
         n_rows_C_(m),
         n_cols_C_(n),
         n_rows_temp_(0),
-        n_cols_temp_(0),
-        block_dim_(block_dim_x, block_dim_y),
-        grid_dim_(
-            (n_ + block_dim_.x - 1) / block_dim_.x,
-            (m_ + block_dim_.y - 1) / block_dim_.y
-        )
+        n_cols_temp_(0)
     {}
 };
 
 static_assert(Check_matrix_kernel_spec_2In_1Out<Matrix_product_cublas_spec>::check_passed, "Matrix_product_cublas_spec is not a valid kernel spec");
 
+inline const char* string_of_cublasStatus_t(cublasStatus_t status) {
+    /* CUBLAS status type returns */
+    switch (status) {
+        case CUBLAS_STATUS_SUCCESS: return "CUBLAS_STATUS_SUCCESS";
+        case CUBLAS_STATUS_NOT_INITIALIZED: return "CUBLAS_STATUS_NOT_INITIALIZED";
+        case CUBLAS_STATUS_ALLOC_FAILED: return "CUBLAS_STATUS_ALLOC_FAILED";
+        case CUBLAS_STATUS_INVALID_VALUE: return "CUBLAS_STATUS_INVALID_VALUE";
+        case CUBLAS_STATUS_ARCH_MISMATCH: return "CUBLAS_STATUS_ARCH_MISMATCH";
+        case CUBLAS_STATUS_MAPPING_ERROR: return "CUBLAS_STATUS_MAPPING_ERROR";
+        case CUBLAS_STATUS_EXECUTION_FAILED: return "CUBLAS_STATUS_EXECUTION_FAILED";
+        case CUBLAS_STATUS_INTERNAL_ERROR: return "CUBLAS_STATUS_INTERNAL_ERROR";
+        case CUBLAS_STATUS_NOT_SUPPORTED: return "CUBLAS_STATUS_NOT_SUPPORTED";
+        case CUBLAS_STATUS_LICENSE_ERROR: return "CUBLAS_STATUS_LICENSE_ERROR";
+    }
+
+    throw std::runtime_error("CUBLASLT STATUS UNKNOWN: " + std::to_string(status));
+}
+
+#define check_cublaslt_status(status) \
+    do { \
+        if (status != CUBLAS_STATUS_SUCCESS) { \
+            const auto message = std::string("[ERROR][cuBLASLt][") + __FILE__ + ":" + std::to_string(__LINE__) + "] status = " + string_of_cublasStatus_t(status); \
+            std::cerr << message << std::endl; \
+            throw (std::runtime_error(string_of_cublasStatus_t(status))); \
+        } \
+    } while (0)
+#define check_cublaslt_status_noexcept(status) \
+    do { \
+        if (status != CUBLAS_STATUS_SUCCESS) { \
+            const auto message = std::string("[ERROR][cuBLASLt][") + __FILE__ + ":" + std::to_string(__LINE__) + "] status = " + string_of_cublasStatus_t(status); \
+            std::cerr << message << std::endl; \
+        } \
+    } while (0)
+
 
 template <CUDA_scalar Number_>
 class Matrix_product_cublas_kernel {
-    public:
+public:
     using Number = Number_;
+    using Wmma_config = wmma_config<Number>;
+    using NumberA = typename Wmma_config::argument_type;
+    using NumberB = typename Wmma_config::argument_type;
+    using NumberC = typename Wmma_config::result_type;
+    using NumberTemp = typename Wmma_config::result_type; // Unused, but required
+    using NumberInternal = typename Wmma_config::operand_type;
+
     using Kernel_spec = Matrix_product_cublas_spec;
 
     const Kernel_spec spec_;
     cublasLtHandle_t cublaslt_handle_;
-    cublasHandle_t cublas_handle_;
+
+    const Number alpha{1};
+    const Number beta{0};
+
+    cublasLtMatmulDesc_t matmul_desc;
+    cublasLtMatrixLayout_t A_layout = nullptr, B_layout = nullptr, C_layout = nullptr;
 
     Matrix_product_cublas_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {
         // Initialize cuBLAS and cuBLASLt handles
-        cublasCreate(&cublas_handle_);
-        cublasLtCreate(&cublaslt_handle_);
+        check_cublaslt_status(cublasLtCreate(&cublaslt_handle_));
+        // Create matrix descriptors
+        check_cublaslt_status(cublasLtMatmulDescCreate(&matmul_desc, Wmma_config::cublas_compute_type, Wmma_config::cublas_scale_type));
+        check_cublaslt_status(cublasLtMatrixLayoutCreate(&A_layout, Wmma_config::cublas_operand_type, spec_.m_, spec_.k_, spec_.k_));
+        check_cublaslt_status(cublasLtMatrixLayoutCreate(&B_layout, Wmma_config::cublas_operand_type, spec_.k_, spec_.n_, spec_.n_));
+        check_cublaslt_status(cublasLtMatrixLayoutCreate(&C_layout, Wmma_config::cublas_scale_type, spec_.m_, spec_.n_, spec_.n_));
 
-        // Set math mode to enable tensor cores
-        cublasSetMathMode(cublas_handle_, CUBLAS_TENSOR_OP_MATH);
+        const cublasLtOrder_t row_major_order = CUBLASLT_ORDER_ROW;
+        check_cublaslt_status(cublasLtMatrixLayoutSetAttribute(A_layout, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_order, sizeof(row_major_order)));
+        check_cublaslt_status(cublasLtMatrixLayoutSetAttribute(B_layout, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_order, sizeof(row_major_order)));
+        check_cublaslt_status(cublasLtMatrixLayoutSetAttribute(C_layout, CUBLASLT_MATRIX_LAYOUT_ORDER, &row_major_order, sizeof(row_major_order)));
     }
 
     ~Matrix_product_cublas_kernel() {
-        if (cublas_handle_) {
-            cublasDestroy(cublas_handle_);
-        }
         if (cublaslt_handle_) {
-            cublasLtDestroy(cublaslt_handle_);
+            check_cublaslt_status_noexcept(cublasLtDestroy(cublaslt_handle_));
         }
+        // Clean up descriptors
+        check_cublaslt_status_noexcept(cublasLtMatrixLayoutDestroy(A_layout));
+        check_cublaslt_status_noexcept(cublasLtMatrixLayoutDestroy(B_layout));
+        check_cublaslt_status_noexcept(cublasLtMatrixLayoutDestroy(C_layout));
+        check_cublaslt_status_noexcept(cublasLtMatmulDescDestroy(matmul_desc));
     }
 
     void run_device_kernel(
-        const Number* const gpu_data_A,
-        const Number* const gpu_data_B,
-        Number* const gpu_data_C,
-        Number* const gpu_data_temp,
+        const NumberA* const gpu_data_A,
+        const NumberB* const gpu_data_B,
+        NumberC* const gpu_data_C,
+        NumberTemp* const gpu_data_temp,
         cudaStream_t stream
     ) {
-        // Set the stream for cuBLAS operations
-        cublasSetStream(cublas_handle_, stream);
-
-        const Number alpha = static_cast<Number>(1.0);
-        const Number beta = static_cast<Number>(0.0);
-
-        if constexpr (std::is_same_v<Number, __half>) {
-            // Use cuBLASLt for half precision to leverage tensor cores
-            cublasLtMatmulDesc_t matmul_desc;
-            cublasLtMatrixLayout_t A_desc, B_desc, C_desc;
-
-            // Create matrix descriptors
-            cublasLtMatmulDescCreate(&matmul_desc, CUBLAS_COMPUTE_16F, CUDA_R_16F);
-            cublasLtMatrixLayoutCreate(&A_desc, CUDA_R_16F, spec_.m_, spec_.k_, spec_.k_);
-            cublasLtMatrixLayoutCreate(&B_desc, CUDA_R_16F, spec_.k_, spec_.n_, spec_.n_);
-            cublasLtMatrixLayoutCreate(&C_desc, CUDA_R_16F, spec_.m_, spec_.n_, spec_.n_);
-
-            // Perform matrix multiplication: C = A * B
-            cublasLtMatmul(cublaslt_handle_,
-                          matmul_desc,
-                          &alpha,
-                          gpu_data_A, A_desc,
-                          gpu_data_B, B_desc,
-                          &beta,
-                          gpu_data_C, C_desc,
-                          gpu_data_C, C_desc,
-                          nullptr, nullptr, 0, stream);
-
-            // Clean up descriptors
-            cublasLtMatrixLayoutDestroy(A_desc);
-            cublasLtMatrixLayoutDestroy(B_desc);
-            cublasLtMatrixLayoutDestroy(C_desc);
-            cublasLtMatmulDescDestroy(matmul_desc);
-        } else if constexpr (std::is_same_v<Number, float>) {
-            // Use cuBLAS for single precision
-            cublasSgemm(cublas_handle_,
-                       CUBLAS_OP_N, CUBLAS_OP_N,
-                       spec_.n_, spec_.m_, spec_.k_,
-                       &alpha,
-                       gpu_data_B, spec_.n_,
-                       gpu_data_A, spec_.k_,
-                       &beta,
-                       gpu_data_C, spec_.n_);
-        } else if constexpr (std::is_same_v<Number, double>) {
-            // Use cuBLAS for double precision
-            cublasDgemm(cublas_handle_,
-                       CUBLAS_OP_N, CUBLAS_OP_N,
-                       spec_.n_, spec_.m_, spec_.k_,
-                       &alpha,
-                       gpu_data_B, spec_.n_,
-                       gpu_data_A, spec_.k_,
-                       &beta,
-                       gpu_data_C, spec_.n_);
-        }
+        // Perform matrix multiplication: C = A * B
+        check_cublaslt_status(cublasLtMatmul(
+            cublaslt_handle_,
+            matmul_desc,
+            &alpha,
+            gpu_data_A, A_layout,
+            gpu_data_B, B_layout,
+            &beta,
+            gpu_data_C, C_layout,
+            gpu_data_C, C_layout,
+            nullptr, nullptr, 0, stream
+        ));
     }
-    Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
-        const Eigen::Map<Eigen::Matrix<Number, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& B
+    Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> run_host_kernel(
+        const Eigen::Map<Eigen::Matrix<NumberA, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& A,
+        const Eigen::Map<Eigen::Matrix<NumberB, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& B
     ) {
         return (A * B).eval();
     }
 
 };
+
 static_assert(Check_matrix_kernel_2In_1Out_template<Matrix_product_cublas_kernel>::check_passed, "Matrix_product_cublas is not a valid kernel template");
