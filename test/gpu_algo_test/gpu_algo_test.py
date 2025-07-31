@@ -93,19 +93,16 @@ PROBLEM_SIZES = {
 # Value: set of supported data types
 EXECUTABLE_TYPE_SUPPORT = {
     # cuBLAS-based implementations only support float and double
-    "*cublas*": {"float", "double"},
+    "*cublas*": {"int8", "uint8", "half", "float", "double"},
 
     # rocBLAS-based implementations only support float and double
-    "*rocblas*": {"float", "double"},
+    "*rocblas*": {"int8", "uint8", "half", "float", "double"},
 
     # gradient descent optimizers require floating point types
     "*gradient*optimizer*": {"half", "float", "double"},
 
-    # Cooperative kernels might have limitations (can be updated as issues are discovered)
-    "*cooperative*": set(DATA_TYPES),  # Assume full support for now
-
     # Tensor core implementations support a specific subset of types
-    "*tensor*": {"half", "int8", "float", "double", "uint8"},
+    "*tensor*": {"int8", "uint8", "half", "float", "double"},
 
     # Default: all implementations support all types unless specified otherwise
     # Note: This catch-all pattern must be last
@@ -426,6 +423,8 @@ class GPUAlgoTest:
     def _discover_executables(self) -> List[Path]:
         """Discover all executable files in the bin directory."""
         executables = []
+        accept_patterns = [ pattern for pattern in self.selected_executables if not pattern.startswith('-')]
+        reject_patterns = [ pattern[1:] for pattern in self.selected_executables if pattern.startswith('-')]
         for file_path in self.bin_dir.iterdir():
             if file_path.is_file() and os.access(file_path, os.X_OK):
                 # Apply platform filtering first
@@ -434,15 +433,28 @@ class GPUAlgoTest:
                 if self.only_cuda and not self._is_cuda_executable(file_path):
                     continue
 
+                reject_executable = False
+                for reject_pattern in reject_patterns:
+                    if file_path.name == reject_pattern or fnmatch.fnmatch(file_path.name, reject_pattern):
+                        reject_executable = True
+                        break # We found a negative match, no need to check other patterns
+                    pass
+
                 # Filter by selected executables if specified
-                if self.selected_executables is None:
+                if reject_executable:
+                    continue
+                if len(accept_patterns) == 0:
                     executables.append(file_path)
                 else:
                     # Check if filename matches any of the patterns (exact match or glob)
-                    for pattern in self.selected_executables:
-                        if file_path.name == pattern or fnmatch.fnmatch(file_path.name, pattern):
+                    for accept_pattern in accept_patterns:
+                        if file_path.name == accept_pattern or fnmatch.fnmatch(file_path.name, accept_pattern):
                             executables.append(file_path)
                             break  # Found a match, no need to check other patterns
+                        pass
+                    pass
+                pass
+            pass
         return sorted(executables)
 
     def _get_filtered_problem_sizes(self) -> Dict[str, List[int]]:
