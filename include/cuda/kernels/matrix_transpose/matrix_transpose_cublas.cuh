@@ -49,7 +49,7 @@ struct Matrix_transpose_cublas_spec {
             ("k", "Unused", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("block-dim-x,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("block-dim-y,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
-            ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
+            ("type", "Numeric type (single/float)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
 
@@ -58,8 +58,8 @@ struct Matrix_transpose_cublas_spec {
     ) {
         // Validate the type option
         const auto& type = options_parsed["type"].as<std::string>();
-        if (type != "half" && type != "single" && type != "float" && type != "double" && type != "int8" && type != "int16" && type != "int32" && type != "int64" && type != "uint8" && type != "uint16" && type != "uint32" && type != "uint64") {
-            std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
+        if (type != "single" && type != "float" && type != "double") {
+            std::cerr << "[ERROR] --type must be one of: single/float, double" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
         return Matrix_transpose_cublas_spec(
@@ -165,7 +165,6 @@ class Matrix_transpose_cublas_kernel {
                        gpu_data_A, spec_.n_,        // dummy (beta=0)
                        gpu_data_C, spec_.m_);       // C with leading dimension m
         } else {
-            // cuBLAS doesn't provide cublasHgeam function for half precision
             std::cerr << "Error: " << spec_.type_ << " is not supported by cuBLAS geam" << std::endl;
             throw std::runtime_error(spec_.type_ + " is not supported by cuBLAS geam");
         }
