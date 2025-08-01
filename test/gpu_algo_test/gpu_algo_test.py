@@ -1185,7 +1185,7 @@ def main():
     parser.add_argument(
         "--max-total-size",
         help="Maximum total size of the problem (product of all dimensions).\n",
-
+        type=int,
         # This is a fairly arbitrary default, but it should prevent running unreasonably
         # large tests in most cases
         default=2 ** 28,
