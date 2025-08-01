@@ -5,13 +5,14 @@
 
 #pragma once
 
-#include <Eigen/Core>
-
+#include <cmath>
+#include <concepts>
+#include <type_traits>
 #include "type_traits.hiph"
 
-struct ComputeError {
+struct Compute_error_absolute {
     template <std::floating_point Scalar>
-    Scalar operator()(const Scalar lhs, const Scalar rhs) const {
+    Scalar operator()(const Scalar& lhs, const Scalar& rhs) const {
         if (std::isnan(lhs) && std::isnan(rhs)) {
             // Both are NaN, so there is no error
             return 0;
@@ -19,16 +20,16 @@ struct ComputeError {
             const auto inf_delta = lhs - rhs;
             if (std::isnan(inf_delta)) {
                 // lhs and rhs are both infinities, so inf_delta is NaN only if they are
-                // infinities of the same sign, hence there is no error
+                // infinities of the same sign, hence once could argue that there is no error
                 return 0;
             }
-            else { return inf_delta; }
+            else { return std::abs<Scalar>(inf_delta); }
         } else {
-            // lhs and rhs and normal numbers. We just compute the difference.
-            return lhs - rhs;
+            // lhs and rhs and normal numbers. We just compute the absolute difference.
+            return std::abs<Scalar>(lhs - rhs);
         }
     }
-    __half operator()(const __half lhs, const __half rhs) const {
+    __half operator()(const __half& lhs, const __half& rhs) const {
         if (__hisnan(lhs) && __hisnan(rhs)) {
             // Both are NaN, so there is no error
             return 0;
@@ -36,20 +37,36 @@ struct ComputeError {
             const auto inf_delta = lhs - rhs;
             if (__hisnan(inf_delta)) {
                 // lhs and rhs are both infinities, so inf_delta is NaN only if they are
-                // infinities of the same sign, hence there is no error
+                // infinities of the same sign, hence once could argue that there is no error
                 return 0;
             }
-            else { return inf_delta; }
+            else { return __habs(inf_delta); }
         } else {
             // lhs and rhs and normal numbers. We just compute the difference.
-            return lhs - rhs;
+            return __habs(lhs - rhs);
         }
     }
     template <HIP_integer Scalar>
-    Scalar operator() (const Scalar lhs, const Scalar rhs) const {
-        // For integers, we do nothing special.
-        return lhs - rhs;
+    std::int64_t operator() (const Scalar& lhs, const Scalar& rhs) const {
+        // There is no std::abs for unsigned integers, for obvious reasons, and subtraction
+        // of signed integer types is subject to overflow. To make it easy for ourselves,
+        // we use the widest signed integer type: int64_t
+        return std::abs(std::int64_t(lhs) - std::int64_t(rhs));
     }
 };
 
-constexpr static ComputeError compute_error{};
+constexpr static Compute_error_absolute compute_error_absolute{};
+
+struct Compute_error_relative {
+    template <HIP_scalar Scalar>
+    double operator()(const Scalar& lhs, const Scalar& rhs) const {
+        const auto e = compute_error_absolute(lhs, rhs);
+        if (e == decltype(e){0}) {
+            return 0;
+        } else {
+            return double(e)/std::abs(double(rhs));
+        }
+    }
+};
+
+constexpr static Compute_error_relative compute_error_relative{};

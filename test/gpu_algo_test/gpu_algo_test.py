@@ -564,8 +564,8 @@ class GPUAlgoTest:
         # Look for timing information and tolerance
         timing_patterns = [
             (r"Max error\s*:\s*([\d.e-]+|nan|inf)", "max_error"),
-            (r"Max error pct\s*:\s*([\d.e-]+|nan|inf)", "max_error_pct"),
-            (r"Tolerance pct\s*:\s*([\d.e-]+)%", "tolerance_pct"),
+            (r"Max error pct\s*:\s*([\d.e-]+|nan|inf)", "max_error_rel"),
+            (r"Tolerance pct\s*:\s*([\d.e-]+)%", "tolerance"),
             (r"Gross speedup\s*:\s*([\d.e-]+)", "gross_speedup"),
             (r"Net speedup\s*:\s*([\d.e-]+)", "net_speedup"),
             (r"Compute kernel:\s*([\d.]+)\s*ms", "kernel_time_ms"),
@@ -602,7 +602,7 @@ class GPUAlgoTest:
         """Check if results are correct based on executable-reported tolerance or fallback logic.
 
         Args:
-            metrics: Dictionary containing max_error, max_error_pct, and optionally tolerance_success
+            metrics: Dictionary containing max_error, max_error_rel, and optionally tolerance_success
             data_type: The data type being tested
             executable: Path to the executable being tested
 
@@ -619,14 +619,14 @@ class GPUAlgoTest:
                 return False, "Executable reported [FAILURE]"
 
         # Second priority: Use executable-reported tolerance if available
-        max_error_pct = metrics.get("max_error_pct", float("inf"))
-        tolerance_pct = metrics.get("tolerance_pct")
+        max_error_rel = metrics.get("max_error_rel", float("inf"))
+        tolerance = metrics.get("tolerance")
 
-        if tolerance_pct is not None and not math.isnan(max_error_pct):
-            if max_error_pct <= tolerance_pct:
-                return True, f"max_error_pct <= tolerance_pct ({max_error_pct:.6g} <= {tolerance_pct:.6g})"
+        if tolerance is not None and not math.isnan(max_error_rel):
+            if max_error_rel <= tolerance:
+                return True, f"max_error_rel <= tolerance ({max_error_rel:.6g} <= {tolerance:.6g})"
             else:
-                return False, f"max_error_pct > tolerance_pct ({max_error_pct:.6g} > {tolerance_pct:.6g})"
+                return False, f"max_error_rel > tolerance ({max_error_rel:.6g} > {tolerance:.6g})"
 
         # Fallback for legacy executables or when tolerance not reported
         max_error = metrics.get("max_error", float("inf"))
@@ -644,7 +644,7 @@ class GPUAlgoTest:
             return False, "Integer types require exact results (fallback)"
         else:
             # For floating types, use a generous fallback tolerance
-            if math.isnan(max_error_pct):
+            if math.isnan(max_error_rel):
                 # Use absolute error fallback
                 if data_type == "half":
                     fallback_abs_tol = 1e-3
@@ -659,11 +659,11 @@ class GPUAlgoTest:
                     return False, f'max_error > {fallback_abs_tol} (fallback absolute tolerance)'
             else:
                 # Use percent error fallback
-                fallback_pct_tol = 1.0  # 1% fallback tolerance
-                if max_error_pct <= fallback_pct_tol:
-                    return True, f'max_error_pct <= {fallback_pct_tol}% (fallback tolerance)'
+                fallback_rel_tol = 1.0  # 1% fallback tolerance
+                if max_error_rel <= fallback_rel_tol:
+                    return True, f'max_error_rel <= {fallback_rel_tol}% (fallback tolerance)'
                 else:
-                    return False, f'max_error_pct > {fallback_pct_tol}% (fallback tolerance)'
+                    return False, f'max_error_rel > {fallback_rel_tol}% (fallback tolerance)'
 
     def test_executable(self, executable: Path, data_type: str, size_i: int, sizes: List[int]) -> Optional[Dict]:
         """Test a single executable with specific parameters.
@@ -1063,10 +1063,10 @@ class GPUAlgoTest:
                 cmdline = failure.get("cmdline", "No command line available")
                 metrics = failure.get("metrics", {})
                 max_error = metrics.get("max_error", "N/A")
-                max_error_pct = metrics.get("max_error_pct", "N/A")
+                max_error_rel = metrics.get("max_error_rel", "N/A")
                 report.append(f"{i:3d}. {exe_name} (type={data_type}, size_i={size_i}, sizes={str(sizes)})")
                 report.append(f"     Command: {cmdline}")
-                report.append(f"     Max error: {max_error}, Max error %: {max_error_pct}")
+                report.append(f"     Max error: {max_error}, Max error %: {max_error_rel}")
 
         return "\n".join(report)
 

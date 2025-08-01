@@ -6,6 +6,7 @@
 #pragma once
 
 #include <concepts>
+#include <condition_variable>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -44,7 +45,13 @@ namespace detect {
 
 
     // The error type is the same as the output type: D, for 3IN 1OUT; C for 1/2IN 1OUT, A for 1INOUT
-    template <typename KERNEL> struct _NumberE { using type = typename KERNEL::Number; };
+    template <typename KERNEL> struct _NumberE {
+        using type = std::conditional_t<
+            std::is_integral_v<typename KERNEL::Number>,
+            double,
+            typename KERNEL::Number
+        >;
+    };
     template <has_NumberD KERNEL> struct _NumberE<KERNEL> { using type = typename KERNEL::NumberD;};
     template <has_NumberA KERNEL> requires (!has_NumberD<KERNEL>) struct _NumberE<KERNEL> { using type = typename KERNEL::NumberA;};
     template <typename KERNEL> using NumberE = typename _NumberE<KERNEL>::type;

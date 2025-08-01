@@ -303,18 +303,17 @@ class Benchmark_Matrix_1In_1Out {
         std::cout << " - " << std::setw(check_field_width) << cpu_step_2 << ": " << cpu_step_dt2.count() << " ms (" << cpu_total_dt2.count() << " ms total)" << std::endl;
 
         const auto cpu_step_3 = "Compute error matrix";
-        // const auto compute_error = ComputeError();
-        const auto E = C_gpu.binaryExpr(C_cpu, compute_error).template cast<double>().eval();
-        const auto E_pct = 100.0 * E.cwiseAbs().array() / C_cpu.template cast<double>().cwiseAbs().array();
+        const auto E = C_gpu.binaryExpr(C_cpu, compute_error_absolute).eval();
+        const auto E_rel = C_gpu.binaryExpr(C_cpu, compute_error_relative).eval();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
         std::cout << " - " << std::setw(check_field_width) << cpu_step_3 << ": " << cpu_step_dt3.count() << " ms (" << cpu_total_dt3.count() << " ms total)" << std::endl;
 
         const auto cpu_step_4 = "Compute max error";
-        size_t E_max_row, E_max_col, E_pct_max_row, E_pct_max_col;
+        size_t E_max_row, E_max_col, E_rel_max_row, E_rel_max_col;
         const double E_max = E.cwiseAbs().maxCoeff(&E_max_row, &E_max_col);
-        const auto E_max_pct = E_pct.maxCoeff(&E_pct_max_row, &E_pct_max_col);
+        const auto E_max_rel = E_rel.maxCoeff(&E_rel_max_row, &E_rel_max_col);
         const auto cpu_tp4 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt4 = cpu_tp4 - cpu_tp3;
         std::chrono::duration<double, std::milli> cpu_total_dt4 = cpu_tp4 - cpu_tp0;
@@ -325,7 +324,7 @@ class Benchmark_Matrix_1In_1Out {
             bool found_errors = false;
             for (int i = 0; i < E.rows(); ++i) {
                 for (int j = 0; j < E.cols(); ++j) {
-                    if (E(i, j) != 0.0) {
+                    if (E(i, j) != NumberE(0)) {
                         found_errors = true;
                         std::cout << "(" << i << ", " << j << "): "
                                   << "C_gpu=" << static_cast<Printable_Number<NumberC>>(C_gpu(i, j)) << ", "
@@ -356,21 +355,21 @@ class Benchmark_Matrix_1In_1Out {
             }
             std::cout << "E    :\n";
             std::cout << E.template cast<Printable_Number<NumberE>>().format(eigen_format) << std::endl;
-            std::cout << "E_pct:\n";
-            std::cout << E_pct.format(eigen_format) << std::endl;
+            std::cout << "E_rel:\n";
+            std::cout << E_rel.format(eigen_format) << std::endl;
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
-        const auto tolerance_pct = Tolerance::tolerance_pct(tol_bits);
+        const auto tolerance = Tolerance::tolerance(tol_bits);
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
         std::cout << "Max error     : " << E_max << " at (" << E_max_row << ", " << E_max_col << ")" << std::endl;
-        std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ")" << std::endl;
+        std::cout << "Max error pct : " << E_max_rel << " at (" << E_rel_max_row << ", " << E_rel_max_col << ")" << std::endl;
         std::cout << "Precision     : " << Tolerance::precision << " (" << Tolerance::name() << " with " << Tolerance::precision_bits << " bits of precision)" << std::endl;
-        std::cout << "Tolerance pct : " << tolerance_pct << "% assuming a loss of " << tol_bits << " bits of precision" << std::endl;
+        std::cout << "Tolerance pct : " << tolerance << "% assuming a loss of " << tol_bits << " bits of precision" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
-        if (E_max == 0 || E_max_pct <= tolerance_pct) {
+        if (E_max == 0 || E_max_rel <= tolerance) {
             std::cout << "[SUCCESS]     : Max error pct is within tolerance" << std::endl;
         } else {
             std::cout << "[FAILURE]     : Max error pct exceeds tolerance" << std::endl;

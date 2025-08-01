@@ -303,13 +303,13 @@ class Benchmark_Tensor3D_1In_1Out {
         const auto cpu_step_3 = "Compute error tensor3d and find max error";
         double E_max = 0;
         long E_max_row = 0, E_max_col = 0, E_max_sheet = 0;
-        double E_max_pct = 0;
-        long E_pct_max_row = 0, E_pct_max_col = 0, E_pct_max_sheet = 0;
+        double E_max_rel = 0;
+        long E_rel_max_row = 0, E_rel_max_col = 0, E_rel_max_sheet = 0;
 
         // row-major representation: innermost loop should iterate over elements of the same sheet/row
         const long e_rows = tensor3d_result_cpu.rows(), e_cols = tensor3d_result_cpu.cols(), e_sheets = tensor3d_result_cpu.sheets();
         Tensor3D<double> tensor3d_E(e_cols, e_rows, e_sheets, 0);
-        Tensor3D<double> tensor3d_E_pct(e_cols, e_rows, e_sheets, 0);
+        Tensor3D<double> tensor3d_E_rel(e_cols, e_rows, e_sheets, 0);
         for (long sheet = 0; sheet < e_sheets; ++sheet) {
             for (long row = 0; row < e_rows; ++row) {
                 for (long col = 0; col < e_cols; ++col) {
@@ -324,20 +324,20 @@ class Benchmark_Tensor3D_1In_1Out {
                     const double e_abs = std::abs(e);
                     const double e_ref = double(tensor3d_result_cpu(col, row, sheet));
                     const double e_ref_abs = std::abs(e_ref);
-                    const double e_pct = e_ref_abs > 0 ? 100.0 * e_abs / e_ref_abs : 0.0;
-                    tensor3d_E(col, row, sheet) = e;
-                    tensor3d_E_pct(col, row, sheet) = e_pct;
+                    const double e_rel = e_ref_abs > 0 ? e_abs / e_ref_abs : 0.0;
+                    tensor3d_E(col, row, sheet) = e_abs;
+                    tensor3d_E_rel(col, row, sheet) = e_rel;
                     if (e_abs > E_max) {
                         E_max = e_abs;
                         E_max_row = row;
                         E_max_col = col;
                         E_max_sheet = sheet;
                     }
-                    if (e_pct > E_max_pct) {
-                        E_max_pct = e_pct;
-                        E_pct_max_row = row;
-                        E_pct_max_col = col;
-                        E_pct_max_sheet = sheet;
+                    if (e_rel > E_max_rel) {
+                        E_max_rel = e_rel;
+                        E_rel_max_row = row;
+                        E_rel_max_col = col;
+                        E_rel_max_sheet = sheet;
                     }
                 }
             }
@@ -382,21 +382,21 @@ class Benchmark_Tensor3D_1In_1Out {
             }
             std::cout << "E    :\n";
             tensor3d_E.print(std::cout);
-            std::cout << "E_pct:\n";
-            tensor3d_E_pct.print(std::cout);
+            std::cout << "E_rel:\n";
+            tensor3d_E_rel.print(std::cout);
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
-        const auto tolerance_pct = Tolerance::tolerance_pct(tol_bits);
+        const auto tolerance = Tolerance::tolerance(tol_bits);
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
         std::cout << "Max error     : " << E_max << " at (" << E_max_row << ", " << E_max_col << ", " << E_max_sheet << ")" << std::endl;
-        std::cout << "Max error pct : " << E_max_pct << " at (" << E_pct_max_row << ", " << E_pct_max_col << ", " << E_pct_max_sheet << ")" << std::endl;
+        std::cout << "Max error pct : " << E_max_rel << " at (" << E_rel_max_row << ", " << E_rel_max_col << ", " << E_rel_max_sheet << ")" << std::endl;
         std::cout << "Precision     : " << Tolerance::precision << " (" << Tolerance::name() << " with " << Tolerance::precision_bits << " bits of precision)" << std::endl;
-        std::cout << "Tolerance pct : " << tolerance_pct << "% assuming a loss of " << tol_bits << " bits of precision" << std::endl;
+        std::cout << "Tolerance pct : " << tolerance << "% assuming a loss of " << tol_bits << " bits of precision" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
-        if (E_max == 0 || E_max_pct <= tolerance_pct) {
+        if (E_max == 0 || E_max_rel <= tolerance) {
             std::cout << "[SUCCESS]     : Max error pct is within tolerance" << std::endl;
         } else {
             std::cout << "[FAILURE]     : Max error pct exceeds tolerance" << std::endl;
