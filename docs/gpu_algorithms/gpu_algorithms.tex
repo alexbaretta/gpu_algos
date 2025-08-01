@@ -5,6 +5,7 @@
 \usepackage{algpseudocode}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{textcomp}
 
 \usepackage{pmboxdraw}
 \pmboxdrawsetup{Block/box={\texttt{0}}}
@@ -23,10 +24,24 @@
 \begin{document}
 
 \begin{abstract}
-This document provides comprehensive analyses of GPU algorithms for high-performance computing. Each chapter examines a specific computational problem and explores multiple implementation strategies, covering mathematical foundations, correctness proofs, memory access patterns, and implementation details that achieve optimal performance on modern GPU architectures.
+This document anlyzes the GPU algorithms provided by the GPU Algos project. Each chapter examines a specific computational problem and explores multiple implementation strategies, covering mathematical foundations, memory access patterns, and implementation details that achieve optimal performance on modern GPU architectures.
+
+This document is currently woefully incomplete. Currently, the following items are outstanding:
+\begin{itemize}
+    \item Add sections on TensorCore algorithms for matrix multiplication, including using the GEMM APIs in CUBLASlt and in CUTLASS.
+    \item Add a chapter on matrix transpose. The problem is mathematically trivial, but a fast implementation needs to make efficient use of the memory subsystem.
+    \item Add a chapter on parallel scans, comparing and contrasting my implementaion with the standard parallel scan documented GPU Gems 3.
+    \item Add a chapter on parallel sorting. The project currently only contains an implementation of bitonic sort, but I aim to add others: in particular radix sort and quicksort.
+    \item Add a chapter on Generalized Linear Models (GLM), in particular GLMNET, and how the GLM training and evaluation can be implemented efficiently on GPUs.
+\end{itemize}
 \end{abstract}
 
 \maketitle
+\vspace*{\fill}
+\begin{center}
+    \textcopyright\ 2025 Alex Baretta. All rights reserved.
+\end{center}
+\vspace*{\fill}
 
 \tableofcontents
 
