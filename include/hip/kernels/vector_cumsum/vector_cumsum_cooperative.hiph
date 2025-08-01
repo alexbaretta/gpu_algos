@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/vector_cumsum_cooperative.hpp
+// source path: include/hip/kernels/matrix/vector_cumsum_cooperative.hiph
 
 #pragma once
 #include <iostream>

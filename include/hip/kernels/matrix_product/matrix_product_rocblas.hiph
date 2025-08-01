@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/hip/kernels/matrix/matrix_product_rocblas.hpp
+// source path: include/hip/kernels/matrix/matrix_product_rocblas.hiph
 
 #pragma once
 #include <hip/hip_runtime.h>
