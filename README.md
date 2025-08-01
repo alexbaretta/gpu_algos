@@ -48,21 +48,26 @@ versions of the algorithm and compute the speedup.
 - AMD GPU for the HIP algorithms
 
 ## Building the Project
+The build process is configured via cmake. Bash scripts are provided to simplify the configuration and build process, although you can build the project using cmake directly.
 
 1. Configure the build directory, both debug and release builds.
+
+The following script configures the both the debug and release builds.
 ```bash
 ./scripts/configure_build.sh
 ```
 
 2. Build the project:
-* Release build
+The following scripts run the release and debug builds respectively.
+
 ```bash
-./scripts/release_build.sh
+./scripts/release_build.sh # Release build
+./scripts/debug_build.sh   # Debug build
 ```
 
-* Debug build
+Any argument is passed on to cmake, allowing you to use cmake CLI options with their usual meanings. For example, the following command shows how to build a single executable, using a single compiler proecess, with verbose output.
 ```bash
-./scripts/debug_build.sh
+./scripts/debug_build.sh -j1 --target matrix_product_naive --verbose
 ```
 
 
@@ -75,136 +80,160 @@ After building, the executables will be located in `builds/release/bin/` (or `bu
 #### Matrix Operations
 - **Matrix Product (Multiplication)**:
   ```bash
-  ./builds/release/bin/matrix_product_naive      # Basic implementation
-  ./builds/release/bin/matrix_product_tiled      # Tiled/shared memory optimization
-  ./builds/release/bin/matrix_product_warp       # Warp-level optimization
-  ./builds/release/bin/matrix_product_tensor     # Tensor core implementation
-  ./builds/release/bin/matrix_product_cublas     # cuBLAS reference
-  ./builds/release/bin/matrix_product_cutlass    # CUTLASS implementation
+  matrix_product_naive      # One thread per output value
+  matrix_product_warp       # One warp per output value
+  matrix_product_tiled      # Tiled/shared memory optimization
+  matrix_product_tensor     # WMMA Tensor Core implementation
+  matrix_product_cublas     # cuBLASlt reference
+  matrix_product_cutlass    # CUTLASS implementation
   ```
 
 - **Matrix Transpose**:
   ```bash
-  ./builds/release/bin/matrix_transpose_naive    # Basic implementation
-  ./builds/release/bin/matrix_transpose_striped  # Memory coalescing optimization
-  ./builds/release/bin/matrix_transpose_tiled    # Tiled memory access
-  ./builds/release/bin/matrix_transpose_cublas   # cuBLAS reference
+  matrix_transpose_naive    # One thread per output value
+  matrix_transpose_striped  # Memory coalescing optimization
+  matrix_transpose_tiled    # Tiled memory access
+  matrix_transpose_cublas   # cuBLAS reference
   ```
 
 #### Vector Operations
 - **Vector Cumulative Sum (Prefix Sum)**:
   ```bash
-  ./builds/release/bin/vector_cumsum_serial      # Serial implementation
-  ./builds/release/bin/vector_cumsum_parallel    # Parallel prefix sum
+  vector_cumsum_serial      # Serial algorithm, slow
+  vector_cumsum_parallel    # Parallel prefix sum
   ```
 
 - **Vector Cumulative Maximum**:
   ```bash
-  ./builds/release/bin/vector_cummax_parallel    # Parallel cumulative maximum
+  vector_cummax_parallel    # Parallel cumulative maximum
   ```
 
 - **Vector Scan (Generic)**:
   ```bash
-  ./builds/release/bin/vector_scan_parallel      # Generic parallel scan operation
+  vector_scan_parallel      # Generic parallel scan operation
   ```
 
-#### Advanced Operations
 - **Tensor Sort**:
   ```bash
-  ./builds/release/bin/tensor_sort_bitonic       # Bitonic sort for tensors
+  tensor_sort_bitonic       # Sort tensors along one dimension
   ```
 
 - **Generalized Linear Models (GLM)**:
+Currently, only linear link with L2 loss and L2 penalty are supported.
   ```bash
-  ./builds/release/bin/glm_predict_naive         # Basic GLM prediction
-  ./builds/release/bin/glm_gradient_naive        # Basic gradient computation
-  ./builds/release/bin/glm_gradient_xyyhat       # Optimized gradient computation
+  glm_predict_naive         # Compute a GLM prediction
+  glm_gradient_naive        # Basic gradient computation
+  glm_gradient_xyyhat       # Optimized gradient computation
   ```
 
-### Command Line Options
+### Benchmarks
+Although the project is intended to be used as C++ header library, the build system produces a number of executables, which are intended for testing and performance benchmarking. Use `-h` on each executable to get a listing of CLI options. Generally, the following CLI options are supported
+1. -h, --help: Print usage instructions and list CLI options
+2. --type: Select numeric data type (half, float, double, int<n>, uint<n>, where n is 8, 16, 32, 64)
+3. -M, -N, -K, -T...: Single capital letter options are used to configure the problem size (length of a vector, matrix size, tensor dimentsion, ...)
+4. --init-method increasing: Instead of randomizing the input data, generate an increasing sequence
+4. --block-dim-x, --block-dim-y, --block-dim-z: The size of the GPU thread block in each dimension.
+5. --block-dim: The size of 1-dimensional GPU thread block.
+6. --tol-bits: how many bits of precison are lost due to floating point rounding.
 
-Most programs accept the following options:
-- `--size N` or `-s N`: Set the problem size (default varies by algorithm)
-- `--iterations N` or `-i N`: Number of benchmark iterations (default: 10)
-- `--verbose` or `-v`: Enable verbose output
-- `--help` or `-h`: Show usage information
 
 ### Example Usage
 
 ```bash
 # Run matrix multiplication with custom size
-./builds/release/bin/matrix_product_tiled --size 2048 --iterations 5
+./builds/release/bin/matrix_product_tiled -M 2000 -K 1000 -N 1500
 
 # Run vector cumsum with verbose output
-./builds/release/bin/vector_cumsum_parallel --size 1000000 --verbose
+./builds/release/bin/vector_cumsum_parallel -N 10 --verbose
 
 # Compare different matrix transpose implementations
-./builds/release/bin/matrix_transpose_naive --size 4096
-./builds/release/bin/matrix_transpose_tiled --size 4096
+./builds/release/bin/matrix_transpose_naive -M 25 -N 8 --init-method increasing --type uint64
 ```
 
 ### Program Output
 
 Each program will:
-1. Initialize input data with randomized values of the specified size
+1. Initialize input data with randomized or sequential values of the specified size
 2. Run the GPU algorithm and measure execution time
 3. Run a reference C++ implementation for correctness verification
 4. Compare results and report any discrepancies
 5. Display timing results and compute the GPU speedup over CPU
 
 Sample output:
-```
-Matrix size: 2048x2048
-GPU time: 2.34 ms
-CPU time: 1847.23 ms
-Speedup: 789.2x
-Result verification: PASSED
+```bash
+$ ./builds/release/bin/matrix_transpose_naive -M 2500 -N 8150 --type half
+Input matrix A dimensions   : 2500x8150
+Output matrix dimensions    : 8150x2500
+Temp matrix dimensions      : 0x0
+Input size                  : 0.0379514 GB (40750000 bytes)
+Output size                 : 0.0379514 GB (40750000 bytes)
+Temp size                   : 0 GB (0 bytes)
+Required memory             : 0.0759028 GB (81500000 bytes)
+
+SETUP:
+  - Allocating memory: 19.1607 ms (19.1607 ms total)
+  - Initializing matrices:   (random) 148.768 ms (167.929 ms total)
+  - Creating GPU streams: 71.4346 ms (239.363 ms total)
+  - Creating GPU events: 0.015961 ms (239.379 ms total)
+Matrix_Kernel_1In_1Out:
+1 -  cudaEventElapsedTime    Allocate device memory: 3.13998 ms (3.13998 ms total)
+1 - std::chrono::duration    Allocate device memory: 2.83814 ms (2.83814 ms total)
+2 -  cudaEventElapsedTime       Copy data to device: 3.65555 ms (6.79553 ms total)
+2 - std::chrono::duration       Copy data to device: 3.77645 ms (6.61459 ms total)
+3 -  cudaEventElapsedTime            Compute kernel: 0.444054 ms (7.23959 ms total)
+3 - std::chrono::duration            Compute kernel: 0.49056 ms (7.10515 ms total)
+4 -  cudaEventElapsedTime  Copy result back to host: 3.31543 ms (10.555 ms total)
+4 - std::chrono::duration  Copy result back to host: 3.31488 ms (10.42 ms total)
+5 -  cudaEventElapsedTime        Free device memory: 1.2967 ms (11.8517 ms total)
+5 - std::chrono::duration        Free device memory: 0.131072 ms (10.5511 ms total)
+CHECK WITH CPU:
+ -      Convert data to Eigen: 0.00046 ms (0.00046 ms total)
+ -  Compute result with Eigen: 22.7187 ms (22.7192 ms total)
+ -       Compute error matrix: 115.627 ms (138.346 ms total)
+ -          Compute max error: 81.6959 ms (220.042 ms total)
+DONE: 471.313 ms total
+Max error     : 0 at (0, 0)
+Max error pct : 0 at (0, 0)
+Precision     : 0.000488281 (CUDA __half with 11 bits of precision)
+Tolerance pct : 0.0078125% assuming a loss of 4 bits of precision
+Gross speedup : 46.3118
+Net speedup   : 2.15325
+[SUCCESS]     : Max error pct is within tolerance
 ```
 
 ## Comprehensive Testing with gpu_algo_test
 
-For extensive testing and validation of all GPU algorithms, this project includes a sophisticated Python testing framework called `gpu_algo_test`. This framework can automatically discover and test all built executables with various problem sizes and data types, making it ideal for regression testing, performance validation, and GPU workload analysis.
+For extensive testing and validation of all GPU algorithms, this project includes a sophisticated Python testing framework called `gpu_algo_test`. This framework can automatically discover and test all built executables with various problem sizes and data types, making it ideal for regression testing and performance evaluation.
 
-### Installation
-
-Navigate to the Python directory and install the testing framework:
-
+For example, to run a comprehensive set of benchmarks, using only CUDA executables from the release build, recording test results as a stream of JSON objects, one per line, in `output.jsonl`, and with detailed output to the terminal:
 ```bash
-cd python
-pip install -e .
+python test/gpu_algo_test/gpu_algo_test.py --only-cuda --preset release --output output.jsonl
 ```
 
 ### Quick Start - Test Everything
 
 To run a comprehensive test of all algorithms with default settings:
 
-```bash
-# Test all executables with debug build (default)
-gpu-algo-test
 
-# Test all executables with release build for performance analysis
-gpu-algo-test --preset release
-```
+### Testing different GPU problem sizes and data types
+The framework provides predefined problem size groups that test different categories problem sizes. The objective is to ensure that the algorithms work correctly both when the problem size is very small and when it is as large as is realistic given the available memory and compute power, and when the problem size is a multiple of a warp or of a typical block size, and when it includes partial blocks at the borders of the grid.
 
-### GPU Workload Pattern Testing
-
-The framework provides predefined problem size groups that test different GPU utilization patterns:
-
+Here are a few examples.
 ```bash
 # Test algorithms with sub-optimal GPU utilization (< 32 elements)
-gpu-algo-test --sizes smaller_than_warp --types floating
+python test/gpu_algo_test/gpu_algo_test.py --sizes smaller_than_warp --types floating
 
 # Test optimal single-warp utilization (32 elements)
-gpu-algo-test --sizes exactly_one_warp --types floating,integer
+python test/gpu_algo_test/gpu_algo_test.py --sizes exactly_one_warp --types floating,integer
 
-# Test multi-warp coordination within a block
-gpu-algo-test --sizes several_warps_boundary,several_warps_partial
+# Test small multi-warp grid
+python test/gpu_algo_test/gpu_algo_test.py --sizes several_warps_boundary,several_warps_partial
 
 # Test full thread block utilization (1024 elements)
-gpu-algo-test --sizes full_block --types floating
+python test/gpu_algo_test/gpu_algo_test.py --sizes full_block --types floating
 
-# Test multi-block grid coordination
-gpu-algo-test --sizes several_blocks_boundary,several_blocks_partial
+# Test multi-block grid with maximum problem size of 1e9 (the product of all problem dimemensions)
+python test/gpu_algo_test/gpu_algo_test.py --sizes several_blocks_boundary,several_blocks_partial --max-problem-size 1000000000
 ```
 
 ### Selective Algorithm Testing
@@ -212,14 +241,15 @@ gpu-algo-test --sizes several_blocks_boundary,several_blocks_partial
 Test specific algorithms or algorithm families:
 
 ```bash
-# Test only matrix operations
-gpu-algo-test --executables matrix_product_naive,matrix_product_tiled,matrix_transpose_naive
+# Test a single executable
+python test/gpu_algo_test/gpu_algo_test.py --executables matrix_product_tensor
 
-# Test vector operations with specific sizes
-gpu-algo-test --executables vector_cumsum_parallel,vector_cummax_parallel --sizes 32,64,1024
+# Test only executables matching globs
+python test/gpu_algo_test/gpu_algo_test.py --executables matrix_*,tensor_*
 
-# Test a single algorithm thoroughly
-gpu-algo-test --executables matrix_product_tensor --sizes smaller_than_warp,exactly_one_warp,full_block --types floating
+# Exclude executables matching globs
+python test/gpu_algo_test/gpu_algo_test.py --executables -matrix_*,-tensor*
+
 ```
 
 ### Data Type Coverage
@@ -228,80 +258,168 @@ Test algorithms across different numerical precisions:
 
 ```bash
 # Test floating-point precision variations
-gpu-algo-test --types floating  # half, float, double
+python test/gpu_algo_test/gpu_algo_test.py --types floating  # half, float, double
 
 # Test integer type variations
-gpu-algo-test --types integer   # int8, int16, int32, int64, uint8, uint16, uint32, uint64
+python test/gpu_algo_test/gpu_algo_test.py --types integer   # int8, int16, int32, int64, uint8, uint16, uint32, uint64
 
 # Test specific data types
-gpu-algo-test --types float,double --sizes 1024,2048
+python test/gpu_algo_test/gpu_algo_test.py --types float,double --sizes 1024,2048
 ```
 
-### Development and Debugging
+### Rerunning previously failed tests
 
-Useful options for development and troubleshooting:
-
-```bash
-# Dry run to verify executable discovery without running tests
-gpu-algo-test --dryrun --verbose
-
-# Save detailed results for later analysis
-gpu-algo-test --output test_results.json --preset release
-
-# Test from a custom binary location
-gpu-algo-test --bin-path /path/to/custom/bin --verbose
-
-# Verbose output for debugging test failures
-gpu-algo-test --executables vector_cumsum_parallel --sizes 32 --types float --verbose
+You can rerun only tests that are recorded as failed in the JSONL output file of a previous run.
+```
+python test/gpu_algo_test/gpu_algo_test.py --only-cuda --preset release --verbose \
+      --rerun-failures release.jsonl --output release.rerun.jsonl
 ```
 
-### Integration in CI/CD
+### All options
 
-The framework is designed for automated testing pipelines:
-
-```bash
-# Comprehensive regression test (exit code indicates pass/fail)
-gpu-algo-test --preset release --output ci_results.json
-
-# Performance regression detection
-gpu-algo-test --preset release --types float,double --sizes full_block,several_blocks_boundary
 ```
-
-### Available Problem Size Groups
-
-- `smaller_than_warp`: [8, 16, 24] - Tests sub-warp algorithms
-- `exactly_one_warp`: [32] - Tests optimal warp utilization
-- `several_warps_boundary`: [64, 96, 128] - Tests multiple warps at boundaries
-- `several_warps_partial`: [33, 50, 100] - Tests partial warp utilization
-- `full_block`: [1024] - Tests full thread block algorithms
-- `several_blocks_boundary`: [2048, 3072] - Tests multi-block at boundaries
-- `several_blocks_partial`: [1025, 1500, 2500] - Tests partial block utilization
-
-### Available Data Type Groups
-
-- `floating`: half, float, double
-- `signed`: int8, int16, int32, int64
-- `unsigned`: uint8, uint16, uint32, uint64
-- `integer`: all integer types (signed + unsigned)
+  -h, --help            show this help message and exit
+  --bin-path BIN_PATH   Direct path to bin directory (overrides CMake preset logic) (default: None)
+  --cmake-root CMAKE_ROOT
+                        Path to CMake root directory (defaults to current directory) (default: None)
+  --preset PRESET       CMake preset name (defaults to 'debug') (default: debug)
+  -v, --verbose         Enable verbose output (default: False)
+  -o OUTPUT, --output OUTPUT
+                        Output file for detailed results (JSON format) (default: None)
+  --executables EXECUTABLES
+                        Comma-separated list of executable names or glob patterns to test (default: all). Supports shell-style wildcards: * matches any number of characters, ? matches a single character. Examples: 'vector_*' matches all executables
+                        starting with 'vector_', '*_sort' matches all executables ending with '_sort' (default: None)
+  --sizes SIZES         Comma-separated list of problem sizes to test (default: all). Can include numbers or special size categories: smaller_than_warp, exactly_one_warp, several_warps_boundary, several_warps_partial, full_block,
+                        several_blocks_boundary, several_blocks_partial (default: None)
+  --max-problem-size MAX_PROBLEM_SIZE
+                        Maximum total size of the problem (product of all dimensions). (default: 268435456)
+  --types TYPES         Comma-separated list of data types to test (default: all). Can include specific types or special groups: floating, signed, unsigned, integer. Available types: half, float, double, int8, int16, int32, int64, uint8, uint16,
+                        uint32, uint64 (default: None)
+  --dryrun              Only check for executable existence, don't run tests (default: False)
+  --tol-bits TOL_BITS   Number of bits of precision loss for floating point tolerance (default: 6) (default: 6)
+  --rerun-failures RERUN_FAILURES
+                        Path to previous test results file (JSONL format) to rerun only failed tests (default: None)
+  --timeout TIMEOUT     Timeout for test execution in seconds (default: 300 seconds) (default: 30)
+  --only-hip            Only test HIP executables (executables with 'hip_' prefix) (default: False)
+  --only-cuda           Only test CUDA executables (executables without 'hip_' prefix) (default: False)
+  ```
 
 ### Expected Test Output
-
-The framework provides detailed reporting:
-
+Here is an example of the output produced by gpu_algo_test on the console.
 ```
-Testing matrix_product_tiled with size=1024, type=float
-PASSED - Execution time: 2.34ms, Accuracy: ✓
-PASSED - GPU vs CPU verification successful
+================================================================================
+GPU Algorithm Test Report
+================================================================================
 
-Testing vector_cumsum_parallel with size=32, type=double
-PASSED - Execution time: 0.12ms, Accuracy: ✓
-PASSED - Single-warp optimal utilization confirmed
+glm_gradient_xyyhat:
+--------------------
+  Tests: 48 total, 48 executed successfully, 0 execution failures
+  Correctness: 48 correct
 
-=== Test Summary ===
-Total tests: 156
-Passed: 154
-Failed: 2
-Success rate: 98.7%
+matrix_product_cublas:
+----------------------
+  Tests: 1 total, 1 executed successfully, 0 execution failures
+  Correctness: 0 correct, 1 correctness failures
+
+matrix_product_cutlass:
+-----------------------
+  Tests: 6 total, 6 executed successfully, 0 execution failures
+  Correctness: 0 correct, 6 correctness failures
+
+matrix_product_naive:
+---------------------
+  Tests: 6 total, 6 executed successfully, 0 execution failures
+  Correctness: 0 correct, 6 correctness failures
+
+matrix_product_tensor:
+----------------------
+  Tests: 1 total, 1 executed successfully, 0 execution failures
+  Correctness: 0 correct, 1 correctness failures
+
+matrix_product_tiled:
+---------------------
+  Tests: 6 total, 6 executed successfully, 0 execution failures
+  Correctness: 0 correct, 6 correctness failures
+
+================================================================================
+Overall: 48/68 tests passed both execution and correctness checks (70.6%)
+================================================================================
+
+================================================================================
+TESTS THAT FAILED CORRECTNESS CHECKS
+================================================================================
+
+Total correctness failures: 20
+
+Command lines:
+  1. matrix_product_cublas (type=double, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_cublas -M 2048 -K 3072 -N 42 --type double --tol-bits 6
+     Max error: 5.57066e-12, Max error %: 7.2224e-13
+  2. matrix_product_cutlass (type=double, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_cutlass -M 2048 -K 3072 -N 42 --type double --tol-bits 6
+     Max error: 5.57066e-12, Max error %: 7.2224e-13
+  3. matrix_product_cutlass (type=half, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_cutlass -M 2048 -K 3072 -N 42 --type half --tol-bits 6
+     Max error: 64.0, Max error %: 8.16327
+  4. matrix_product_cutlass (type=float, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_cutlass -M 2048 -K 3072 -N 42 --type float --tol-bits 6
+     Max error: 0.00323486, Max error %: 0.000412834
+  5. matrix_product_cutlass (type=half, size_i=1, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_cutlass -M 3072 -K 2048 -N 42 --type half --tol-bits 6
+     Max error: 22.5, Max error %: 4.38169
+  6. matrix_product_cutlass (type=half, size_i=0, sizes=[1025, 1500, 2500])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_cutlass -M 1025 -K 1500 -N 174 --type half --tol-bits 6
+     Max error: 14.0, Max error %: 3.66252
+  7. matrix_product_cutlass (type=half, size_i=1, sizes=[1025, 1500, 2500])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_cutlass -M 1500 -K 2500 -N 71 --type half --tol-bits 6
+     Max error: 40.5, Max error %: 6.53226
+  8. matrix_product_naive (type=double, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_naive -M 2048 -K 3072 -N 42 --type double --tol-bits 6
+     Max error: 5.57066e-12, Max error %: 7.2224e-13
+  9. matrix_product_naive (type=half, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_naive -M 2048 -K 3072 -N 42 --type half --tol-bits 6
+     Max error: 64.0, Max error %: 8.16327
+ 10. matrix_product_naive (type=float, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_naive -M 2048 -K 3072 -N 42 --type float --tol-bits 6
+     Max error: 0.00323486, Max error %: 0.000412834
+ 11. matrix_product_naive (type=half, size_i=1, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_naive -M 3072 -K 2048 -N 42 --type half --tol-bits 6
+     Max error: 22.5, Max error %: 4.38169
+ 12. matrix_product_naive (type=half, size_i=0, sizes=[1025, 1500, 2500])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_naive -M 1025 -K 1500 -N 174 --type half --tol-bits 6
+     Max error: 14.0, Max error %: 3.66252
+ 13. matrix_product_naive (type=half, size_i=1, sizes=[1025, 1500, 2500])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_naive -M 1500 -K 2500 -N 71 --type half --tol-bits 6
+     Max error: 40.5, Max error %: 6.53226
+ 14. matrix_product_tensor (type=double, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_tensor -M 2048 -K 3072 -N 42 --type double --tol-bits 6
+     Max error: 5.57066e-12, Max error %: 7.2224e-13
+ 15. matrix_product_tiled (type=double, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_tiled -M 2048 -K 3072 -N 42 --type double --tol-bits 6
+     Max error: 5.57066e-12, Max error %: 7.2224e-13
+ 16. matrix_product_tiled (type=half, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_tiled -M 2048 -K 3072 -N 42 --type half --tol-bits 6
+     Max error: 64.0, Max error %: 8.16327
+ 17. matrix_product_tiled (type=float, size_i=0, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_tiled -M 2048 -K 3072 -N 42 --type float --tol-bits 6
+     Max error: 0.00323486, Max error %: 0.000412834
+ 18. matrix_product_tiled (type=half, size_i=1, sizes=[2048, 3072])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_tiled -M 3072 -K 2048 -N 42 --type half --tol-bits 6
+     Max error: 22.5, Max error %: 4.38169
+ 19. matrix_product_tiled (type=half, size_i=0, sizes=[1025, 1500, 2500])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_tiled -M 1025 -K 1500 -N 174 --type half --tol-bits 6
+     Max error: 14.0, Max error %: 3.66252
+ 20. matrix_product_tiled (type=half, size_i=1, sizes=[1025, 1500, 2500])
+     Command: /home/alex/git/gpu_algos/builds/release/bin/matrix_product_tiled -M 1500 -K 2500 -N 71 --type half --tol-bits 6
+     Max error: 40.5, Max error %: 6.53226
+================================================================================
+BENCHMARK SUMMARY
+================================================================================
+Total benchmarks: 68
+Execution failures: 0
+Successful executions: 68
+Correctness failures: 20
+Correct results: 48
 ```
 
 This testing framework ensures comprehensive validation of all GPU algorithms across different problem sizes, data types, and GPU utilization patterns, making it an essential tool for maintaining code quality and performance optimization.
