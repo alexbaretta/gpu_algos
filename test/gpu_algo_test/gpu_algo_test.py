@@ -1084,6 +1084,9 @@ class GPUAlgoTest:
 
         try:
             with open(results_file, 'r') as f:
+                if self.verbose:
+                    skipped_executables = set()
+                    pass
                 for result in ijson.items(f, '', multiple_values=True):
                     # Skip entries that don't have the required fields
                     if not all(key in result for key in ['executable', 'data_type', 'size_i', 'sizes']):
@@ -1101,8 +1104,9 @@ class GPUAlgoTest:
                     if is_failed:
                         # Filter by executable if specified
                         executable = result['executable']
-                        if self.verbose and executable not in self.executable_names:
+                        if self.verbose and executable not in self.executable_names and executable not in skipped_executables:
                             self.logger.info(f'Skipping deselected {executable}')
+                            skipped_executables.add(executable)
                             continue
 
                         failed_test = {
