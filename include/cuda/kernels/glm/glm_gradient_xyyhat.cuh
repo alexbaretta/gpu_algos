@@ -424,7 +424,7 @@ struct Glm_gradient_xyyhat_spec {
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
         // Parse and transform block-dim
-        const dim3 block_dim{
+        const dim3 fixed_grid_block_dim{
             options_parsed["block-dim-x"].as<unsigned>(),
             options_parsed["block-dim-y"].as<unsigned>(),
             options_parsed["block-dim-z"].as<unsigned>()
@@ -437,7 +437,7 @@ struct Glm_gradient_xyyhat_spec {
             options_parsed["ntargets"].as<long>(),
             options_parsed["ntasks"].as<long>(),
             options_parsed["nobs"].as<long>(),
-            block_dim,
+            fixed_grid_block_dim,
             // options_parsed.count("optimize-launch") > 0
         };
     }
@@ -450,7 +450,7 @@ struct Glm_gradient_xyyhat_spec {
         const long ntargets,
         const long ntasks,
         const long nobs,
-        const dim3 block_dim
+        const dim3 fixed_grid_block_dim
         // const bool optimize_launch
     ) : type_(type),
         gpu_algo_(gpu_algo),
@@ -486,12 +486,12 @@ struct Glm_gradient_xyyhat_spec {
         n_rows_temp_(ntasks),
         n_sheets_temp_(nobs),
 
-        fixed_grid_block_dim_(block_dim),
-        block_dim_((long)block_dim.x * block_dim.y * block_dim.z),
+        fixed_grid_block_dim_(fixed_grid_block_dim),
+        block_dim_((long)fixed_grid_block_dim.x * fixed_grid_block_dim.y * fixed_grid_block_dim.z),
         grid_dim_((gpu_algo == "fixed-grid") ? dim3(
-            (nfeatures + block_dim.x - 1)/block_dim.x,
-            (ntargets + block_dim.y - 1)/block_dim.y,
-            (ntasks + block_dim.z - 1)/block_dim.z
+            (nfeatures + fixed_grid_block_dim.x - 1)/fixed_grid_block_dim.x,
+            (ntargets + fixed_grid_block_dim.y - 1)/fixed_grid_block_dim.y,
+            (ntasks + fixed_grid_block_dim.z - 1)/fixed_grid_block_dim.z
         )
         : (gpu_algo == "naive") ? dim3(niterations_)
         : dim3(niterations_ * 32)),
@@ -536,7 +536,6 @@ class Glm_gradient_xyyhat_kernel {
         grid_dim = spec_.grid_dim_;
         const auto dynamic_shared_mem_words = compute_n_warps_per_block(block_dim);
         const auto predict_shm_size = dynamic_shared_mem_words * sizeof(Number);
-        const auto& fixed_grid_block_dim3 = spec_.fixed_grid_block_dim_;
 
         const Glm_predict_naive_spec glm_predict_naive_spec{
             spec_.type_,
@@ -545,15 +544,17 @@ class Glm_gradient_xyyhat_kernel {
             spec_.ntargets_,
             spec_.ntasks_,
             spec_.nobs_,
-            spec_.block_dim_
+            dim3(spec_.block_dim_, 1, 1)
         };
         // Compute Yhat
-        std::cout << "[INFO] kernel launch: glm::glm_predict_fixed_grid<<<" << glm_predict_naive_spec.grid_dim_.x << ", " << glm_predict_naive_spec.block_dim_.x << ", " << predict_shm_size
+        std::cout << "[INFO] kernel launch: glm::glm_predict_fixed_grid<<<("
+                << glm_predict_naive_spec.grid_dim_.x << ", " << glm_predict_naive_spec.grid_dim_.y << ", " << glm_predict_naive_spec.grid_dim_.z << "), ("
+                << glm_predict_naive_spec.fixed_grid_block_dim_.x << ", " << glm_predict_naive_spec.fixed_grid_block_dim_.y << ", " << glm_predict_naive_spec.fixed_grid_block_dim_.z << "), " << predict_shm_size
             << ">>>(..., " << glm_predict_naive_spec.nfeatures_ << ", " << glm_predict_naive_spec.ntargets_ << ", " << glm_predict_naive_spec.ntasks_ << ", " << glm_predict_naive_spec.nobs_ << ")" << std::endl;
         std::cout << "[INFO] niterations = " << glm_predict_naive_spec.nobs_ * glm_predict_naive_spec.ntasks_ * glm_predict_naive_spec.ntargets_ << std::endl;
         glm::glm_predict_fixed_grid<<<
             glm_predict_naive_spec.grid_dim_,
-            glm_predict_naive_spec.block_dim_,
+            glm_predict_naive_spec.fixed_grid_block_dim_,
             predict_shm_size,
             stream
         >>>(
@@ -570,14 +571,14 @@ class Glm_gradient_xyyhat_kernel {
             const int shm_size = dynamic_shared_mem_words * sizeof(Number);
 
             std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
-            std::cout << "[INFO] block_dim_: " << fixed_grid_block_dim3.x << ", " << fixed_grid_block_dim3.y << ", " << fixed_grid_block_dim3.z << std::endl;
+            std::cout << "[INFO] block_dim_: " << spec_.fixed_grid_block_dim_.x << ", " << spec_.fixed_grid_block_dim_.y << ", " << spec_.fixed_grid_block_dim_.z << std::endl;
             std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_fixed_grid<<<(" << spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << "), ("
-                << spec_.block_dim_ << "), " << dynamic_shared_mem_words
-                << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
+                    << spec_.fixed_grid_block_dim_.x << ", " << spec_.fixed_grid_block_dim_.y << ", " << spec_.fixed_grid_block_dim_.z << "), " << dynamic_shared_mem_words
+                    << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
             std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
             glm::glm_gradient_XYYhat_fixed_grid<<<
                 grid_dim,
-                fixed_grid_block_dim3,
+                spec_.fixed_grid_block_dim_,
                 shm_size,
                 stream
             >>>(
