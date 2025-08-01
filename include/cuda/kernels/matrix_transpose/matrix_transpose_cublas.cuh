@@ -46,8 +46,8 @@ struct Matrix_transpose_cublas_spec {
         options.add_options()
             ("M", "Number of rows in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
             ("N", "Number of columns in input matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (single/float)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -63,10 +63,10 @@ struct Matrix_transpose_cublas_spec {
         }
         return Matrix_transpose_cublas_spec(
             type,
-            options_parsed["m"].as<long>(),
-            options_parsed["n"].as<long>(),
-            options_parsed["block-dim-x"].as<long>(),
-            options_parsed["block-dim-y"].as<long>()
+            options_parsed["M"].as<long>(),
+            options_parsed["N"].as<long>(),
+            options_parsed["block-dim-x"].as<unsigned>(),
+            options_parsed["block-dim-y"].as<unsigned>()
         );
     }
 

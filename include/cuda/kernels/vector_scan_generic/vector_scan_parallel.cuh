@@ -213,7 +213,7 @@ struct Vector_scan_parallel_spec {
         options.add_options()
             ("operation,op", "Operation to perform (max, min, sum, prod)", cxxopts::value<std::string>()->default_value("sum"))
             ("N", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("block-dim", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block-dim", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -232,14 +232,14 @@ struct Vector_scan_parallel_spec {
             std::cerr << "[ERROR] --operation must be one of: max, min, sum, prod" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --operation: " + operation);
         }
-        const auto n = options_parsed["n"].as<long>();
-        const auto block_dim_option = options_parsed["block-dim"].as<long>();
+        const auto size = options_parsed["N"].as<long>();
+        const auto block_dim_option = options_parsed["block-dim"].as<unsigned>();
         const auto warp_size = get_warp_size();
-        const auto block_size = (std::min(n, block_dim_option)  + warp_size - 1) / warp_size * warp_size;
+        const auto block_size = (std::min(size, (long)block_dim_option)  + warp_size - 1) / warp_size * warp_size;
         return Vector_scan_parallel_spec(
             type,
             operation,
-            n,
+            size,
             block_size
         );
     }
@@ -263,19 +263,19 @@ struct Vector_scan_parallel_spec {
     Vector_scan_parallel_spec(
         const std::string& type,
         const std::string& operation,
-        const long n,
+        const long size,
         const long block_size
     ) : device_prop_(get_default_device_prop()),
         type_(type),
         operation_(operation),  // Store the actual operation string
         m_(0),  // unused
-        n_(n),
+        n_(size),
         k_(0),  // unused
-        n_A_(n),
-        n_C_(n),
-        n_temp_(compute_size_of_temp(n, block_size)),
+        n_A_(size),
+        n_C_(size),
+        n_temp_(compute_size_of_temp(size, block_size)),
         block_dim_(block_size),
-        grid_dim_((n + block_size - 1) / block_size)
+        grid_dim_((size + block_size - 1) / block_size)
     {}
 };
 

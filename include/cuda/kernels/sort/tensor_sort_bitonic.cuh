@@ -154,9 +154,9 @@ struct tensor3d_sort_bitonic_spec {
             ("M", "Number of rows", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
             ("N", "Number of columns", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
             ("K", "Number of sheets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
-            ("blockdimx,x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("blockdimy,y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
-            ("blockdimz,z", "Number of threads in the z dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Z)))
+            ("block-dim-x,x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block-dim-y,y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("block-dim-z,z", "Number of threads in the z dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Z)))
             ("sortdim,d", "Sort dimension: rows, cols, sheets", cxxopts::value<std::string>()->default_value("rows"))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
@@ -179,9 +179,9 @@ struct tensor3d_sort_bitonic_spec {
             throw cxxopts::exceptions::exception("Invalid --sortdim: " + sort_dim);
         }
 
-        long m = options_parsed["m"].as<long>();
-        long n = options_parsed["n"].as<long>();
-        long k = options_parsed["k"].as<long>();
+        long m = options_parsed["M"].as<long>();
+        long n = options_parsed["N"].as<long>();
+        long k = options_parsed["K"].as<long>();
 
         // Ensure the dimension we're sorting is a power of 2
         long* target_dim;
@@ -201,9 +201,9 @@ struct tensor3d_sort_bitonic_spec {
             type,
             sort_dim,
             m, n, k,
-            options_parsed["blockdimx"].as<long>(),
-            options_parsed["blockdimy"].as<long>(),
-            options_parsed["blockdimz"].as<long>()
+            options_parsed["block-dim-x"].as<unsigned>(),
+            options_parsed["block-dim-y"].as<unsigned>(),
+            options_parsed["block-dim-z"].as<unsigned>()
         );
     }
 

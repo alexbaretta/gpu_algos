@@ -211,9 +211,9 @@ struct Glm_gradient_naive_spec {
             ("ntargets,Y", "Number of targets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTARGETS)))
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
-            ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
-            ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
-            ("block-dim-z", "Number of threads in the z dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim-z", "Number of threads in the z dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("optimize-launch", "Use occupancy API to determine optimal launch configuration")
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"))
             ("cpu-algo", "CPU algo variant to benchmark against (nested-loop, matrix)", cxxopts::value<std::string>()->default_value("matrix"))
@@ -234,6 +234,11 @@ struct Glm_gradient_naive_spec {
             std::cerr << "[ERROR] --nested-loop must be one of: nested-loop, matrix" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --nested-loop: " + cpu_algo);
         }
+        const dim3 block_dim{
+            options_parsed["block-dim-x"].as<unsigned>(),
+            options_parsed["block-dim-y"].as<unsigned>(),
+            options_parsed["block-dim-z"].as<unsigned>()
+        };
         return {
             type,
             cpu_algo,
@@ -241,9 +246,7 @@ struct Glm_gradient_naive_spec {
             options_parsed["ntargets"].as<long>(),
             options_parsed["ntasks"].as<long>(),
             options_parsed["nobs"].as<long>(),
-            options_parsed["block-dim-x"].as<long>(),
-            options_parsed["block-dim-y"].as<long>(),
-            options_parsed["block-dim-z"].as<long>(),
+            block_dim,
             options_parsed.count("optimize-launch") > 0
         };
     }
@@ -255,9 +258,7 @@ struct Glm_gradient_naive_spec {
         const long ntargets,
         const long ntasks,
         const long nobs,
-        const long block_dim_x,
-        const long block_dim_y,
-        const long block_dim_z,
+        const dim3 block_dim,
         const bool optimize_launch
     ) : type_(type),
         cpu_algo_(cpu_algo),
@@ -291,11 +292,11 @@ struct Glm_gradient_naive_spec {
         n_rows_temp_(0),
         n_sheets_temp_(0),
 
-        block_dim_(block_dim_x, block_dim_y, block_dim_z),
+        block_dim_(block_dim),
         grid_dim_(
-            (nfeatures + block_dim_x - 1) / block_dim_x,
-            (ntargets + block_dim_y - 1) / block_dim_y,
-            (ntasks + block_dim_z - 1) / block_dim_z
+            (nfeatures + block_dim.x - 1) / block_dim.x,
+            (ntargets + block_dim.y - 1) / block_dim.y,
+            (ntasks + block_dim.z - 1) / block_dim.z
         ),
         optimize_launch_(optimize_launch)
     {

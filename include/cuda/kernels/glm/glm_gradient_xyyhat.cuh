@@ -374,7 +374,7 @@ struct Glm_gradient_xyyhat_spec {
     const long n_sheets_temp_;
 
     const dim3 fixed_grid_block_dim_;
-    const dim3 block_dim_;
+    const long block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_;
     // const bool optimize_launch_;
@@ -383,7 +383,7 @@ struct Glm_gradient_xyyhat_spec {
     constexpr static long DEFAULT_NTASKS = 10;
     constexpr static long DEFAULT_NTARGETS = 25;
     constexpr static long DEFAULT_NFEATURES = 25;
-    constexpr static long DEFAULT_BLOCK_DIM = 256;
+    constexpr static long DEFAULT_BLOCK_DIM = 8;
     constexpr static std::string DEFAULT_GPU_ALGO = "naive";
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
@@ -486,12 +486,12 @@ struct Glm_gradient_xyyhat_spec {
         n_rows_temp_(ntasks),
         n_sheets_temp_(nobs),
 
-        block_dim_(block_dim),
-        fixed_grid_block_dim_(block_dim_)),
+        fixed_grid_block_dim_(block_dim),
+        block_dim_((long)block_dim.x * block_dim.y * block_dim.z),
         grid_dim_((gpu_algo == "fixed-grid") ? dim3(
-            (nfeatures + block_dim_.x - 1)/block_dim_.x,
-            (ntargets + block_dim_.y - 1)/block_dim_.y,
-            (ntasks + block_dim_.z - 1)/block_dim_.z
+            (nfeatures + block_dim.x - 1)/block_dim.x,
+            (ntargets + block_dim.y - 1)/block_dim.y,
+            (ntasks + block_dim.z - 1)/block_dim.z
         )
         : (gpu_algo == "naive") ? dim3(niterations_)
         : dim3(niterations_ * 32)),
@@ -536,7 +536,7 @@ class Glm_gradient_xyyhat_kernel {
         grid_dim = spec_.grid_dim_;
         const auto dynamic_shared_mem_words = compute_n_warps_per_block(block_dim);
         const auto predict_shm_size = dynamic_shared_mem_words * sizeof(Number);
-        const dim3 fixed_grid_block_dim3{spec_.fixed_grid_block_dim_, spec_.fixed_grid_block_dim_, spec_.fixed_grid_block_dim_};
+        const auto& fixed_grid_block_dim3 = spec_.fixed_grid_block_dim_;
 
         const Glm_predict_naive_spec glm_predict_naive_spec{
             spec_.type_,
@@ -545,7 +545,7 @@ class Glm_gradient_xyyhat_kernel {
             spec_.ntargets_,
             spec_.ntasks_,
             spec_.nobs_,
-            spec_.fixed_grid_block_dim_
+            spec_.block_dim_
         };
         // Compute Yhat
         std::cout << "[INFO] kernel launch: glm::glm_predict_fixed_grid<<<" << glm_predict_naive_spec.grid_dim_.x << ", " << glm_predict_naive_spec.block_dim_.x << ", " << predict_shm_size

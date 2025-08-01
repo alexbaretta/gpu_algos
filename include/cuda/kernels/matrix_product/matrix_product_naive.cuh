@@ -69,8 +69,8 @@ struct Matrix_product_naive_spec {
             ("M", "Number of rows in first matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
             ("K", "Number of columns in first matrix and rows of the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
             ("N", "Number of columns in the second matrix", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
-            ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -86,11 +86,11 @@ struct Matrix_product_naive_spec {
         }
         return Matrix_product_naive_spec(
             type,
-            options_parsed["m"].as<long>(),
-            options_parsed["k"].as<long>(),
-            options_parsed["n"].as<long>(),
-            options_parsed["block-dim-x"].as<long>(),
-            options_parsed["block-dim-y"].as<long>()
+            options_parsed["M"].as<long>(),
+            options_parsed["K"].as<long>(),
+            options_parsed["N"].as<long>(),
+            options_parsed["block-dim-x"].as<unsigned>(),
+            options_parsed["block-dim-y"].as<unsigned>()
         );
     }
 

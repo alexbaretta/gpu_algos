@@ -156,9 +156,9 @@ struct Matrix_product_tiled_spec {
         }
         return Matrix_product_tiled_spec(
             type,
-            options_parsed["m"].as<long>(),
-            options_parsed["k"].as<long>(),
-            options_parsed["n"].as<long>()
+            options_parsed["M"].as<long>(),
+            options_parsed["K"].as<long>(),
+            options_parsed["N"].as<long>()
         );
     }
 

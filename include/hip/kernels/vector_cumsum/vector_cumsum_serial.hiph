@@ -64,7 +64,7 @@ struct Vector_cumsum_serial_spec {
         }
         return Vector_cumsum_serial_spec(
             type,
-            options_parsed["n"].as<long>()
+            options_parsed["N"].as<long>()
         );
     }
 

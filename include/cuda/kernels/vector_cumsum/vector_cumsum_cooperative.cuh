@@ -232,7 +232,7 @@ struct Vector_cumsum_cooperative_spec {
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
             ("N", "Size of vector", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("block-dim", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block-dim", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
@@ -248,7 +248,7 @@ struct Vector_cumsum_cooperative_spec {
         }
         return Vector_cumsum_cooperative_spec(
             type,
-            options_parsed["n"].as<long>()
+            options_parsed["N"].as<long>()
         );
     }
 

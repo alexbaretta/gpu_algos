@@ -292,7 +292,8 @@ class GPUAlgoTest:
 
     def __init__(self, bin_dir: Path, cmake_root: Optional[Path] = None, preset: str = "debug",
                  verbose: bool = False, selected_executables: Optional[Set[str]] = None,
-                 selected_sizes: Optional[Set[int]] = None, selected_types: Optional[Set[str]] = None,
+                 selected_sizes: Optional[Set[int]] = None, max_total_size:int = 2**28,
+                 selected_types: Optional[Set[str]] = None,
                  dryrun: bool = False, tol_bits: int = 4, output_file: Optional[str] = None,
                  rerun_failures_file: Optional[str] = None, timeout: int = 300, only_hip: bool = False, only_cuda: bool = False):
         """Initialize the GPU algorithm tester.
@@ -304,6 +305,7 @@ class GPUAlgoTest:
             verbose: Enable verbose logging
             selected_executables: Set of executable names to test (None for all)
             selected_sizes: Set of problem sizes to test (None for all)
+            max_total_size: max product of all problem dimension sizes
             selected_types: Set of data types to test (None for all)
             dryrun: Only check executable existence, don't run tests
             tol_bits: Number of bits of precision loss for floating point tolerance (default: 4)
@@ -319,6 +321,7 @@ class GPUAlgoTest:
         self.verbose = verbose
         self.selected_executables = selected_executables
         self.selected_sizes = selected_sizes
+        self.max_total_size = max_total_size
         self.selected_types = selected_types or set(DATA_TYPES)
         self.dryrun = dryrun
         self.output_file = output_file
@@ -696,8 +699,11 @@ class GPUAlgoTest:
             if size_options:
                 # Cycle through the size options, and correspondingly through the available size values
                 i = size_i
+                size_product = 1
                 for size_option in size_options:
-                    size = sizes[i % len(sizes)]
+                    # Prevent unreasonably large problem sizes by ensuring that the product of all dimensions <= max_total_size
+                    size = min(sizes[i % len(sizes)], self.max_total_size // size_product)
+                    size_product *= size
                     cmd.extend([size_option, str(size)])
                     i += 1
                     pass
@@ -781,7 +787,6 @@ class GPUAlgoTest:
                 "stderr": "",
             }
         except Exception as e:
-            self.logger.error(f"       Exception: {cmdline}")
             self.logger.error(f"           {e}")
             return {
                 **test_info,
@@ -874,11 +879,12 @@ class GPUAlgoTest:
             for test in failed_tests:
                 if test['data_type'] not in filtered_data_types:
                     continue
+                sizes = test["sizes"]
                 if self.verbose or self.dryrun:
-                    self.logger.debug(f"  Rerunning: {exe_name} size={test['size']} type={test['data_type']}")
+                    self.logger.debug(f"  Rerunning: {exe_name} size_i={test['size_i']} sizes={sizes} type={test['data_type']}")
 
                 try:
-                    result = self.test_executable(executable, test['data_type'], test['size'])
+                    result = self.test_executable(executable, test['data_type'], test['size_i'], test['sizes'])
                     if result is not None:
                         result["category"] = test['category']
                         result["rerun"] = True
@@ -905,7 +911,8 @@ class GPUAlgoTest:
                         "error_details": error_details,
                         "executable": exe_name,
                         "data_type": test['data_type'],
-                        "size": test['size'],
+                        "size_i": test['size_i'],
+                        "sizes": sizes,
                         "rerun": True
                     }
                     self._write_streaming_result(error_result)
@@ -1116,7 +1123,7 @@ class GPUAlgoTest:
         seen = set()
         unique_failed_tests = []
         for test in failed_tests:
-            key = (test['executable'], test['data_type'], test['size_i'], test['sizes'])
+            key = (test['executable'], test['data_type'], test['size_i'], tuple(test['sizes']))
             if key not in seen:
                 seen.add(key)
                 unique_failed_tests.append(test)
@@ -1169,6 +1176,15 @@ def main():
         help="Comma-separated list of problem sizes to test (default: all).\n"
         "Can include numbers or special size categories:\n"
         + ", ".join(PROBLEM_SIZES.keys()),
+    )
+
+    parser.add_argument(
+        "--max-total-size",
+        help="Maximum total size of the problem (product of all dimensions).\n",
+
+        # This is a fairly arbitrary default, but it should prevent running unreasonably
+        # large tests in most cases
+        default=2 ** 28,
     )
 
     parser.add_argument(
@@ -1267,6 +1283,7 @@ def main():
             args.verbose,
             selected_executables,
             selected_sizes,
+            args.max_total_size,
             selected_types,
             args.dryrun,
             args.tol_bits,

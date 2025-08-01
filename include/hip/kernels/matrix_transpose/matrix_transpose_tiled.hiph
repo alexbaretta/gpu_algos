@@ -167,8 +167,8 @@ struct Matrix_transpose_tiled_spec {
         }
         return Matrix_transpose_tiled_spec(
             type,
-            options_parsed["m"].as<long>(),
-            options_parsed["n"].as<long>(),
+            options_parsed["M"].as<long>(),
+            options_parsed["N"].as<long>(),
             options_parsed["block-dim"].as<long>()
         );
     }

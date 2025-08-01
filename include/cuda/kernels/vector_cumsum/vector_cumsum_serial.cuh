@@ -64,19 +64,19 @@ struct Vector_cumsum_serial_spec {
         }
         return Vector_cumsum_serial_spec(
             type,
-            options_parsed["n"].as<long>()
+            options_parsed["N"].as<long>()
         );
     }
 
     inline Vector_cumsum_serial_spec(
         const std::string& type,
-        const long n
+        const long size
     ) : type_(type),
         m_(0),  // unused
-        n_(n),
+        n_(size),
         k_(0),  // unused
-        n_A_(n),
-        n_C_(n),
+        n_A_(size),
+        n_C_(size),
         n_temp_(0),
         block_dim_(1),
         grid_dim_(1)

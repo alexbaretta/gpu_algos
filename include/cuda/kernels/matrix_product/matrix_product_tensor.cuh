@@ -77,9 +77,9 @@ struct Matrix_product_tensor_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double, int8, int16, int32, int64, uint8, uint16, uint32, uint64" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        const auto m = options_parsed["m"].as<long>();
-        const auto n = options_parsed["n"].as<long>();
-        const auto k = options_parsed["k"].as<long>();
+        const auto m = options_parsed["M"].as<long>();
+        const auto n = options_parsed["N"].as<long>();
+        const auto k = options_parsed["K"].as<long>();
         if (m <= 0) {
             std::cerr << "[ERROR] -m, -n, -k must be positive" << std::endl;
             throw cxxopts::exceptions::exception("Invalid -m: " + m);
