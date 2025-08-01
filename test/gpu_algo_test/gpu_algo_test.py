@@ -769,6 +769,7 @@ class GPUAlgoTest:
                 return test_result
 
         except subprocess.TimeoutExpired:
+            self.logger.warning(f"       Timeout: {cmdline}")
             return {
                 **test_info,
                 "cmdline": ' '.join(cmd) if 'cmd' in locals() else "",
@@ -780,6 +781,8 @@ class GPUAlgoTest:
                 "stderr": "",
             }
         except Exception as e:
+            self.logger.error(f"       Exception: {cmdline}")
+            self.logger.error(f"           {e}")
             return {
                 **test_info,
                 "cmdline": ' '.join(cmd) if 'cmd' in locals() else "",
@@ -1196,7 +1199,7 @@ def main():
     parser.add_argument(
         "--timeout",
         type=int,
-        default=300,
+        default=30,
         help="Timeout for test execution in seconds (default: 300 seconds)",
     )
 
