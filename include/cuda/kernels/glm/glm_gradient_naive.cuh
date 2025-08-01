@@ -89,96 +89,75 @@ dL/dM[feature',target',task'] =
 
 namespace glm {
 
-    template <CUDA_scalar Number>
-    using transform_ptr = Number (*const)(Number);
+    /*
+    The parallelization strategy here is to allocate one thread per element of gradM.
+    Ignoring the need to round up: gridDim = { nfeatures / blockDim.x, ntargets / blockDim.y, ntasks / blockDim.z }
+    We index M and gradM as follows:
+        M[i_feature][i_target][i_task],
+    where i_feature < nfeatures, i_target < ntargets, i_task < ntasks.
 
+    We handle the nobs dimension through a for loop.
+        for (int w = 0; w < nobs; ++w)
+    */
     template <CUDA_scalar Number>
-    __global__ void glm_gradient_naive(
+    __global__ void glm_gradient_naive_fixed_grid(
         const Number* const X,     // (nfeatures, ntasks, nobs)
-        const Number* const Y,     // (ntargets, ntasks, nobs)
         const Number* const M,     // (nfeatures, ntargets, ntasks)
+        const Number* const Y,     // (ntargets, ntasks, nobs)
         Number* const grad_M,      // (nfeatures, ntargets, ntasks)
         const long nfeatures,
         const long ntargets,
         const long ntasks,
         const long nobs
     ) {
-        // We need one word of dynamic shm per warp per block
-        Number* shm  = get_dynamic_shared_memory<Number>();
 
-        assert(blockDim.x % WARP_SIZE == 0); // Number of threads is a multiple of a warp
-        assert(blockDim.y == 1);
-        assert(blockDim.z == 1);
-        assert(gridDim.y == 1);
-        assert(gridDim.z == 1);
+        const long i_feature = blockIdx.x * blockDim.x + threadIdx.x;
+        const long i_target = blockIdx.y * blockDim.y + threadIdx.y;
+        const long i_task = blockIdx.z * blockDim.z + threadIdx.z;
+        if (i_feature >= nfeatures || i_target >= ntargets || i_task >= ntasks) return;
 
-        // We use one block per location in grad_M to sum over obs and over feature
-        const auto& bid_grid = blockIdx.x; // We use a 1D grid
-        const auto& tid_block = threadIdx.x; // We use a 1D block
-        const auto tid_warp = threadIdx.x % WARP_SIZE;
-        const auto wid_block = threadIdx.x / WARP_SIZE;
-        const auto n_warps_per_block = (blockDim.x + WARP_SIZE - 1) / WARP_SIZE;
         const auto X_sheet_size = nfeatures * ntasks;
         const auto Y_sheet_size = ntargets * ntasks;
         const auto M_sheet_size = nfeatures * ntargets;
-        const auto M_output_size = M_sheet_size * ntasks;
 
-        const auto& nfeatures_per_block = blockDim.x;
-        assert(nfeatures_per_block > 0 && nfeatures_per_block % WARP_SIZE == 0);
+        const auto M_idx = i_task * M_sheet_size + i_target * nfeatures + i_feature; // This is the index into grad_M
+        #ifdef DEBUG
+        const auto M_size = nfeatures * ntargets * ntargets;
+        if (M_idx >= M_size) {
+            printf("M_idx = %ld >= %ld when i_feature=%ld < %ld, i_target=%ld < %ld, i_task=%ld < %ld\n",
+                M_idx, M_size, i_feature, nfeatures, i_target, ntargets, i_task, ntasks
+            );
+        }
+        #endif
 
-        for (auto grad_M_idx = bid_grid; grad_M_idx < M_output_size; grad_M_idx += gridDim.x) {
-            const auto dst_task = grad_M_idx / M_sheet_size;
-            const auto dst_task_idx = grad_M_idx % M_sheet_size;
-            const auto dst_target = dst_task_idx / nfeatures;
-            const auto dst_feature = dst_task_idx % nfeatures;
-
-            Number sum_obs{0};
-            for (long obs = 0; obs < nobs; ++obs ) {
-                // compute SUM_feature M[feature,target',task'] * X[feature,task',obs]
-                Number sum_feature{0};
-                for (long feature = tid_block; feature < nfeatures; feature += nfeatures_per_block) {
-                    // compute M[feature,target',task'] * X[feature,task',obs]
-                    sum_feature += (
-                        // compute M[feature,target',task']
-                        M[feature + dst_target * nfeatures + dst_task * M_sheet_size]
-                    ) * (
-                        // compute X[feature,task',obs]
-                        X[feature + dst_task * nfeatures + obs * X_sheet_size]
-                    );
-                }
-                // Now we need to reduce/sum over the threads of the block to get the aggregate sum_feature
-                // First a warp shuffle reduction down to lane 0
-                for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
-                    sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
-                }
-                // Next we perform a block-level reduction via shm
-                // Only lane 0 posts its sum_feature value to shm
-                if (tid_warp == 0) { shm[wid_block] = sum_feature; }
-                __syncthreads();
-
-                // Finally, we sum over shared memory using a single warp
-                if (wid_block == 0) {
-                    sum_feature = (tid_warp < n_warps_per_block) ? shm[tid_warp] : Number(0);
-                    for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
-                        sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
-                    }
-
-                    // compute ( (SUM_feature ...) - Y[target',task',obs]) * X[feature',task',obs]
-                    sum_obs += (
-                        // compute ( (SUM_feature ...) - Y[target',task',obs])
-                        sum_feature - Y[dst_target + dst_task * ntargets + obs * Y_sheet_size]
-                    ) * (
-                        // compute X[feature',task',obs]
-                        X[dst_feature + dst_task * nfeatures + obs * X_sheet_size]
-                    );
-                    if (tid_warp == 0) {
-                        grad_M[dst_feature + dst_target * nfeatures + dst_task * M_sheet_size] = Number(2) * sum_obs;
-                    }
-
-                }
+        Number sum_obs{0};
+        for (int i_obs = 0; i_obs < nobs; ++i_obs ) {
+            // compute SUM_feature M[feature,target',task'] * X[feature,task',obs]
+            Number sum_feature{0};
+            for (int j_feature = 0; j_feature < nfeatures; j_feature += 1) {
+                // compute M[feature,target',task'] * X[feature,task',obs]
+                sum_feature += (
+                    // compute M[feature,target',task']
+                    M[j_feature + i_target * nfeatures + i_task * M_sheet_size]
+                ) * (
+                    // compute X[feature,task',obs]
+                    X[j_feature + i_task * nfeatures + i_obs * X_sheet_size]
+                );
             }
+
+            // compute ( (SUM_feature ...) - Y[target',task',obs]) * X[feature',task',obs]
+            sum_obs += (
+                // compute ( (SUM_feature ...) - Y[target',task',obs])
+                sum_feature - Y[i_target + i_task * ntargets + i_obs * Y_sheet_size]
+            ) * (
+                // compute X[feature',task',obs]
+                X[i_feature + i_task * nfeatures + i_obs * X_sheet_size]
+            );
+            grad_M[M_idx] = Number(2) * sum_obs;
         }
     }
+
+
 } // namespace glm
 
 struct Glm_gradient_naive_spec {
@@ -189,7 +168,6 @@ struct Glm_gradient_naive_spec {
     const long ntargets_;
     const long ntasks_;
     const long nobs_;
-    const long niterations_;
 
     // X tensor (covariates) with dimensions (nfeatures, ntasks, nobs)
     const long n_cols_A_;   // nfeatures
@@ -211,6 +189,7 @@ struct Glm_gradient_naive_spec {
     const long n_rows_D_;   // ntargets
     const long n_sheets_D_; // ntasks
 
+    // temp tensor, unused
     const long n_cols_temp_;
     const long n_rows_temp_;
     const long n_sheets_temp_;
@@ -224,7 +203,7 @@ struct Glm_gradient_naive_spec {
     constexpr static long DEFAULT_NTASKS = 10;
     constexpr static long DEFAULT_NTARGETS = 25;
     constexpr static long DEFAULT_NFEATURES = 25;
-    constexpr static long DEFAULT_BLOCK_DIM = 256;
+    constexpr static long DEFAULT_BLOCK_DIM = 8;
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
@@ -232,12 +211,12 @@ struct Glm_gradient_naive_spec {
             ("ntargets,Y", "Number of targets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTARGETS)))
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
-            ("block-dim", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim-z", "Number of threads in the z dimension per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("optimize-launch", "Use occupancy API to determine optimal launch configuration")
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"))
-
-            // Commenting out --cpu-algo as the Eigen matrix implementation is broken. More debugging necessary before it can be enabled.
-            ("cpu-algo", "CPU algo variant to benchmark against (nested-loop, matrix)", cxxopts::value<std::string>()->default_value("nested-loop"))
+            ("cpu-algo", "CPU algo variant to benchmark against (nested-loop, matrix)", cxxopts::value<std::string>()->default_value("matrix"))
             ;
         }
 
@@ -262,7 +241,9 @@ struct Glm_gradient_naive_spec {
             options_parsed["ntargets"].as<long>(),
             options_parsed["ntasks"].as<long>(),
             options_parsed["nobs"].as<long>(),
-            options_parsed["block-dim"].as<long>(),
+            options_parsed["block-dim-x"].as<long>(),
+            options_parsed["block-dim-y"].as<long>(),
+            options_parsed["block-dim-z"].as<long>(),
             options_parsed.count("optimize-launch") > 0
         };
     }
@@ -274,7 +255,9 @@ struct Glm_gradient_naive_spec {
         const long ntargets,
         const long ntasks,
         const long nobs,
-        const long block_dim,
+        const long block_dim_x,
+        const long block_dim_y,
+        const long block_dim_z,
         const bool optimize_launch
     ) : type_(type),
         cpu_algo_(cpu_algo),
@@ -282,34 +265,38 @@ struct Glm_gradient_naive_spec {
         ntargets_(ntargets),
         ntasks_(ntasks),
         nobs_(nobs),
-        niterations_(nobs * ntasks * ntargets),
 
-        // X
+        // X tensor (covariates) with dimensions (nfeatures, ntasks, nobs)
         n_cols_A_(nfeatures),
         n_rows_A_(ntasks),
         n_sheets_A_(nobs),
 
-        // Y
-        n_cols_B_(ntargets),
-        n_rows_B_(ntasks),
-        n_sheets_B_(nobs),
+        // M tensor (model) with dimensions (nfeatures, ntargets, ntasks)
+        n_cols_B_(nfeatures),
+        n_rows_B_(ntargets),
+        n_sheets_B_(ntasks),
 
-        // M
-        n_cols_C_(nfeatures),
-        n_rows_C_(ntargets),
-        n_sheets_C_(ntasks),
+        // Y tensor (responses) with dimensions (ntargets, ntasks, nobs)
+        n_cols_C_(ntargets),
+        n_rows_C_(ntasks),
+        n_sheets_C_(nobs),
 
-        // grad_M
+        // grad_M tensor (model) with dimensions (nfeatures, ntargets, ntasks)
         n_cols_D_(nfeatures),
         n_rows_D_(ntargets),
         n_sheets_D_(ntasks),
 
+        // temp tensor, unused
         n_cols_temp_(0),
         n_rows_temp_(0),
         n_sheets_temp_(0),
 
-        block_dim_(block_dim),
-        grid_dim_((niterations_ + block_dim - 1)/ block_dim * 32),
+        block_dim_(block_dim_x, block_dim_y, block_dim_z),
+        grid_dim_(
+            (nfeatures + block_dim_x - 1) / block_dim_x,
+            (ntargets + block_dim_y - 1) / block_dim_y,
+            (ntasks + block_dim_z - 1) / block_dim_z
+        ),
         optimize_launch_(optimize_launch)
     {
         assert(block_dim_.x > 0);
@@ -338,8 +325,8 @@ class Glm_gradient_naive_kernel {
 
     void run_device_kernel(
         const Number* const gpu_data_X,
-        const Number* const gpu_data_Y,
         const Number* const gpu_data_M,
+        const Number* const gpu_data_Y,
         Number* const gpu_data_grad_M,
         Number* const gpu_data_temp,     // temporary storage (unused)
         cudaStream_t stream
@@ -347,8 +334,7 @@ class Glm_gradient_naive_kernel {
         dim3 block_dim;
         dim3 grid_dim;
         if (spec_.optimize_launch_) {
-            const int tentative_dynamic_shared_mem_words = compute_n_warps_per_block(spec_.block_dim_);
-            const int tentative_shm_size = tentative_dynamic_shared_mem_words * sizeof(Number);
+            const int tentative_shm_size = 0;
 
             int max_block_size = 0;
             int opt_grid_size = 0;
@@ -356,13 +342,13 @@ class Glm_gradient_naive_kernel {
             cuda_check_error(cudaOccupancyMaxPotentialBlockSize(
                 &max_block_size,
                 &opt_grid_size,
-                glm::glm_gradient_naive<Number>,
+                glm::glm_gradient_naive_fixed_grid<Number>,
                 tentative_shm_size, // We don't know shm_size yet
                 0
             ), "cudaOccupancyMaxPotentialBlockSize");
             cuda_check_error(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
                 &max_active_blocks_per_multiprocessor,
-                glm::glm_gradient_naive<Number>,
+                glm::glm_gradient_naive_fixed_grid<Number>,
                 max_block_size,
                 tentative_shm_size  // We don't know shm_size yet
             ), "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
@@ -376,23 +362,24 @@ class Glm_gradient_naive_kernel {
             block_dim = spec_.block_dim_;
             grid_dim = spec_.grid_dim_;
         }
-        const int dynamic_shared_mem_words = compute_n_warps_per_block(block_dim);
-        const int shm_size = dynamic_shared_mem_words * sizeof(Number);
+        const int shm_size = 0;
 
         std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
         std::cout << "[INFO] block_dim_: " << block_dim.x << ", " << block_dim.y << ", " << block_dim.z << std::endl;
-        std::cout << "[INFO] kernel launch: glm::glm_gradient_naive<<<" << grid_dim.x << ", " << block_dim.x << ", " << shm_size
+        std::cout << "[INFO] kernel launch: glm::glm_gradient_naive_fixed_grid<<<("
+            << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << "), ("
+            << block_dim.x << ", " << block_dim.y << ", " << block_dim.z << "), " << shm_size
             << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
         std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
-        glm::glm_gradient_naive<<<
+        glm::glm_gradient_naive_fixed_grid<<<
             grid_dim,
             block_dim,
             shm_size,
             stream
         >>>(
             gpu_data_X,
-            gpu_data_Y,
             gpu_data_M,
+            gpu_data_Y,
             gpu_data_grad_M,
             spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_
         );
@@ -400,8 +387,8 @@ class Glm_gradient_naive_kernel {
 
     Tensor3D<Number> run_host_kernel(
         const Tensor3D<Number>& X,
-        const Tensor3D<Number>& Y,
-        const Tensor3D<Number>& M
+        const Tensor3D<Number>& M,
+        const Tensor3D<Number>& Y
     ) {
         /*
         dL/dM[feature',target',task'] =
@@ -414,29 +401,41 @@ class Glm_gradient_naive_kernel {
 
         if (spec_.cpu_algo_ == "nested-loop") {
             #pragma omp parallel for
-            for (int dst_feature = 0; dst_feature < spec_.nfeatures_; ++dst_feature) {
-                for (int dst_target = 0; dst_target < spec_.ntargets_; ++dst_target) {
-                    for (int dst_task = 0; dst_task < spec_.ntasks_; ++dst_task) {
+            for (int i_feature = 0; i_feature < spec_.nfeatures_; ++i_feature) {
+                for (int i_target = 0; i_target < spec_.ntargets_; ++i_target) {
+                    for (int i_task = 0; i_task < spec_.ntasks_; ++i_task) {
                         Number sum_obs{0};
-                        for (int obs = 0; obs < spec_.nobs_; ++obs) {
-                            const auto sum_feature = M.row_at(dst_target, dst_task).dot(X.row_at(dst_task, obs));
-                            sum_obs += (sum_feature - Y.at(dst_target, dst_task, obs)) * X.at(dst_feature, dst_task, obs);
+                        for (int i_obs = 0; i_obs < spec_.nobs_; ++i_obs) {
+                            const auto sum_feature = M.row_at(i_target, i_task).dot(X.row_at(i_task, i_obs));
+                            sum_obs += (sum_feature - Y.at(i_target, i_task, i_obs)) * X.at(i_feature, i_task, i_obs);
                         }
-                        grad_M.at(dst_feature, dst_target, dst_task) = Number(2) * sum_obs;
+                        grad_M.at(i_feature, i_target, i_task) = Number(2) * sum_obs;
                     }
                 }
             }
         } else {
+            // Tensor dimensions: innermost, intermediate, outermost
             // X: (nfeatures, ntasks, nobs)
             // Y: (ntargets, ntasks, nobs)
             // M: (nfeatures, ntargets, ntasks)
-            for (int task = 0; task < spec_.ntasks_; ++task) {
-                auto X_task_matrix = X.chip_at_dim1(task);
-                auto Y_task_matrix = Y.chip_at_dim1(task);
-                auto M_task_matrix = M.sheet_at(task);
-                auto grad_M_task_matrix = grad_M.sheet_at(task);
-                // for each slice: grad_M = \(2X^{T}(X*M-Y)\)
-                grad_M_task_matrix.noalias() = X_task_matrix.transpose() * (X_task_matrix * M_task_matrix - Y_task_matrix);
+            // const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
+            for (int i_task = 0; i_task < spec_.ntasks_; ++i_task) {
+                // Matrix dimensions: [nrows (outer), ncols (inner)]
+                auto X_task_matrix = X.chip_at_dim1(i_task);  // tensor:(nfeatures, nobs) -> matrix:[nobs, nfeatures]
+                auto Y_task_matrix = Y.chip_at_dim1(i_task);  // tensor:(ntargets,  nobs) -> matrix:[nobs, ntargets]
+                auto M_task_matrix = M.sheet_at(i_task);    // tensor:(nfeatures, ntargets) -> matrix:[ntargets, nfeatures]
+                auto grad_M_task_matrix = grad_M.sheet_at(i_task); // tensor:(nfeatures, ntargets) -> matrix:[ntargets, nfeatures]
+                assert(X_task_matrix.rows() == spec_.nobs_);
+                assert(X_task_matrix.cols() == spec_.nfeatures_);
+                assert(Y_task_matrix.rows() == spec_.nobs_);
+                assert(Y_task_matrix.cols() == spec_.ntargets_);
+                assert(M_task_matrix.rows() == spec_.ntargets_);
+                assert(M_task_matrix.cols() == spec_.nfeatures_);
+                assert(grad_M_task_matrix.rows() == spec_.ntargets_);
+                assert(grad_M_task_matrix.cols() == spec_.nfeatures_);
+                // for each slice: grad_M = (M*X^T - Y^T)*X
+                // grad_M_task_matrix.noalias() = X_task_matrix.transpose() * (X_task_matrix * M_task_matrix - Y_task_matrix);
+                grad_M_task_matrix.noalias() = 2*(M_task_matrix * X_task_matrix.transpose() - Y_task_matrix.transpose()) * X_task_matrix;
             }
         }
         return grad_M;

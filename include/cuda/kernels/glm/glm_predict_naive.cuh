@@ -440,14 +440,17 @@ struct Glm_predict_naive_spec {
         nobs_(nobs),
         niterations_(nobs * ntasks * ntargets),
 
+        // X tensor (covariates) with dimensions (nfeatures, ntasks, nobs)
         n_cols_A_(nfeatures),
         n_rows_A_(ntasks),
         n_sheets_A_(nobs),
 
+        // M tensor (model) with dimensions (nfeatures, ntargets, ntasks)
         n_cols_B_(nfeatures),
         n_rows_B_(ntargets),
         n_sheets_B_(ntasks),
 
+        // Y tensor (responses) with dimensions (ntargets, ntasks, nobs)
         n_cols_C_(ntargets),
         n_rows_C_(ntasks),
         n_sheets_C_(nobs),

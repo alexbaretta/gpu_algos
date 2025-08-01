@@ -320,14 +320,14 @@ namespace glm {
             }
             // Now we need to reduce/sum over the threads of the warp to get the aggregate sum_feature
             // First a warp shuffle reduction down to lane 0
-            printf("[DEBUG] lane=%d, grad_M_idx=%u, sum_obs=%f\n", tid_warp, grad_M_idx, float(sum_obs));
+            // printf("[DEBUG] lane=%d, grad_M_idx=%u, sum_obs=%f\n", tid_warp, grad_M_idx, float(sum_obs));
             for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
                 sum_obs += __shfl_down_sync(__activemask(), sum_obs, reduced_lanes);
             }
 
             // Now lane 0 can write the total to the output array
             if (tid_warp == 0) {
-                printf("[DEBUG] reduced: grad_M_idx=%ud, grad_m=%f\n", grad_M_idx, float(Number(2)*sum_obs));
+                // printf("[DEBUG] reduced: grad_M_idx=%ud, grad_m=%f\n", grad_M_idx, float(Number(2)*sum_obs));
                 assert(grad_M[grad_M_idx] == Number(0));
                 grad_M[grad_M_idx] = Number(2) * sum_obs;
             }
@@ -373,8 +373,8 @@ struct Glm_gradient_xyyhat_spec {
     const long n_rows_temp_;
     const long n_sheets_temp_;
 
-    const unsigned block_dim_;
-    const unsigned fixed_grid_block_dim_;
+    const dim3 fixed_grid_block_dim_;
+    const dim3 block_dim_;
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_;
     // const bool optimize_launch_;
@@ -392,13 +392,13 @@ struct Glm_gradient_xyyhat_spec {
             ("ntargets,Y", "Number of targets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTARGETS)))
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
-            ("block-dim", "Number of threads per block", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
+            ("block-dim-z", "Number of threads in the z dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             // ("optimize-launch", "Use occupancy API to determine optimal launch configuration")
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"))
-
-            // Commenting out --cpu-algo as the Eigen matrix implementation is broken. More debugging necessary before it can be enabled.
             ("gpu-algo", "GPU algo to use (fixed-grid, naive, warp, block)", cxxopts::value<std::string>()->default_value(DEFAULT_GPU_ALGO))
-            ("cpu-algo", "CPU algo variant to benchmark against (nested-loop, matrix)", cxxopts::value<std::string>()->default_value("nested-loop"))
+            ("cpu-algo", "CPU algo variant to benchmark against (nested-loop, matrix)", cxxopts::value<std::string>()->default_value("matrix"))
             ;
         }
 
@@ -424,7 +424,11 @@ struct Glm_gradient_xyyhat_spec {
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
         // Parse and transform block-dim
-        const auto block_dim = std::min(options_parsed["block-dim"].as<long>(), 1024L);
+        const dim3 block_dim{
+            options_parsed["block-dim-x"].as<unsigned>(),
+            options_parsed["block-dim-y"].as<unsigned>(),
+            options_parsed["block-dim-z"].as<unsigned>()
+        };
         return {
             type,
             gpu_algo,
@@ -446,7 +450,7 @@ struct Glm_gradient_xyyhat_spec {
         const long ntargets,
         const long ntasks,
         const long nobs,
-        const long block_dim
+        const dim3 block_dim
         // const bool optimize_launch
     ) : type_(type),
         gpu_algo_(gpu_algo),
@@ -457,37 +461,37 @@ struct Glm_gradient_xyyhat_spec {
         nobs_(nobs),
         niterations_(nobs * ntasks * ntargets),
 
-        // X
+        // X tensor (covariates) with dimensions (nfeatures, ntasks, nobs)
         n_cols_A_(nfeatures),
         n_rows_A_(ntasks),
         n_sheets_A_(nobs),
 
-        // Y
-        n_cols_B_(ntargets),
-        n_rows_B_(ntasks),
-        n_sheets_B_(nobs),
+        // M tensor (model) with dimensions (nfeatures, ntargets, ntasks)
+        n_cols_B_(nfeatures),
+        n_rows_B_(ntargets),
+        n_sheets_B_(ntasks),
 
-        // M
-        n_cols_C_(nfeatures),
-        n_rows_C_(ntargets),
-        n_sheets_C_(ntasks),
+        // Y tensor (responses) with dimensions (ntargets, ntasks, nobs)
+        n_cols_C_(ntargets),
+        n_rows_C_(ntasks),
+        n_sheets_C_(nobs),
 
-        // grad_M
+        // grad_M tensor (model) with dimensions (nfeatures, ntargets, ntasks)
         n_cols_D_(nfeatures),
         n_rows_D_(ntargets),
         n_sheets_D_(ntasks),
 
-        // Yhat
+        // Yhat (predictions) with dimensions (ntargets, ntasks, nobs)
         n_cols_temp_(ntargets),
         n_rows_temp_(ntasks),
         n_sheets_temp_(nobs),
 
         block_dim_(block_dim),
-        fixed_grid_block_dim_(std::floor(std::cbrt(block_dim_))),
+        fixed_grid_block_dim_(block_dim_)),
         grid_dim_((gpu_algo == "fixed-grid") ? dim3(
-            (nfeatures + fixed_grid_block_dim_ - 1)/fixed_grid_block_dim_,
-            (ntargets + fixed_grid_block_dim_ - 1)/fixed_grid_block_dim_,
-            (ntasks + fixed_grid_block_dim_ - 1)/fixed_grid_block_dim_
+            (nfeatures + block_dim_.x - 1)/block_dim_.x,
+            (ntargets + block_dim_.y - 1)/block_dim_.y,
+            (ntasks + block_dim_.z - 1)/block_dim_.z
         )
         : (gpu_algo == "naive") ? dim3(niterations_)
         : dim3(niterations_ * 32)),
@@ -518,8 +522,8 @@ class Glm_gradient_xyyhat_kernel {
 
     void run_device_kernel(
         const Number* const gpu_data_X,
-        const Number* const gpu_data_Y,
         const Number* const gpu_data_M,
+        const Number* const gpu_data_Y,
         Number* const gpu_data_grad_M,
         Number* const gpu_data_Yhat,
         cudaStream_t stream
@@ -554,7 +558,6 @@ class Glm_gradient_xyyhat_kernel {
             stream
         >>>(
             gpu_data_X,
-            // gpu_data_Y,
             gpu_data_M,
             gpu_data_Yhat,
             glm_predict_naive_spec.nfeatures_, glm_predict_naive_spec.ntargets_, glm_predict_naive_spec.ntasks_, glm_predict_naive_spec.nobs_,
@@ -653,29 +656,29 @@ class Glm_gradient_xyyhat_kernel {
 
     Tensor3D<Number> run_host_kernel(
         const Tensor3D<Number>& X,
-        const Tensor3D<Number>& Y,
-        const Tensor3D<Number>& M
+        const Tensor3D<Number>& M,
+        const Tensor3D<Number>& Y
     ) {
-/*
-dL/dM[feature',target',task'] =
-    = 2 * SUM_obs (
-                     (SUM_feature M[feature,target',task'] * X[feature,task',obs])
-                    - Y[target',task',obs]
-                ) * X[feature',task',obs]
-*/
+        /*
+        dL/dM[feature',target',task'] =
+            = 2 * SUM_obs (
+                (SUM_feature M[feature,target',task'] * X[feature,task',obs])
+                - Y[target',task',obs]
+            ) * X[feature',task',obs]
+        */
         Tensor3D<Number> grad_M{spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_};
 
         if (spec_.cpu_algo_ == "nested-loop") {
             #pragma omp parallel for
-            for (int dst_feature = 0; dst_feature < spec_.nfeatures_; ++dst_feature) {
-                for (int dst_target = 0; dst_target < spec_.ntargets_; ++dst_target) {
-                    for (int dst_task = 0; dst_task < spec_.ntasks_; ++dst_task) {
+            for (int i_feature = 0; i_feature < spec_.nfeatures_; ++i_feature) {
+                for (int i_target = 0; i_target < spec_.ntargets_; ++i_target) {
+                    for (int i_task = 0; i_task < spec_.ntasks_; ++i_task) {
                         Number sum_obs{0};
-                        for (int obs = 0; obs < spec_.nobs_; ++obs) {
-                            const auto sum_feature = M.row_at(dst_target, dst_task).dot(X.row_at(dst_task, obs));
-                            sum_obs += (sum_feature - Y.at(dst_target, dst_task, obs)) * X.at(dst_feature, dst_task, obs);
+                        for (int i_obs = 0; i_obs < spec_.nobs_; ++i_obs) {
+                            const auto sum_feature = M.row_at(i_target, i_task).dot(X.row_at(i_task, i_obs));
+                            sum_obs += (sum_feature - Y.at(i_target, i_task, i_obs)) * X.at(i_feature, i_task, i_obs);
                         }
-                        grad_M.at(dst_feature, dst_target, dst_task) = Number(2) * sum_obs;
+                        grad_M.at(i_feature, i_target, i_task) = Number(2) * sum_obs;
                     }
                 }
             }
@@ -685,12 +688,12 @@ dL/dM[feature',target',task'] =
             // Y: (ntargets, ntasks, nobs)
             // M: (nfeatures, ntargets, ntasks)
             // const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
-            for (int task = 0; task < spec_.ntasks_; ++task) {
+            for (int i_task = 0; i_task < spec_.ntasks_; ++i_task) {
                 // Matrix dimensions: [nrows (outer), ncols (inner)]
-                auto X_task_matrix = X.chip_at_dim1(task);  // tensor:(nfeatures, nobs) -> matrix:[nobs, nfeatures]
-                auto Y_task_matrix = Y.chip_at_dim1(task);  // tensor:(ntargets,  nobs) -> matrix:[nobs, ntargets]
-                auto M_task_matrix = M.sheet_at(task);    // tensor:(nfeatures, ntargets) -> matrix:[ntargets, nfeatures]
-                auto grad_M_task_matrix = grad_M.sheet_at(task); // tensor:(nfeatures, ntargets) -> matrix:[ntargets, nfeatures]
+                auto X_task_matrix = X.chip_at_dim1(i_task);  // tensor:(nfeatures, nobs) -> matrix:[nobs, nfeatures]
+                auto Y_task_matrix = Y.chip_at_dim1(i_task);  // tensor:(ntargets,  nobs) -> matrix:[nobs, ntargets]
+                auto M_task_matrix = M.sheet_at(i_task);    // tensor:(nfeatures, ntargets) -> matrix:[ntargets, nfeatures]
+                auto grad_M_task_matrix = grad_M.sheet_at(i_task); // tensor:(nfeatures, ntargets) -> matrix:[ntargets, nfeatures]
                 assert(X_task_matrix.rows() == spec_.nobs_);
                 assert(X_task_matrix.cols() == spec_.nfeatures_);
                 assert(Y_task_matrix.rows() == spec_.nobs_);
@@ -702,11 +705,6 @@ dL/dM[feature',target',task'] =
                 // for each slice: grad_M = (M*X^T - Y^T)*X
                 // grad_M_task_matrix.noalias() = X_task_matrix.transpose() * (X_task_matrix * M_task_matrix - Y_task_matrix);
                 grad_M_task_matrix.noalias() = 2*(M_task_matrix * X_task_matrix.transpose() - Y_task_matrix.transpose()) * X_task_matrix;
-                // std::cout << "X_task_matrix =\n" << X_task_matrix.template cast<Printable_Number>().format(eigen_format)
-                //     << "\n Y_task_matrix =\n" << Y_task_matrix.template cast<Printable_Number>().format(eigen_format)
-                //     << "\n M_task_matrix =\n" << M_task_matrix.template cast<Printable_Number>().format(eigen_format)
-                //     << "\n grad_M_task_matrix =\n" << grad_M_task_matrix.template cast<Printable_Number>().format(eigen_format)
-                //     << std::endl;
             }
         }
         return grad_M;
