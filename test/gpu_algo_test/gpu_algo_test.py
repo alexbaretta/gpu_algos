@@ -292,7 +292,7 @@ class GPUAlgoTest:
 
     def __init__(self, bin_dir: Path, cmake_root: Optional[Path] = None, preset: str = "debug",
                  verbose: bool = False, selected_executables: Optional[Set[str]] = None,
-                 selected_sizes: Optional[Set[int]] = None, max_total_size:int = 2**28,
+                 selected_sizes: Optional[Set[int]] = None, max_problem_size:int = 2**28,
                  selected_types: Optional[Set[str]] = None,
                  dryrun: bool = False, tol_bits: int = 4, output_file: Optional[str] = None,
                  rerun_failures_file: Optional[str] = None, timeout: int = 300, only_hip: bool = False, only_cuda: bool = False):
@@ -305,7 +305,7 @@ class GPUAlgoTest:
             verbose: Enable verbose logging
             selected_executables: Set of executable names to test (None for all)
             selected_sizes: Set of problem sizes to test (None for all)
-            max_total_size: max product of all problem dimension sizes
+            max_problem_size: max product of all problem dimension sizes
             selected_types: Set of data types to test (None for all)
             dryrun: Only check executable existence, don't run tests
             tol_bits: Number of bits of precision loss for floating point tolerance (default: 4)
@@ -321,7 +321,7 @@ class GPUAlgoTest:
         self.verbose = verbose
         self.selected_executables = selected_executables
         self.selected_sizes = selected_sizes
-        self.max_total_size = max_total_size
+        self.max_problem_size = max_problem_size
         self.selected_types = selected_types or set(DATA_TYPES)
         self.dryrun = dryrun
         self.output_file = output_file
@@ -701,8 +701,8 @@ class GPUAlgoTest:
                 i = size_i
                 size_product = 1
                 for size_option in size_options:
-                    # Prevent unreasonably large problem sizes by ensuring that the product of all dimensions <= max_total_size
-                    size = min(sizes[i % len(sizes)], self.max_total_size // size_product)
+                    # Prevent unreasonably large problem sizes by ensuring that the product of all dimensions <= max_problem_size
+                    size = min(sizes[i % len(sizes)], self.max_problem_size // size_product)
                     size_product *= size
                     cmd.extend([size_option, str(size)])
                     i += 1
@@ -1183,7 +1183,7 @@ def main():
     )
 
     parser.add_argument(
-        "--max-total-size",
+        "--max-problem-size",
         help="Maximum total size of the problem (product of all dimensions).\n",
         type=int,
         # This is a fairly arbitrary default, but it should prevent running unreasonably
@@ -1287,7 +1287,7 @@ def main():
             args.verbose,
             selected_executables,
             selected_sizes,
-            args.max_total_size,
+            args.max_problem_size,
             selected_types,
             args.dryrun,
             args.tol_bits,
