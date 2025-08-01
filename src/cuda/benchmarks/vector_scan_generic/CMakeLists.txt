@@ -1,5 +1,4 @@
 # Copyright (c) 2025 Alessandro Baretta
-# All rights reserved.
 
 # source path: src/benchmarks/vector_scan_generic/CMakeLists.txt
 
