@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/vector_cumsum_parallel.hpp
+// source path: include/cuda/kernels/matrix/vector_cumsum_parallel.cuh
 
 #pragma once
 #include <iostream>

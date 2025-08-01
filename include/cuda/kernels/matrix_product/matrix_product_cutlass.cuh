@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix_product/matrix_product_cutlass.hpp
+// source path: include/cuda/kernels/matrix_product/matrix_product_cutlass.cuh
 
 #pragma once
 

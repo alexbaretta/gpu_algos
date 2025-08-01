@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/glm/glm_predict_naive.hpp
+// source path: include/cuda/kernels/glm/glm_predict_naive.cuh
 
 #pragma once
 #include <cassert>

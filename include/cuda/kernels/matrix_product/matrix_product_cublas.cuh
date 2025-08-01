@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix/matrix_product_cublas.hpp
+// source path: include/cuda/kernels/matrix/matrix_product_cublas.cuh
 
 #pragma once
 #include <iostream>

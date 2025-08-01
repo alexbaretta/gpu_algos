@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/matrix_transpose/matrix_transpose_cublas.hpp
+// source path: include/cuda/kernels/matrix_transpose/matrix_transpose_cublas.cuh
 
 #pragma once
 #include <cuda_runtime.h>

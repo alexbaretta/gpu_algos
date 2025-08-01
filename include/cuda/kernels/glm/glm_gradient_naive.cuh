@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Alessandro Baretta
 // All rights reserved.
 
-// source path: include/cuda/kernels/glm/glm_gradient_naive.hpp
+// source path: include/cuda/kernels/glm/glm_gradient_naive.cuh
 
 #pragma once
 
