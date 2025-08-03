@@ -11,6 +11,24 @@ For each algorithm we provide a C++ driver program that will run the GPU code on
 the output of the GPU algorithm vs a plain-vanilla C++ implementation. The driver program will also time both the GPU and C++
 versions of the algorithm and compute the speedup.
 
+## Project status
+
+CUDA is well supported, with 19 algorithms provided as C++ header files. For some of these algorithms, multiple
+implementations are provided, than can be selected with the `gpu_algo` parameter to the kernel class.
+
+HIP is in a state of relative disrepair, as I do not have an AMD GPU on my main development server but on a separate
+server. This makes it time consuming for me to develop both the CUDA and HIP codebases at the same time. Nonetheless,
+I plan to gradually bring the HIP codebase up to par with CUDA, to the extent possible, acknowledging that some
+algorithms might not be available. For instance, CUTLASS does not officially support HIP.
+
+Python bindings are not currently available in the master branch, but I am working on them in a development branch.
+Now that the C++ APIs have stabilized, I should be able to get the Python part of the codebase to a level where
+it could be merged.
+
+Contributions to the GPU Algos project are more than welcome.
+
+
+
 ## Project Structure
 ```
 .
