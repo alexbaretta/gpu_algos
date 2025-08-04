@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -33,14 +34,21 @@
 #include "hip/eigen_utils.hiph"
 #include "hip/check_errors.hiph"
 #include "hip/hip_utils.hiph"
-#include "hip/kernel_api/vector_1inout.hiph"
+#include "hip/kernel_api.hiph"
 
 template <VECTOR_KERNEL_1INOUT Vector_Kernel_1Inout>
 class Benchmark_Vector_1Inout {
     public:
     using Kernel_spec = typename Vector_Kernel_1Inout::Kernel_spec;
-    using Number = typename Vector_Kernel_1Inout::Number;
-    using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
+    using Kernel = Vector_Kernel_1Inout;
+    using Numbers = detect::Numbers<Kernel>;
+    using NumberA = typename Numbers::A;
+    using NumberB = typename Numbers::B;
+    using NumberC = typename Numbers::C;
+    using NumberD = typename Numbers::D;
+    using NumberE = typename Numbers::E;
+    using NumberTemp = typename Numbers::Temp;
+    using Tolerance = typename Numbers::Tolerance;
 
     const Kernel_spec spec;
     const int seed;
@@ -49,6 +57,7 @@ class Benchmark_Vector_1Inout {
     const bool errors;
     const bool force;
     const std::string init_method;
+    const int tol_bits;
 
     Vector_Kernel_1Inout kernel;
 
@@ -65,12 +74,18 @@ class Benchmark_Vector_1Inout {
         errors(options_parsed["errors"].as<bool>()),
         force(options_parsed["force"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
+        tol_bits(std::integral<typename Tolerance::type> ? 0 : options_parsed["tol-bits"].as<int>()),
         kernel(spec, args...)
     {
         // Handle help option first
         if (options_parsed.count("help")) {
             std::cout << options.help() << std::endl;
             exit(0);
+        }
+        if (std::integral<typename Tolerance::type> && options_parsed.count("tol-bits")) {
+            std::cout << "[ERROR] You may not use --tol-bits with integral types, which have no tolerance" << std::endl;
+            std::cout << options.help() << std::endl;
+            exit(1);
         }
         if (verbose && (
             (spec.n_A_ > 1000000)
@@ -88,8 +103,8 @@ class Benchmark_Vector_1Inout {
     int run() {
         const size_t size_A = size_t(spec.n_A_);
         const size_t size_temp = size_t(spec.n_temp_);
-        const size_t size_A_bytes = size_A * sizeof(Number);
-        const size_t size_temp_bytes = size_temp * sizeof(Number);
+        const size_t size_A_bytes = size_A * sizeof(NumberA);
+        const size_t size_temp_bytes = size_temp * sizeof(NumberA);
         const size_t inout_size_bytes = size_A_bytes;
         const size_t temp_size_bytes = size_temp_bytes;
         const size_t mem_size_bytes = inout_size_bytes + temp_size_bytes;
@@ -127,8 +142,8 @@ class Benchmark_Vector_1Inout {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        std::vector<Number> vec_A(size_A, 0);
-        std::vector<Number> vec_temp(size_temp, 0);
+        std::vector<NumberA> vec_A(size_A, 0);
+        std::vector<NumberTemp> vec_temp(size_temp, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
@@ -139,10 +154,10 @@ class Benchmark_Vector_1Inout {
             randomize_container(vec_A, seed);
         } else if (is_increasing) {
             std::cout << "  (increasing) ";
-            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(i);
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(i);
         } else if (is_increasing) {
             std::cout << "  (decreasing) ";
-            for (size_t i = 0; i < size_A; ++i) vec_A[i] = Number(size_A - i);
+            for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberTemp(size_A - i);
         } else {
             std::cerr << "[ERROR] Invalid initialization method" << std::endl;
             exit(1);
@@ -178,8 +193,8 @@ class Benchmark_Vector_1Inout {
         hip_check_error(hipEventRecord(e0, stream), "hipEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number* gpu_data_A = nullptr;
-        Number* gpu_data_temp = nullptr;
+        NumberA* gpu_data_A = nullptr;
+        NumberTemp* gpu_data_temp = nullptr;
 
         hip_check_error(hipMallocAsync(&gpu_data_A, size_A_bytes, stream), "hipMallocAsync");
         if (size_temp_bytes > 0) {
@@ -202,7 +217,7 @@ class Benchmark_Vector_1Inout {
         hip_check_error(hipStreamAddCallback(stream, report_completion_time_callback, &gpu_tp3, NULL_FLAGS), "hipStreamAddCallback");
 
         const auto gpu_step_4 = "Copy result back to host";
-        auto vec_A_result_gpu = std::vector<Number>(size_A, 0);
+        auto vec_A_result_gpu = std::vector<NumberA>(size_A, 0);
         hip_check_error(hipMemcpyAsync(vec_A_result_gpu.data(), gpu_data_A, size_A_bytes, hipMemcpyDeviceToHost, stream), "hipMemcpyAsync");
         if (size_temp_bytes > 0) {
             hip_check_error(hipMemcpyAsync(vec_temp.data(), gpu_data_temp, size_temp_bytes, hipMemcpyDeviceToHost, stream), "hipMemcpyAsync");
@@ -279,9 +294,9 @@ class Benchmark_Vector_1Inout {
         std::cout << "CHECK WITH CPU:" << std::endl;
         const auto cpu_step_1 = "Convert data to Eigen, call copy constructor on A";
         auto vec_A_result_cpu{vec_A}; // Copy constructor
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> A{vec_A.data(), spec.n_A_};
-        const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> A_result_gpu{vec_A_result_gpu.data(), spec.n_A_};
-        Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> A_result_cpu{vec_A_result_cpu.data(), spec.n_A_};
+        const Eigen::Map<Eigen::Vector<NumberA, Eigen::Dynamic>> A{vec_A.data(), spec.n_A_};
+        const Eigen::Map<Eigen::Vector<NumberA, Eigen::Dynamic>> A_result_gpu{vec_A_result_gpu.data(), spec.n_A_};
+        Eigen::Map<Eigen::Vector<NumberA, Eigen::Dynamic>> A_result_cpu{vec_A_result_cpu.data(), spec.n_A_};
         const auto cpu_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt1 = cpu_tp1 - cpu_tp0;
         std::chrono::duration<double, std::milli> cpu_total_dt1 = cpu_tp1 - cpu_tp0;
@@ -297,7 +312,7 @@ class Benchmark_Vector_1Inout {
 
         const auto cpu_step_3 = "Compute error vector";
         const auto E = A_result_gpu.binaryExpr(A_result_cpu, compute_error_absolute).eval();
-        const auto E_rel = E.cwiseAbs().template cast<double>().array() / A_result_cpu.cwiseAbs().template cast<double>().array();
+        const auto E_rel = A_result_gpu.binaryExpr(A_result_cpu, compute_error_relative).eval();
         const auto cpu_tp3 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cpu_step_dt3 = cpu_tp3 - cpu_tp2;
         std::chrono::duration<double, std::milli> cpu_total_dt3 = cpu_tp3 - cpu_tp0;
@@ -316,13 +331,13 @@ class Benchmark_Vector_1Inout {
             std::cout << "Non-zero error elements:\n";
             bool found_errors = false;
             for (int i = 0; i < E.size(); ++i) {
-                if (E(i) != Number(0)) {
+                if (E(i) != NumberE(0)) {
                     found_errors = true;
                     std::cout << "(" << i << "): "
-                              << "A           =" << static_cast<Printable_Number>(A(i)) << ", "
-                              << "A_result_gpu=" << static_cast<Printable_Number>(A_result_gpu(i)) << ", "
-                              << "A_result_cpu=" << static_cast<Printable_Number>(A_result_cpu(i)) << ", "
-                              << "E           =" << static_cast<Printable_Number>(E(i)) << "\n";
+                              << "A           =" << static_cast<Printable_Number<NumberA>>(A(i)) << ", "
+                              << "A_result_gpu=" << static_cast<Printable_Number<NumberA>>(A_result_gpu(i)) << ", "
+                              << "A_result_cpu=" << static_cast<Printable_Number<NumberA>>(A_result_cpu(i)) << ", "
+                              << "E           =" << static_cast<Printable_Number<NumberE>>(E(i)) << "\n";
                 }
             }
             if (!found_errors) {
@@ -333,30 +348,35 @@ class Benchmark_Vector_1Inout {
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
             std::cout << "A    :\n";
-            std::cout << A.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << A.template cast<Printable_Number<NumberA>>().format(eigen_format) << std::endl;
             std::cout << "A_gpu:\n";
-            std::cout << A_result_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << A_result_gpu.template cast<Printable_Number<NumberA>>().format(eigen_format) << std::endl;
             std::cout << "A_cpu:\n";
-            std::cout << A_result_cpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << A_result_cpu.template cast<Printable_Number<NumberA>>().format(eigen_format) << std::endl;
             if (spec.n_temp_ > 0) {
-                const Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> tmp_gpu{vec_temp.data(), spec.n_temp_};
+                const Eigen::Map<Eigen::Vector<NumberTemp, Eigen::Dynamic>> tmp_gpu{vec_temp.data(), spec.n_temp_};
                 std::cout << "tmp  :\n";
-                std::cout << tmp_gpu.template cast<Printable_Number>().format(eigen_format) << std::endl;
+                std::cout << tmp_gpu.template cast<Printable_Number<NumberTemp>>().format(eigen_format) << std::endl;
             }
             std::cout << "E    :\n";
-            std::cout << E.template cast<Printable_Number>().format(eigen_format) << std::endl;
+            std::cout << E.template cast<Printable_Number<NumberE>>().format(eigen_format) << std::endl;
             std::cout << "E_rel:\n";
             std::cout << E_rel.format(eigen_format) << std::endl;
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
+        const auto tolerance = Tolerance::tolerance(tol_bits);
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
         std::cout << "Max error     : " << E_max << " at (" << E_max_idx << ")" << std::endl;
         std::cout << "Max error rel : " << E_max_rel << " at (" << E_rel_max_idx << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
-
+        if (E_max == 0 || E_max_rel <= tolerance) {
+            std::cout << "[SUCCESS]     : Max error pct is within tolerance" << std::endl;
+        } else {
+            std::cout << "[FAILURE]     : Max error pct exceeds tolerance" << std::endl;
+        }
         return 0;
     }
 };

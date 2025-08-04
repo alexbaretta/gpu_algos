@@ -40,7 +40,7 @@ __global__ void matrix_transpose_striped(
     const long n  // cols of A, rows of C
 ) {
     /*
-        HIP doesn't immediately 'support' dynamically-allocated shared memory arrays in templated functions, as it (apparently)
+        CUDA doesn't immediately 'support' dynamically-allocated shared memory arrays in templated functions, as it (apparently)
         generates actual definitions of those extern's. If you instantiate a templated function for multiple types, the
         definitions would conflict.
 

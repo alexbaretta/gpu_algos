@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/hip/benchmarks/matrix_transpose/matrix_transpose_striped.hip
+// source path: src/hip/benchmarks/matrix_transpose/matrix_transpose_striped.cu
 
 #include <cxxopts.hpp>
 

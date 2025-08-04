@@ -26,7 +26,7 @@
     do { \
         if (hip_err != hipSuccess) { \
             auto msg = hipGetErrorString(hip_err); \
-            std::cerr << "[HIP error " << step_name << "] " << msg << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
+            std::cerr << "[CUDA error " << step_name << "] " << msg << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
             exit(1); \
         } \
     } while (0)

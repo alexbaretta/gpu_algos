@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/hip/benchmarks/matrix_product/matrix_product_warp.hip
+// source path: src/hip/benchmarks/matrix_product/matrix_product_warp.cu
 
 #include <cxxopts.hpp>
 

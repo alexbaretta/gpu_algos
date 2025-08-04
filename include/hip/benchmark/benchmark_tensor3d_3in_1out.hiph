@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <iostream>
 #include <chrono>
 #include <iomanip>
@@ -31,14 +32,21 @@
 #include "common/types/tensor3d.hpp"
 #include "hip/check_errors.hiph"
 #include "hip/hip_utils.hiph"
-#include "hip/kernel_api/tensor3d_3in_1out.hiph"
+#include "hip/kernel_api.hiph"
 
 template <TENSOR3D_KERNEL_3IN_1OUT Tensor3D_Kernel_3In_1Out>
 class Benchmark_Tensor3D_3In_1Out {
     public:
     using Kernel_spec = typename Tensor3D_Kernel_3In_1Out::Kernel_spec;
-    using Number = typename Tensor3D_Kernel_3In_1Out::Number;
-    using Printable_Number = std::conditional_t<std::is_same_v<Number, __half>, float, Number>;
+    using Kernel = Tensor3D_Kernel_3In_1Out;
+    using Numbers = detect::Numbers<Kernel>;
+    using NumberA = typename Numbers::A;
+    using NumberB = typename Numbers::B;
+    using NumberC = typename Numbers::C;
+    using NumberD = typename Numbers::D;
+    using NumberE = typename Numbers::E;
+    using NumberTemp = typename Numbers::Temp;
+    using Tolerance = typename Numbers::Tolerance;
 
     const Kernel_spec spec;
     const int seed;
@@ -47,6 +55,7 @@ class Benchmark_Tensor3D_3In_1Out {
     const bool errors;
     const bool force;
     const std::string init_method;
+    const int tol_bits;
 
     Tensor3D_Kernel_3In_1Out kernel;
 
@@ -63,12 +72,18 @@ class Benchmark_Tensor3D_3In_1Out {
         errors(options_parsed["errors"].as<bool>()),
         force(options_parsed["force"].as<bool>()),
         init_method(options_parsed["init-method"].as<std::string>()),
+        tol_bits(std::integral<typename Tolerance::type> ? 0 : options_parsed["tol-bits"].as<int>()),
         kernel(spec, args...)
     {
         // Handle help option first
         if (options_parsed.count("help")) {
             std::cout << options.help() << std::endl;
             exit(0);
+        }
+        if (std::integral<typename Tolerance::type> && options_parsed.count("tol-bits")) {
+            std::cout << "[ERROR] You may not use --tol-bits with integral types, which have no tolerance" << std::endl;
+            std::cout << options.help() << std::endl;
+            exit(1);
         }
         if (verbose && (
             (spec.n_rows_A_ > 10000 || spec.n_cols_A_ * spec.n_sheets_A_ > 1000)
@@ -92,11 +107,11 @@ class Benchmark_Tensor3D_3In_1Out {
         const size_t size_C = size_t(spec.n_rows_C_) * size_t(spec.n_cols_C_) * size_t(spec.n_sheets_C_);
         const size_t size_D = size_t(spec.n_rows_D_) * size_t(spec.n_cols_D_) * size_t(spec.n_sheets_D_);
         const size_t size_temp = size_t(spec.n_rows_temp_) * size_t(spec.n_cols_temp_) * size_t(spec.n_sheets_temp_);
-        const size_t size_A_bytes = size_A * sizeof(Number);
-        const size_t size_B_bytes = size_B * sizeof(Number);
-        const size_t size_C_bytes = size_C * sizeof(Number);
-        const size_t size_D_bytes = size_D * sizeof(Number);
-        const size_t size_temp_bytes = size_temp * sizeof(Number);
+        const size_t size_A_bytes = size_A * sizeof(NumberA);
+        const size_t size_B_bytes = size_B * sizeof(NumberB);
+        const size_t size_C_bytes = size_C * sizeof(NumberC);
+        const size_t size_D_bytes = size_D * sizeof(NumberD);
+        const size_t size_temp_bytes = size_temp * sizeof(NumberTemp);
         const size_t input_size_bytes = size_A_bytes + size_B_bytes + size_C_bytes;
         const size_t output_size_bytes = size_D_bytes;
         const size_t temp_size_bytes = size_temp_bytes;
@@ -140,11 +155,11 @@ class Benchmark_Tensor3D_3In_1Out {
         const auto setup_tp0 = std::chrono::high_resolution_clock::now();
 
         std::cout << "  - Allocating memory: ";
-        Tensor3D<Number> tensor3d_A(spec.n_cols_A_, spec.n_rows_A_, spec.n_sheets_A_, 0);
-        Tensor3D<Number> tensor3d_B(spec.n_cols_B_, spec.n_rows_B_, spec.n_sheets_B_, 0);
-        Tensor3D<Number> tensor3d_C(spec.n_cols_C_, spec.n_rows_C_, spec.n_sheets_C_, 0);
-        Tensor3D<Number> tensor3d_D(spec.n_cols_D_, spec.n_rows_D_, spec.n_sheets_D_, 0);
-        Tensor3D<Number> tensor3d_temp(spec.n_cols_temp_, spec.n_rows_temp_, spec.n_sheets_temp_, 0);
+        Tensor3D<NumberA> tensor3d_A(spec.n_cols_A_, spec.n_rows_A_, spec.n_sheets_A_, 0);
+        Tensor3D<NumberB> tensor3d_B(spec.n_cols_B_, spec.n_rows_B_, spec.n_sheets_B_, 0);
+        Tensor3D<NumberC> tensor3d_C(spec.n_cols_C_, spec.n_rows_C_, spec.n_sheets_C_, 0);
+        Tensor3D<NumberD> tensor3d_D(spec.n_cols_D_, spec.n_rows_D_, spec.n_sheets_D_, 0);
+        Tensor3D<NumberTemp> tensor3d_temp(spec.n_cols_temp_, spec.n_rows_temp_, spec.n_sheets_temp_, 0);
         const auto setup_tp1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> setup_dt1 = setup_tp1 - setup_tp0;
         std::cout << setup_dt1.count() << " ms (" << setup_dt1.count() << " ms total)" << std::endl;
@@ -157,14 +172,14 @@ class Benchmark_Tensor3D_3In_1Out {
             tensor3d_C.randomize(seed+2);
         } else if (is_increasing) {
             std::cout << "  (increasing) ";
-            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(i);
-            for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector_[i] = Number(i);
-            for (size_t i = 0; i < size_C; ++i) tensor3d_C.vector_[i] = Number(i);
+            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = NumberA(i);
+            for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector_[i] = NumberB(i);
+            for (size_t i = 0; i < size_C; ++i) tensor3d_C.vector_[i] = NumberC(i);
         } else if (is_increasing) {
             std::cout << "  (decreasing) ";
-            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = Number(size_A - i);
-            for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector_[i] = Number(size_B - i);
-            for (size_t i = 0; i < size_C; ++i) tensor3d_C.vector_[i] = Number(size_C - i);
+            for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = NumberA(size_A - i);
+            for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector_[i] = NumberB(size_B - i);
+            for (size_t i = 0; i < size_C; ++i) tensor3d_C.vector_[i] = NumberC(size_C - i);
         } else {
             std::cerr << "[ERROR] Invalid initialization method" << std::endl;
             exit(1);
@@ -200,11 +215,11 @@ class Benchmark_Tensor3D_3In_1Out {
         hip_check_error(hipEventRecord(e0, stream), "hipEventRecord");
 
         const auto gpu_step_1 = "Allocate device memory";
-        Number* gpu_data_A = nullptr;
-        Number* gpu_data_B = nullptr;
-        Number* gpu_data_C = nullptr;
-        Number* gpu_data_D = nullptr;
-        Number* gpu_data_temp = nullptr;
+        NumberA* gpu_data_A = nullptr;
+        NumberB* gpu_data_B = nullptr;
+        NumberC* gpu_data_C = nullptr;
+        NumberD* gpu_data_D = nullptr;
+        NumberTemp* gpu_data_temp = nullptr;
 
         hip_check_error(hipMallocAsync(&gpu_data_A, size_A_bytes, stream), "hipMallocAsync");
         hip_check_error(hipMallocAsync(&gpu_data_B, size_B_bytes, stream), "hipMallocAsync");
@@ -380,9 +395,9 @@ class Benchmark_Tensor3D_3In_1Out {
                         if (tensor3d_E(i, j, k) != 0.0) {
                             found_errors = true;
                             std::cout << "(" << i << ", " << j << ", " << k << "): "
-                                    << "result gpu =" << static_cast<Printable_Number>(tensor3d_result_gpu(i, j, k)) << ", "
-                                    << "result cpu =" << static_cast<Printable_Number>(tensor3d_result_cpu(i, j, k)) << ", "
-                                    << "E          =" << static_cast<Printable_Number>(tensor3d_E(i, j, k)) << "\n";
+                                    << "result gpu =" << static_cast<Printable_Number<NumberD>>(tensor3d_result_gpu(i, j, k)) << ", "
+                                    << "result cpu =" << static_cast<Printable_Number<NumberD>>(tensor3d_result_cpu(i, j, k)) << ", "
+                                    << "E          =" << static_cast<Printable_Number<NumberE>>(tensor3d_E(i, j, k)) << "\n";
                         }
                     }
                 }
@@ -408,22 +423,25 @@ class Benchmark_Tensor3D_3In_1Out {
                 std::cout << "tmp  :\n";
                 tensor3d_temp.print(std::cout);
             }
-            if (errors) {
-                std::cout << "E    :\n";
-                tensor3d_E.print(std::cout);
-                std::cout << "E_rel:\n";
-                tensor3d_E_rel.print(std::cout);
-            }
+            std::cout << "E    :\n";
+            tensor3d_E.print(std::cout);
+            std::cout << "E_rel:\n";
+            tensor3d_E_rel.print(std::cout);
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> total_dt = tp_done - setup_tp0;
+        const auto tolerance = Tolerance::tolerance(tol_bits);
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
         std::cout << "Max error     : " << E_max << " at (" << E_max_row << ", " << E_max_col << ", " << E_max_sheet << ")" << std::endl;
         std::cout << "Max error rel : " << E_max_rel << " at (" << E_rel_max_row << ", " << E_rel_max_col << ", " << E_rel_max_sheet << ")" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;
         std::cout << "Net speedup   : " << (cpu_total_dt2.count()/gpu_total_dt5) << std::endl;
-
+        if (E_max == 0 || E_max_rel <= tolerance) {
+            std::cout << "[SUCCESS]     : Max error pct is within tolerance" << std::endl;
+        } else {
+            std::cout << "[FAILURE]     : Max error pct exceeds tolerance" << std::endl;
+        }
         return 0;
     }
 };

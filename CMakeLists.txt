@@ -139,40 +139,29 @@ set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS}")
 
 # We need to disable GPU support in Eigen in HIP mode because Eigen uses 4-byte masks,
 # which in CUDA is allowed but in HIP fails.
-set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp -xhip -DHIP_ENABLE_WARP_SYNC_BUILTINS -DEIGEN_NO_CUDA")
+#  -Wno-unused-local-typedef is required for rocWMMA
+set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp -xhip -Wno-unused-local-typedef -DHIP_ENABLE_WARP_SYNC_BUILTINS -DEIGEN_NO_CUDA")
 set(DEFAULT_LINK_FLAGS "${DEFAULT_LINK_FLAGS} -fopenmp")
 
 
 # Link OpenMP to all targets
 link_libraries(OpenMP::OpenMP_CXX)
 
-# Add compiler warnings (avoid duplication by checking if already set)
-if(NOT CMAKE_CXX_FLAGS MATCHES "-Werror")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wall")
-endif()
-if(NOT DEFAULT_CUDA_FLAGS MATCHES "--Werror")
-    set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS} --Werror cross-execution-space-call,reorder,ext-lambda-captures-this,deprecated-declarations")
-endif()
-if(HIP_AVAILABLE AND NOT DEFAULT_HIP_FLAGS MATCHES "-Werror")
-    set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -Werror -Wall")
-endif()
-
 # Find Eigen package
 find_package(Eigen3 REQUIRED)
 
-# Add include directories
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    # ${CMAKE_CURRENT_SOURCE_DIR}/include/cuda
-    ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cxxopts/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cutlass/include
-    ${EIGEN3_INCLUDE_DIR}
-)
+# # Add include directories
+# include_directories(
+#     ${CMAKE_CURRENT_SOURCE_DIR}/include
+#     # ${CMAKE_CURRENT_SOURCE_DIR}/include/cuda
+#     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cxxopts/include
+#     ${EIGEN3_INCLUDE_DIR}
+# )
 
-# Conditionally add HIP include directory
-if(HIP_AVAILABLE)
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/hip)
-endif()
+# # Conditionally add HIP include directory
+# if(HIP_AVAILABLE)
+#     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/hip)
+# endif()
 
 # Function to create a GPU executable with common settings
 function(add_gpu_executable target_name source_file)
@@ -205,6 +194,7 @@ function(add_gpu_executable target_name source_file)
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/include/cuda
         ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
+        ${CMAKE_SOURCE_DIR}/third-party/cutlass/include
         ${EIGEN3_INCLUDE_DIR}
     )
 
@@ -268,6 +258,7 @@ function(add_hip_executable target_name source_file)
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/include/hip
         ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
+        ${CMAKE_SOURCE_DIR}/third-party/rocWMMA/library/include
         ${EIGEN3_INCLUDE_DIR}
     )
 

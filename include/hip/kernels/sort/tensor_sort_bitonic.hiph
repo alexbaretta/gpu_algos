@@ -19,13 +19,16 @@
 // source path: include/hip/kernels/sort/tensor_sort_bitonic.hiph
 
 #pragma once
-#include <hip/hip_runtime.h>
+#include <bit>
+#include <stdexcept>
 #include <string>
 #include <iostream>
-#include <cxxopts.hpp>
-#include <Eigen/Dense>
 #include <algorithm>
 #include <vector>
+
+#include <cxxopts.hpp>
+#include <Eigen/Dense>
+#include <hip/hip_runtime.h>
 
 #include "common/types/tensor3d.hpp"
 #include "hip/type_traits.hiph"
@@ -93,8 +96,8 @@ __global__ void bitonic_compare_and_swap_3d(
         row = problem_id % n_rows;
         col = 0;  // Will be calculated based on pair_id
     } else {
-        row = problem_id / n_cols;
-        col = problem_id % n_cols;
+        row = problem_id / n_sheets;
+        col = problem_id % n_sheets;
         sheet = 0;  // Will be calculated based on pair_id
     }
 
@@ -166,9 +169,9 @@ struct tensor3d_sort_bitonic_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("M", "Number of rows", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_M)))
-            ("N", "Number of columns", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_N)))
-            ("K", "Number of sheets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_K)))
+            ("M", "Number of rows", cxxopts::value<unsigned long>()->default_value(std::to_string(DEFAULT_M)))
+            ("N", "Number of columns", cxxopts::value<unsigned long>()->default_value(std::to_string(DEFAULT_N)))
+            ("K", "Number of sheets", cxxopts::value<unsigned long>()->default_value(std::to_string(DEFAULT_K)))
             ("block-dim-x,x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("block-dim-y,y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("block-dim-z,z", "Number of threads in the z dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Z)))
@@ -194,31 +197,33 @@ struct tensor3d_sort_bitonic_spec {
             throw cxxopts::exceptions::exception("Invalid --sortdim: " + sort_dim);
         }
 
-        long m = options_parsed["M"].as<long>();
-        long n = options_parsed["N"].as<long>();
-        long k = options_parsed["K"].as<long>();
+        // We do not declare these variables const as we might need to extend one to be a power of 2
+        unsigned long m = options_parsed["M"].as<unsigned long>();
+        unsigned long n = options_parsed["N"].as<unsigned long>();
+        unsigned long k = options_parsed["K"].as<unsigned long>();
+
+        // Construct reference to the dimension along which we are sorting
+        unsigned long& target_dim = (
+           (sort_dim == "rows") ? m
+            : (sort_dim == "cols") ? n
+            : k
+        );
 
         // Ensure the dimension we're sorting is a power of 2
-        long* target_dim;
-        if (sort_dim == "rows") target_dim = &m;
-        else if (sort_dim == "cols") target_dim = &n;
-        else target_dim = &k;
-
-        if ((*target_dim & (*target_dim - 1)) != 0) {
-            long next_pow2 = 1;
-            while (next_pow2 < *target_dim) next_pow2 <<= 1;
-            std::cout << "[WARNING] " << sort_dim << " dimension=" << *target_dim
-                      << " is not a power of 2, rounding up to " << next_pow2 << std::endl;
-            *target_dim = next_pow2;
+        const bool is_target_dim_a_power_of_two = ((target_dim & (target_dim - 1)) == 0);
+        if (!is_target_dim_a_power_of_two) {
+            std::cout << "[WARNING] " << sort_dim << " dimension=" << target_dim << " is not a power of 2, rounding down to ";
+            target_dim = std::bit_floor(target_dim);
+            std::cout << target_dim << std::endl;
         }
 
         return tensor3d_sort_bitonic_spec(
             type,
             sort_dim,
             m, n, k,
-            options_parsed["blockdimx"].as<long>(),
-            options_parsed["blockdimy"].as<long>(),
-            options_parsed["blockdimz"].as<long>()
+            options_parsed["block-dim-x"].as<unsigned>(),
+            options_parsed["block-dim-y"].as<unsigned>(),
+            options_parsed["block-dim-z"].as<unsigned>()
         );
     }
 
@@ -289,6 +294,7 @@ class tensor3d_sort_bitonic_kernel {
         if ((n_elements & (n_elements - 1)) != 0) {
             std::cerr << "[ERROR] Sort dimension size (" << n_elements
                       << ") must be a power of 2 for bitonic sort" << std::endl;
+            throw std::runtime_error("Sort dimension size (" + std::to_string(n_elements) + ") is not a power of 2");
             return;
         }
 
@@ -310,7 +316,7 @@ class tensor3d_sort_bitonic_kernel {
                 // Check for kernel errors
                 hipError_t err = hipGetLastError();
                 if (err != hipSuccess) {
-                    std::cerr << "[ERROR] HIP kernel error: " << hipGetErrorString(err) << std::endl;
+                    std::cerr << "[ERROR] CUDA kernel error: " << hipGetErrorString(err) << std::endl;
                     return;
                 }
             }

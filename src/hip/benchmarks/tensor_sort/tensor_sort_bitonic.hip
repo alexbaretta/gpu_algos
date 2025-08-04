@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/hip/benchmarks/tensor_sort/tensor_sort_bitonic.hip
+// source path: src/hip/benchmarks/tensor_sort/tensor_sort_bitonic.cu
 
 #include <cxxopts.hpp>
 

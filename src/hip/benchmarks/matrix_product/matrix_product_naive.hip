@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/hip/benchmarks/matrix_product/matrix_product_naive.hip
+// source path: src/hip/benchmarks/matrix_product/matrix_product_naive.cu
 
 #include <cxxopts.hpp>
 

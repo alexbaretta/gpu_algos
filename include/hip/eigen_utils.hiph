@@ -21,8 +21,7 @@
 #pragma once
 
 #include <cmath>
-#include <concepts>
-#include <type_traits>
+
 #include "type_traits.hiph"
 
 struct Compute_error_absolute {
@@ -38,10 +37,10 @@ struct Compute_error_absolute {
                 // infinities of the same sign, hence once could argue that there is no error
                 return 0;
             }
-            else { return std::abs<Scalar>(inf_delta); }
+            else { return std::abs(inf_delta); }
         } else {
             // lhs and rhs and normal numbers. We just compute the absolute difference.
-            return std::abs<Scalar>(lhs - rhs);
+            return std::abs(lhs - rhs);
         }
     }
     __half operator()(const __half& lhs, const __half& rhs) const {

@@ -85,13 +85,13 @@ struct Vector_cumsum_serial_spec {
 
     inline Vector_cumsum_serial_spec(
         const std::string& type,
-        const long n
+        const long size
     ) : type_(type),
         m_(0),  // unused
-        n_(n),
+        n_(size),
         k_(0),  // unused
-        n_A_(n),
-        n_C_(n),
+        n_A_(size),
+        n_C_(size),
         n_temp_(0),
         block_dim_(1),
         grid_dim_(1)

@@ -4,3 +4,6 @@
 [submodule "third-party/cutlass"]
 	path = third-party/cutlass
 	url = https://github.com/NVIDIA/cutlass.git
+[submodule "third-party/rocWMMA"]
+	path = third-party/rocWMMA
+	url = https://github.com/ROCm/rocWMMA.git

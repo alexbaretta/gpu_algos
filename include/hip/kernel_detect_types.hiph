@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernel_detect_types.cuh
+// source path: include/hip/kernel_detect_types.hiph
 
 #pragma once
 
@@ -26,8 +26,8 @@
 #include <tuple>
 #include <type_traits>
 
-#include <mma.h>
-#include "cuda/type_traits.cuh"
+#include <rocwmma/rocwmma.hpp>
+#include "hip/type_traits.hiph"
 
 namespace detect {
     template <typename KERNEL> concept has_NumberA = requires { typename KERNEL::NumberA; };
@@ -96,8 +96,8 @@ namespace detect {
         }
     };
     template <>
-    struct _Tolerance<nvcuda::wmma::precision::tf32> {
-        using type = nvcuda::wmma::precision::tf32;
+    struct _Tolerance<rocwmma::xfloat32_t> {
+        using type = rocwmma::xfloat32_t;
         static std::string name() { return "TensorFloat32"; };
         constexpr static int precision_bits = 11;
         constexpr static float precision = Precision<precision_bits>::value;

@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/hip/benchmarks/vector_cumsum/vector_cumsum_serial.hip
+// source path: src/hip/benchmarks/vector_cumsum/vector_cumsum_serial.cu
 
 #include <cxxopts.hpp>
 

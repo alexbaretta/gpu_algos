@@ -141,7 +141,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
 
     for (int subtree_size = 1, subtree_id = tid_warp;
             subtree_size < WARP_SIZE;
-            subtree_size <<= 1, subtree_id /= 2) {
+            subtree_size <<= 1, subtree_id >>= 1) {
         const int from_lane = max(0, subtree_id * subtree_size - 1);
         const Number received_value = __shfl_sync(__activemask(), value, from_lane);
         if (subtree_id % 2 == 1) {
@@ -222,7 +222,6 @@ struct Vector_cumsum_parallel_spec {
 
     const dim3 block_dim_;
     const dim3 grid_dim_;
-    const size_t dynamic_shared_mem_words_ = 0;
 
     constexpr static int DEFAULT_M = 0;    // unused
     constexpr static int DEFAULT_N = 3000; // size of vector
@@ -246,12 +245,13 @@ struct Vector_cumsum_parallel_spec {
             std::cerr << "[ERROR] --type must be one of: half, single/float, double, int<n>, uint<n>" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --type: " + type);
         }
-        const auto n = options_parsed["N"].as<long>();
-        const auto block_dim_option = options_parsed["block-dim"].as<long>();
-        const auto block_size = (std::min(n, block_dim_option)  + WARP_SIZE - 1) / WARP_SIZE * WARP_SIZE;
+        const auto size = options_parsed["N"].as<long>();
+        const auto block_dim_option = options_parsed["block-dim"].as<unsigned>();
+        const auto warp_size = get_warp_size();
+        const auto block_size = (std::min(size, (long)block_dim_option)  + warp_size - 1) / warp_size * warp_size;
         return Vector_cumsum_parallel_spec(
             type,
-            n,
+            size,
             block_size
         );
     }
@@ -274,18 +274,18 @@ struct Vector_cumsum_parallel_spec {
 
     Vector_cumsum_parallel_spec(
         const std::string& type,
-        const long n,
+        const long size,
         const long block_size
     ) : device_prop_(get_default_device_prop()),
         type_(type),
         m_(0),  // unused
-        n_(n),
+        n_(size),
         k_(0),  // unused
-        n_A_(n),
-        n_C_(n),
-        n_temp_(compute_size_of_temp(n, block_size)),
+        n_A_(size),
+        n_C_(size),
+        n_temp_(compute_size_of_temp(size, block_size)),
         block_dim_(block_size),
-        grid_dim_((n + block_size - 1) / block_size)
+        grid_dim_((size + block_size - 1) / block_size)
     {}
 };
 
@@ -379,7 +379,8 @@ class Vector_cumsum_parallel_kernel {
         // The produces in C an array of block-wise cumsums that we can further process with a stride = block_size.
         // This downward iteration ends when the number of blocks is 1, which means that the result is the
         // global cumsum.
-        vector_cumsum_by_blocks_parallel<<<spec_.grid_dim_, spec_.block_dim_, 0, stream>>>(
+        const size_t shared_mem_size = (spec_.block_dim_.x / 32 + 1) * sizeof(Number);  // Calculate at runtime
+        vector_cumsum_by_blocks_parallel<<<spec_.grid_dim_, spec_.block_dim_, shared_mem_size, stream>>>(
             gpu_data_A,
             gpu_data_C,
             spec_.n_,
@@ -387,10 +388,10 @@ class Vector_cumsum_parallel_kernel {
         );
 
         auto& prev_result = gpu_data_C;
-        // auto& curr_result = gpu_data_temp;
+        auto& curr_result = gpu_data_temp;
         auto& prev_n_elems = spec_.n_;
         if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
-            strided_pass(gpu_data_temp, prev_result, prev_n_elems, 0, stream);
+            strided_pass(curr_result, prev_result, prev_n_elems, 0, stream);
         }
     }
 

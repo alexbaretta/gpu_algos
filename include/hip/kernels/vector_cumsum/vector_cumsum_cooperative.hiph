@@ -20,8 +20,8 @@
 
 #pragma once
 #include <iostream>
-#include <hip/hip_cooperative_groups.h>
 #include <hip/hip_runtime.h>
+#include <cooperative_groups.h>
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 
@@ -37,7 +37,8 @@ __device__ void vector_cumsum_cooperative(
     const long n,  // size of vector
     const long n_blocks
 ) {
-    __shared__ HIP_Number shm[MAX_N_WARPS]; // for writing, index this using `wid_block` (warp id)
+    // for writing, index this using `wid_block` (warp id)
+    HIP_Number* shm = static_cast<HIP_Number*>(get_dynamic_shared_memory(alignof(HIP_Number)));
 
     auto grid = cooperative_groups::this_grid();
     grid.sync();

@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include "hip/kernel_detect_types.hiph"
+
 #include "hip/kernel_api/matrix_1inout.hiph"
 #include "hip/kernel_api/matrix_1in_1out.hiph"
 #include "hip/kernel_api/matrix_2in_1out.hiph"
