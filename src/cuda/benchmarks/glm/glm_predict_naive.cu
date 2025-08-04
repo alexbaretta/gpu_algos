@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/cuda/glm/glm_predict_naive.cu
+// source path: src/cuda/benchmarks/glm/glm_predict_naive.cu
 
 #include <cxxopts.hpp>
 

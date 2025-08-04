@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/matrix_transpose/matrix_transpose_striped.cu
+// source path: src/cuda/benchmarks/matrix_transpose/matrix_transpose_striped.cu
 
 #include <cxxopts.hpp>
 

@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernels/matrix/matrix_transpose_naive.cuh
+// source path: include/cuda/kernels/matrix_transpose/matrix_transpose_naive.cuh
 
 #pragma once
 #include <iostream>

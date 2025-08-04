@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/benchmark/benchmark_vector_2in_1out.hpp
+// source path: include/cuda/benchmark/benchmark_vector_2in_1out.cuh
 
 #pragma once
 

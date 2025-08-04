@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernel_api/vector_1in_1out.hpp
+// source path: include/cuda/kernel_api/vector_1in_1out.cuh
 
 #pragma once
 

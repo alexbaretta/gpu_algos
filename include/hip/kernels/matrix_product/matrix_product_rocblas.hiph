@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/hip/kernels/matrix/matrix_product_rocblas.hiph
+// source path: include/hip/kernels/matrix_product/matrix_product_rocblas.hiph
 
 #pragma once
 #include <hip/hip_runtime.h>

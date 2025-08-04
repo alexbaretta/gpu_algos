@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/vector_cummax/vector_cummax_parallel.hip
+// source path: src/hip/benchmarks/vector_cummax/vector_cummax_parallel.hip
 
 #include <cxxopts.hpp>
 

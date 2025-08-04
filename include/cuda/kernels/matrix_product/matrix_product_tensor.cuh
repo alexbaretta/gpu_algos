@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernels/matrix/matrix_product_tensor.cuh
+// source path: include/cuda/kernels/matrix_product/matrix_product_tensor.cuh
 
 #pragma once
 

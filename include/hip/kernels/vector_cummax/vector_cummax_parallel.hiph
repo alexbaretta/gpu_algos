@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/hip/kernels/matrix/vector_cummax_parallel.hiph
+// source path: include/hip/kernels/vector_cummax/vector_cummax_parallel.hiph
 
 #pragma once
 #include <iostream>

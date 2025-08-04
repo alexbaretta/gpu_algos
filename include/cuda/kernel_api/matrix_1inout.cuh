@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernel_api/matrix_1inout.hpp
+// source path: include/cuda/kernel_api/matrix_1inout.cuh
 
 #pragma once
 

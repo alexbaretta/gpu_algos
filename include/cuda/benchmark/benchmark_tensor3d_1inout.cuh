@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/benchmark/benchmark_tensor3d_1inout.hpp
+// source path: include/cuda/benchmark/benchmark_tensor3d_1inout.cuh
 
 #pragma once
 

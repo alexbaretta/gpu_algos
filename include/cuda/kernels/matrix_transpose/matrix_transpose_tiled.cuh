@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernels/matrix/matrix_transpose_tiled.cuh
+// source path: include/cuda/kernels/matrix_transpose/matrix_transpose_tiled.cuh
 
 #pragma once
 

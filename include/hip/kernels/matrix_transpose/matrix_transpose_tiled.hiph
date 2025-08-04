@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/hip/kernels/matrix/matrix_transpose_tiled.hiph
+// source path: include/hip/kernels/matrix_transpose/matrix_transpose_tiled.hiph
 
 #pragma once
 

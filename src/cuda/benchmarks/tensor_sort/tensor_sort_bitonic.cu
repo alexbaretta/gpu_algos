@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/cuda/tensor_sort/tensor_sort_bitonic.cu
+// source path: src/cuda/benchmarks/tensor_sort/tensor_sort_bitonic.cu
 
 #include <cxxopts.hpp>
 

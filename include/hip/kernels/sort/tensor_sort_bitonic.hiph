@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/hip/kernels/sort/tensor3d.sort__bitonic.hpp
+// source path: include/hip/kernels/sort/tensor_sort_bitonic.hiph
 
 #pragma once
 #include <hip/hip_runtime.h>

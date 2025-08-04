@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/vector_scan_generic/vector_scan_parallel.cu
+// source path: src/cuda/benchmarks/vector_scan_generic/vector_scan_parallel.cu
 
 #include <cxxopts.hpp>
 

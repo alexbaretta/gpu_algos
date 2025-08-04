@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernels/matrix_product/matrix_product_cutlass_mm.cuh
+// source path: include/cuda/kernels/matrix_product/matrix_product_cutlass_mma.cuh
 
 #pragma once
 

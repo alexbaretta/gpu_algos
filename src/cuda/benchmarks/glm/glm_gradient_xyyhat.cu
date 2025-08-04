@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/cuda/glm/glm_gradient_xyyhat.cu
+// source path: src/cuda/benchmarks/glm/glm_gradient_xyyhat.cu
 
 #include <cxxopts.hpp>
 

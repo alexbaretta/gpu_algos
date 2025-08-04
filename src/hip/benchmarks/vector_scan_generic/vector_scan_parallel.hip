@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/vector_scan_generic/vector_scan_parallel.hip
+// source path: src/hip/benchmarks/vector_scan_generic/vector_scan_parallel.hip
 
 #include <cxxopts.hpp>
 

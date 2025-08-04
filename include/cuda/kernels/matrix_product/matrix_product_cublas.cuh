@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernels/matrix/matrix_product_cublas.cuh
+// source path: include/cuda/kernels/matrix_product/matrix_product_cublas.cuh
 
 #pragma once
 #include <iostream>

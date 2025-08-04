@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/matrix_product/matrix_product_warp.cu
+// source path: src/cuda/benchmarks/matrix_product/matrix_product_warp.cu
 
 #include <cxxopts.hpp>
 

@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/vector_cumsum/vector_cumsum_cooperative.cu
+// source path: src/cuda/benchmarks/vector_cumsum/vector_cumsum_cooperative.cu
 
 #include <cxxopts.hpp>
 

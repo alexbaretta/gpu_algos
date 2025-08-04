@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernel_api/tensor3d_1inout.hpp
+// source path: include/cuda/kernel_api/tensor3d_1inout.cuh
 
 #pragma once
 

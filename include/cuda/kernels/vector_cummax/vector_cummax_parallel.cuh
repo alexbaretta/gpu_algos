@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernels/matrix/vector_cummax_parallel.cuh
+// source path: include/cuda/kernels/vector_cummax/vector_cummax_parallel.cuh
 
 #pragma once
 #include <iostream>

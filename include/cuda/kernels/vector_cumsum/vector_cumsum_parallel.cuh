@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernels/matrix/vector_cumsum_parallel.cuh
+// source path: include/cuda/kernels/vector_cumsum/vector_cumsum_parallel.cuh
 
 #pragma once
 #include <iostream>

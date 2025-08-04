@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernels/sort/tensor3d.sort__bitonic.hpp
+// source path: include/cuda/kernels/sort/tensor_sort_bitonic.cuh
 
 #pragma once
 #include <bit>

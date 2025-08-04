@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/matrix_product/matrix_product_cutlass.cu
+// source path: src/cuda/benchmarks/matrix_product/matrix_product_cutlass.cu
 
 #include <iostream>
 

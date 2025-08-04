@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Alessandro Baretta
 
-# source path: src/benchmarks/matrix_transpose/CMakeLists.txt
+# source path: src/hip/benchmarks/matrix_transpose/CMakeLists.txt
 
 # Matrix product executables
 add_hip_executable(hip_matrix_transpose_naive matrix_transpose_naive.hip)

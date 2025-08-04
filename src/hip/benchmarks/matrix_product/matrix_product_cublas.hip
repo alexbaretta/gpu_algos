@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/matrix_product/matrix_product_cublas.hip
+// source path: src/hip/benchmarks/matrix_product/matrix_product_cublas.hip
 
 #include <cxxopts.hpp>
 

@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/hip/kernels/matrix/vector_cumsum_cooperative.hiph
+// source path: include/hip/kernels/vector_cumsum/vector_cumsum_cooperative.hiph
 
 #pragma once
 #include <iostream>

@@ -16,7 +16,7 @@
 */
 
 
-// source path: src/benchmarks/vector_cummax/vector_cummax_parallel.cu
+// source path: src/cuda/benchmarks/vector_cummax/vector_cummax_parallel.cu
 
 #include <cxxopts.hpp>
 

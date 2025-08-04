@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/hip/kernels/matrix/matrix_product_tensor.hiph
+// source path: include/hip/kernels/matrix_product/matrix_product_tensor.hiph
 
 #pragma once
 

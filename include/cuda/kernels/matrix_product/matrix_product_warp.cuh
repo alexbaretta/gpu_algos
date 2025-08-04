@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/cuda/kernels/matrix/matrix_product_warp.cuh
+// source path: include/cuda/kernels/matrix_product/matrix_product_warp.cuh
 
 #pragma once
 

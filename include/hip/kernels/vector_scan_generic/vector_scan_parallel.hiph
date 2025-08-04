@@ -16,7 +16,7 @@
 */
 
 
-// source path: include/hip/kernels/matrix/vector_scan_parallel.hiph
+// source path: include/hip/kernels/vector_scan_generic/vector_scan_parallel.hiph
 
 #pragma once
 #include <iostream>
