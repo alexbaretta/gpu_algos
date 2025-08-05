@@ -93,7 +93,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
     }
 
     // bid_grid (block ID relative to the whole grid) can be >= n_blocks when we call ourselves
-    // recursively on a reduced dataset. In this case, we can skip directliy to the synchronization,
+    // recursively on a reduced dataset. In this case, we can skip directly to the synchronization,
     const unsigned short tid_warp = threadIdx.x % WARP_SIZE;
     const unsigned short wid_block = threadIdx.x / WARP_SIZE;
     const unsigned short n_warps_per_block = blockDim.x / WARP_SIZE;
@@ -369,7 +369,7 @@ class Vector_cumsum_parallel_kernel {
         // grid_dim_ = dim3(opt_grid_size);
 
         std::cout << "[INFO] max_active_blocks_per_multiprocessor: " << max_active_blocks_per_multiprocessor
-                  << "at block_size:" << max_block_size << std::endl;
+                  << " at block_size:" << max_block_size << std::endl;
         std::cout << "[INFO] max_block_size: " << max_block_size << std::endl;
         std::cout << "[INFO] opt_grid_size: " << opt_grid_size << std::endl;
         std::cout << "[INFO] grid_dim_: " << spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << std::endl;

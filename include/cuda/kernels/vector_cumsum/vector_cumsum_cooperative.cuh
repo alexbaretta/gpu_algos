@@ -52,7 +52,7 @@ __device__ void vector_cumsum_cooperative(
 
     if (bid_grid < n_blocks) {
         // bid_grid (block ID relative to the whole grid) can be >= n_blocks when we call ourselves
-        // recursively on a reduced dataset. In this case, we can skip directliy to the synchronization,
+        // recursively on a reduced dataset. In this case, we can skip directly to the synchronization,
         const unsigned short tid_warp = threadIdx.x % WARP_SIZE;
         const unsigned short wid_block = threadIdx.x / WARP_SIZE;
         const unsigned short n_warps_per_block = blockDim.x / WARP_SIZE;
