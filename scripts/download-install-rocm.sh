@@ -37,6 +37,7 @@ if ! [ -f ${installer_filename} ]; then
     wget ${INSTALLER}
 fi
 if ! [ -d ${installer_dir} ]; then
+    chmod a+x ${installer_filename}
     ./${installer_filename} --noexec
 fi
 
