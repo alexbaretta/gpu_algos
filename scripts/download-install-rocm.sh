@@ -22,8 +22,10 @@
 # wget https://repo.radeon.com/rocm/installer/rocm-runfile-installer/rocm-rel-<rocm-version>/<distro>/<distro-version>/<installer-file>
 
 INSTALLER=https://repo.radeon.com/rocm/installer/rocm-runfile-installer/rocm-rel-6.4.1/ubuntu/22.04/rocm-installer_1.1.1.60401-30-83~22.04.run
+ROC_HOME=/opt/rocm
+PYTHONLIB=libpython3.13.so.1.0
 
-set -euxo pipefail
+set -euo pipefail
 
 # installer_filename=$( (IFS=/; for i in ${INSTALLER}; do echo $i; done | tail -n1) )
 installer_filename=$(awk -F/ '{print $NF}' <<<"${INSTALLER}")
@@ -46,4 +48,18 @@ cd ${installer_dir}
 sed -i 's/ubuntu)/ubuntu|devuan)/' *.sh
 sed -i 's/^'${nominal_distro_version}'$/'${actual_distro_version}/ VERSION
 
-./install-init.sh "$@"
+sudo ./install-init.sh "$@"
+
+# Workaround for the following error:
+# rocgdb: error while loading shared libraries: amdpythonlib.so: cannot open shared object file: No such file or directory
+# 1) Detect the conda environment
+conda_env="$(readlink -f $(dirname $(which python))/..)"
+
+
+libpython_src="${conda_env}/lib/${PYTHONLIB}"
+libpython_dst="${ROCM_HOME}/lib/${PYTHONLIB}"
+# 2) Create symlink to ROCm lib directory
+
+echo "[INFO] creating libamdpython symlink: ${libpython_src} -> ${libpython_dst}"
+rm -f "${libpython_dst}"
+sudo ln -sf "${libpython_src}" "${libpython_dst}"

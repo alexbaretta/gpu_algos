@@ -107,9 +107,19 @@ sudo apt install libeigen3-dev
 # ROCm
 
 The instructions work for Debian Stable (at the time of this writing: Debian 12 Bookworm). Confirm the
-version of the package to be installed on the AMD website
+version of the package to be installed on the AMD website.
 
 (https://rocm.docs.amd.com/projects/radeon/en/latest/docs/install/native_linux/install-radeon.html)
+
+<!-- What about amd-smi-lib? -->
+
+## ROCm simplified installation process.
+This project provides a shell script that performs the ROCm installation with minimal user input.
+```bash
+./scripts/download-install-rocm.sh
+```
+The script will use `sudo` to gain root privileges as necessary.
+
 
 1. As normal user:
 ```bash
@@ -221,8 +231,16 @@ mkdir -p ~/.config/clangd
 cp .clangd ~/.config/clangd/config.yaml
 ```
 
-## librt linking errors
+## ROCm Troubleshooting
 
+1. Error while loading shared library
+If you get the following error
+```
+rocgdb: error while loading shared libraries: libpython3.13.so.1.0: cannot open shared object file: No such file or directory
+```
+the solution[https://github.com/ROCm/ROCgdb/issues/32] seems to be to create a symlink to libpython3.13.so.1.0 in `/opt/rocm/lib`.
+
+2. librt linking errors
 librt is now included in glibc, so we no longer need CUDA to link it. Until a new version of cmake is
 released that can handle this new oddity, it is best to manualy edit FindCUDAToolkit.cmake as follows:
 
