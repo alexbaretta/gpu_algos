@@ -1,5 +1,53 @@
 # py-gpu-algos
 
+Python bindings for GPU algorithms
+
+## Overview
+
+py-gpu-algos provides Python bindings for CUDA and HIP GPU kernels, exposing them as functions operating on NumPy arrays.
+
+## Building
+
+This package is built as part of the main gpu_algos project. To build:
+
+1. From the toplevel directory, run:
+   ```bash
+   ./scripts/release_build.sh
+   # or
+   ./scripts/debug_build.sh
+   ```
+
+2. The Python package will be built automatically with `BUILD_PYTHON_PACKAGE=ON`
+
+3. The compiled modules will be placed in `builds/release/python/py-gpu-algos/` or `builds/debug/python/py-gpu-algos/`
+
+## Module Loading
+
+The package uses a dynamic module loader that automatically finds and loads the compiled CUDA modules from the build directory. The loader:
+
+- Searches for build directories (`builds/release/` or `builds/debug/`)
+- Prefers release builds over debug builds
+- Loads modules from `builds/{release|debug}/python/py-gpu-algos/`
+- Caches loaded modules for performance
+
+## Usage
+
+```python
+import numpy as np
+from py_gpu_algos import matrix_product_naive, vector_cumsum_parallel
+
+# Create test data
+a = np.random.rand(100, 50).astype(np.float32)
+b = np.random.rand(50, 80).astype(np.float32)
+
+# Matrix multiplication
+result = matrix_product_naive(a, b)
+
+# Vector operations
+vector = np.random.rand(1000).astype(np.float32)
+cumsum = vector_cumsum_parallel(vector)
+```
+
 This Python package provides **complete Python bindings** for all CUDA kernels in the gpu_algos project, exposing them as high-performance Python functions operating on NumPy arrays.
 
 **✅ Implementation Status: FUNCTIONAL** - Core kernels from the parent C++ library have working Python bindings providing 107 functions across 4 operation categories.

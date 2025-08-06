@@ -21,7 +21,10 @@ from typing import TypeVar, Union, overload
 import warnings
 
 try:
-    from . import _glm_ops_cuda
+    from ._module_loader import get_cuda_module
+    
+    # Load the CUDA module from build directory
+    _glm_ops_cuda = get_cuda_module('_glm_ops_cuda')
     # Import functions from the CUDA module
     _glm_predict_naive_cuda = _glm_ops_cuda.glm_predict_naive
     _glm_gradient_naive_cuda = _glm_ops_cuda.glm_gradient_naive
@@ -44,7 +47,8 @@ try:
     _glm_gradient_xyyhat_int64_cuda = _glm_ops_cuda.glm_gradient_xyyhat_int64
 
     _CUDA_AVAILABLE = True
-except ImportError as e:
+except Exception as e:
+    raise e
     _CUDA_AVAILABLE = False
     warnings.warn(f"CUDA backend not available: {e}")
 

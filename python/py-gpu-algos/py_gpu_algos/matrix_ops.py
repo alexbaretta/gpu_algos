@@ -16,48 +16,57 @@ from typing import TypeVar, Union, overload
 import warnings
 
 try:
-    from . import _matrix_ops_cuda
-    # Import functions from the CUDA module
-    _matrix_product_naive_cuda = _matrix_ops_cuda.matrix_product_naive
-    # _matrix_product_naive_float16_cuda = _matrix_ops_cuda.matrix_product_naive_float16  # TODO: Handle float16 properly
-    _matrix_product_naive_float32_cuda = _matrix_ops_cuda.matrix_product_naive_float32
-    _matrix_product_naive_float64_cuda = _matrix_ops_cuda.matrix_product_naive_float64
-    _matrix_product_naive_int8_cuda = _matrix_ops_cuda.matrix_product_naive_int8
-    _matrix_product_naive_int16_cuda = _matrix_ops_cuda.matrix_product_naive_int16
-    _matrix_product_naive_int32_cuda = _matrix_ops_cuda.matrix_product_naive_int32
-    _matrix_product_naive_int64_cuda = _matrix_ops_cuda.matrix_product_naive_int64
-    _matrix_product_naive_uint8_cuda = _matrix_ops_cuda.matrix_product_naive_uint8
-    _matrix_product_naive_uint16_cuda = _matrix_ops_cuda.matrix_product_naive_uint16
-    _matrix_product_naive_uint32_cuda = _matrix_ops_cuda.matrix_product_naive_uint32
-    _matrix_product_naive_uint64_cuda = _matrix_ops_cuda.matrix_product_naive_uint64
+    from ._module_loader import get_cuda_module
 
-    # Additional matrix operations
-    _matrix_product_tiled_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled', None)
-    _matrix_product_tiled_float32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_float32', None)
-    _matrix_product_tiled_float64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_float64', None)
-    _matrix_product_tiled_int8_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int8', None)
-    _matrix_product_tiled_int16_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int16', None)
-    _matrix_product_tiled_int32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int32', None)
-    _matrix_product_tiled_int64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int64', None)
-    _matrix_product_tiled_uint8_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint8', None)
-    _matrix_product_tiled_uint16_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint16', None)
-    _matrix_product_tiled_uint32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint32', None)
-    _matrix_product_tiled_uint64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint64', None)
+    # Load the CUDA module from build directory
+    _matrix_ops_cuda = get_cuda_module('_matrix_ops_cuda')
 
-    _matrix_transpose_striped_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped', None)
-    _matrix_transpose_striped_float32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_float32', None)
-    _matrix_transpose_striped_float64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_float64', None)
-    _matrix_transpose_striped_int8_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int8', None)
-    _matrix_transpose_striped_int16_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int16', None)
-    _matrix_transpose_striped_int32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int32', None)
-    _matrix_transpose_striped_int64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int64', None)
-    _matrix_transpose_striped_uint8_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint8', None)
-    _matrix_transpose_striped_uint16_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint16', None)
-    _matrix_transpose_striped_uint32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint32', None)
-    _matrix_transpose_striped_uint64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint64', None)
+    if _matrix_ops_cuda is not None:
+        # Import functions from the CUDA module
+        _matrix_product_naive_cuda = _matrix_ops_cuda.matrix_product_naive
+        # _matrix_product_naive_float16_cuda = _matrix_ops_cuda.matrix_product_naive_float16  # TODO: Handle float16 properly
+        _matrix_product_naive_float32_cuda = _matrix_ops_cuda.matrix_product_naive_float32
+        _matrix_product_naive_float64_cuda = _matrix_ops_cuda.matrix_product_naive_float64
+        _matrix_product_naive_int8_cuda = _matrix_ops_cuda.matrix_product_naive_int8
+        _matrix_product_naive_int16_cuda = _matrix_ops_cuda.matrix_product_naive_int16
+        _matrix_product_naive_int32_cuda = _matrix_ops_cuda.matrix_product_naive_int32
+        _matrix_product_naive_int64_cuda = _matrix_ops_cuda.matrix_product_naive_int64
+        _matrix_product_naive_uint8_cuda = _matrix_ops_cuda.matrix_product_naive_uint8
+        _matrix_product_naive_uint16_cuda = _matrix_ops_cuda.matrix_product_naive_uint16
+        _matrix_product_naive_uint32_cuda = _matrix_ops_cuda.matrix_product_naive_uint32
+        _matrix_product_naive_uint64_cuda = _matrix_ops_cuda.matrix_product_naive_uint64
 
-    _CUDA_AVAILABLE = True
-except ImportError as e:
+        # Additional matrix operations
+        _matrix_product_tiled_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled', None)
+        _matrix_product_tiled_float32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_float32', None)
+        _matrix_product_tiled_float64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_float64', None)
+        _matrix_product_tiled_int8_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int8', None)
+        _matrix_product_tiled_int16_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int16', None)
+        _matrix_product_tiled_int32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int32', None)
+        _matrix_product_tiled_int64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int64', None)
+        _matrix_product_tiled_uint8_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint8', None)
+        _matrix_product_tiled_uint16_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint16', None)
+        _matrix_product_tiled_uint32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint32', None)
+        _matrix_product_tiled_uint64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint64', None)
+
+        _matrix_transpose_striped_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped', None)
+        _matrix_transpose_striped_float32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_float32', None)
+        _matrix_transpose_striped_float64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_float64', None)
+        _matrix_transpose_striped_int8_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int8', None)
+        _matrix_transpose_striped_int16_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int16', None)
+        _matrix_transpose_striped_int32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int32', None)
+        _matrix_transpose_striped_int64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int64', None)
+        _matrix_transpose_striped_uint8_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint8', None)
+        _matrix_transpose_striped_uint16_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint16', None)
+        _matrix_transpose_striped_uint32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint32', None)
+        _matrix_transpose_striped_uint64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint64', None)
+
+        _CUDA_AVAILABLE = True
+    else:
+        _CUDA_AVAILABLE = False
+        warnings.warn("CUDA backend not available: Could not load _matrix_ops_cuda module from build directory")
+
+except Exception as e:
     _CUDA_AVAILABLE = False
     warnings.warn(f"CUDA backend not available: {e}")
 
