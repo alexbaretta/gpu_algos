@@ -304,7 +304,7 @@ class GPUAlgoTest:
                  selected_sizes: Optional[Set[int]] = None, max_problem_size:int = 2**28,
                  selected_types: Optional[Set[str]] = None,
                  dryrun: bool = False, tol_bits: int = 4, output_file: Optional[str] = None,
-                 rerun_failures_file: Optional[str] = None, timeout: int = 300, only_hip: bool = False, only_cuda: bool = False):
+                 rerun_failures_file: Optional[str] = None, timeout: int = 300, hip_only: bool = False, cuda_only: bool = False):
         """Initialize the GPU algorithm tester.
 
         Args:
@@ -321,8 +321,8 @@ class GPUAlgoTest:
             output_file: Output file for detailed results (None for no output)
             rerun_failures_file: Path to previous test results file (JSONL format) to rerun only failed tests
             timeout: Timeout for test execution in seconds (default: 300 seconds)
-            only_hip: Only test HIP executables (default: False)
-            only_cuda: Only test CUDA executables (default: False)
+            hip_only: Only test HIP executables (default: False)
+            cuda_only: Only test CUDA executables (default: False)
         """
         self.bin_dir = Path(bin_dir)
         self.cmake_root = cmake_root
@@ -336,8 +336,8 @@ class GPUAlgoTest:
         self.output_file = output_file
         self.rerun_failures_file = rerun_failures_file
         self.timeout = timeout
-        self.only_hip = only_hip
-        self.only_cuda = only_cuda
+        self.hip_only = hip_only
+        self.cuda_only = cuda_only
         self.tol_bits = tol_bits
         self.size_option_regex = re.compile(r"-[A-Z][ ,]")
 
@@ -360,8 +360,8 @@ class GPUAlgoTest:
         self.logger.info(f"Found {len(self.executables)} executables in {self.bin_dir}")
 
         # Print platform filtering information if applicable
-        if self.only_hip or self.only_cuda:
-            platform = "HIP" if self.only_hip else "CUDA"
+        if self.hip_only or self.cuda_only:
+            platform = "HIP" if self.hip_only else "CUDA"
             self.logger.info(f"Platform filtering: {platform} executables only")
 
         # Print executable paths for debugging
@@ -455,9 +455,9 @@ class GPUAlgoTest:
         for file_path in self.bin_dir.iterdir():
             if file_path.is_file() and os.access(file_path, os.X_OK):
                 # Apply platform filtering first
-                if self.only_hip and not self._is_hip_executable(file_path):
+                if self.hip_only and not self._is_hip_executable(file_path):
                     continue
-                if self.only_cuda and not self._is_cuda_executable(file_path):
+                if self.cuda_only and not self._is_cuda_executable(file_path):
                     continue
 
                 reject_executable = False
@@ -1233,13 +1233,13 @@ def main():
     )
 
     parser.add_argument(
-        "--only-hip",
+        "--hip-only",
         action="store_true",
         help="Only test HIP executables (executables with 'hip_' prefix)",
     )
 
     parser.add_argument(
-        "--only-cuda",
+        "--cuda-only",
         action="store_true",
         help="Only test CUDA executables (executables without 'hip_' prefix)",
     )
@@ -1248,8 +1248,8 @@ def main():
 
     try:
         # Validate mutually exclusive options
-        if args.only_hip and args.only_cuda:
-            print("Error: --only-hip and --only-cuda options are mutually exclusive", file=sys.stderr)
+        if args.hip_only and args.cuda_only:
+            print("Error: --hip-only and --cuda-only options are mutually exclusive", file=sys.stderr)
             return 1
 
         # Parse selected executables
@@ -1303,8 +1303,8 @@ def main():
             args.output,
             args.rerun_failures,
             args.timeout,
-            args.only_hip,
-            args.only_cuda,
+            args.hip_only,
+            args.cuda_only,
         )
 
         # Run all tests
@@ -1313,23 +1313,23 @@ def main():
         elif args.rerun_failures:
             if selected_executables:
                 platform_msg = ""
-                if args.only_hip:
+                if args.hip_only:
                     platform_msg = " (HIP only)"
-                elif args.only_cuda:
+                elif args.cuda_only:
                     platform_msg = " (CUDA only)"
                 print(f"Rerunning failed tests for executables: {', '.join(selected_executables)}{platform_msg}")
             else:
                 platform_msg = ""
-                if args.only_hip:
+                if args.hip_only:
                     platform_msg = " (HIP executables only)"
-                elif args.only_cuda:
+                elif args.cuda_only:
                     platform_msg = " (CUDA executables only)"
                 print(f"Rerunning all failed tests from previous results{platform_msg}...")
         else:
             platform_msg = ""
-            if args.only_hip:
+            if args.hip_only:
                 platform_msg = " (HIP executables only)"
-            elif args.only_cuda:
+            elif args.cuda_only:
                 platform_msg = " (CUDA executables only)"
             print(f"Starting GPU algorithm tests{platform_msg}...")
 

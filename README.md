@@ -225,7 +225,7 @@ For extensive testing and validation of all GPU algorithms, this project include
 
 For example, to run a comprehensive set of benchmarks, using only CUDA executables from the release build, recording test results as a stream of JSON objects, one per line, in `output.jsonl`, and with detailed output to the terminal:
 ```bash
-python test/gpu_algo_test/gpu_algo_test.py --only-cuda --preset release --output output.jsonl
+python test/gpu_algo_test/gpu_algo_test.py --cuda-only --preset release --output output.jsonl
 ```
 
 ### Quick Start - Test Everything
@@ -289,7 +289,7 @@ python test/gpu_algo_test/gpu_algo_test.py --types float,double --sizes 1024,204
 
 You can rerun only tests that are recorded as failed in the JSONL output file of a previous run.
 ```
-python test/gpu_algo_test/gpu_algo_test.py --only-cuda --preset release --verbose \
+python test/gpu_algo_test/gpu_algo_test.py --cuda-only --preset release --verbose \
       --rerun-failures release.jsonl --output release.rerun.jsonl
 ```
 
@@ -318,8 +318,8 @@ python test/gpu_algo_test/gpu_algo_test.py --only-cuda --preset release --verbos
   --rerun-failures RERUN_FAILURES
                         Path to previous test results file (JSONL format) to rerun only failed tests (default: None)
   --timeout TIMEOUT     Timeout for test execution in seconds (default: 300 seconds) (default: 30)
-  --only-hip            Only test HIP executables (executables with 'hip_' prefix) (default: False)
-  --only-cuda           Only test CUDA executables (executables without 'hip_' prefix) (default: False)
+  --hip-only            Only test HIP executables (executables with 'hip_' prefix) (default: False)
+  --cuda-only           Only test CUDA executables (executables without 'hip_' prefix) (default: False)
   ```
 
 ### Expected Test Output
