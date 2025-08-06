@@ -283,11 +283,13 @@ class Vector_cummax_parallel_kernel {
     using Kernel_spec = Vector_cummax_parallel_spec;
 
     const Kernel_spec spec_;
+    const size_t shared_mem_size_;
 
     Vector_cummax_parallel_kernel(
         const Kernel_spec spec
-    ) : spec_(spec) {}
-
+    ) : spec_(spec),
+        shared_mem_size_((compute_n_warps_per_block(spec_.block_dim_)+1) * sizeof(Number))
+        {}
 
     void block_strided_pass(
         Number* const input_buffer,
@@ -302,8 +304,7 @@ class Vector_cummax_parallel_kernel {
         Number* const curr_result = output_buffer + curr_result_index;
         const int curr_n_elems = prev_n_blocks;
         const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
-        const size_t shared_mem_size = (compute_n_warps_per_block(spec_.block_dim_)+1) * sizeof(Number);
-        vector_cummax_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, shared_mem_size, stream>>>(
+        vector_cummax_by_blocks_parallel<<<curr_n_blocks, spec_.block_dim_, shared_mem_size_, stream>>>(
             prev_result,
             curr_result,
             curr_n_elems,
@@ -334,37 +335,38 @@ class Vector_cummax_parallel_kernel {
         Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
-        int max_block_size = 0;
-        int opt_grid_size = 0;
-        int max_active_blocks_per_multiprocessor = 0;
-        cuda_check_error(cudaOccupancyMaxPotentialBlockSize(
-            &max_block_size,
-            &opt_grid_size,
-            vector_cummax_by_blocks_parallel<Number>,
-            0,
-            0
-        ), "cudaOccupancyMaxPotentialBlockSize");
-        cuda_check_error(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-            &max_active_blocks_per_multiprocessor,
-            vector_cummax_by_blocks_parallel<Number>,
-            max_block_size,
-            0
-        ), "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
+        // int max_block_size = 0;
+        // int opt_grid_size = 0;
+        // int max_active_blocks_per_multiprocessor = 0;
+        // cuda_check_error(cudaOccupancyMaxPotentialBlockSize(
+        //     &max_block_size,
+        //     &opt_grid_size,
+        //     vector_cummax_by_blocks_parallel<Number>,
+        //     shared_mem_size_,
+        //     0
+        // ), "cudaOccupancyMaxPotentialBlockSize");
+        // cuda_check_error(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        //     &max_active_blocks_per_multiprocessor,
+        //     vector_cummax_by_blocks_parallel<Number>,
+        //     max_block_size,
+        //     shared_mem_size_
+        // ), "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
         // block_dim_ = dim3(max_block_size);
         // grid_dim_ = dim3(opt_grid_size);
+        // std::cout << "[INFO] max_active_blocks_per_multiprocessor: " << max_active_blocks_per_multiprocessor
+        //           << "at block_size:" << max_block_size << std::endl;
+        // std::cout << "[INFO] max_block_size: " << max_block_size << std::endl;
+        // std::cout << "[INFO] opt_grid_size: " << opt_grid_size << std::endl;
 
-        std::cout << "[INFO] max_active_blocks_per_multiprocessor: " << max_active_blocks_per_multiprocessor
-                  << "at block_size:" << max_block_size << std::endl;
-        std::cout << "[INFO] max_block_size: " << max_block_size << std::endl;
-        std::cout << "[INFO] opt_grid_size: " << opt_grid_size << std::endl;
         std::cout << "[INFO] grid_dim_: " << spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << std::endl;
         std::cout << "[INFO] block_dim_: " << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << std::endl;
+        std::cout << "[INFO] shared_mem_size_: " << shared_mem_size_ << std::endl;
 
         // In our downard iteration we start by processing A block-wise.
         // The produces in C an array of block-wise cummaxs that we can further process with a stride = block_size.
         // This downward iteration ends when the number of blocks is 1, which means that the result is the
         // global cummax.
-        vector_cummax_by_blocks_parallel<<<spec_.grid_dim_, spec_.block_dim_, 0, stream>>>(
+        vector_cummax_by_blocks_parallel<<<spec_.grid_dim_, spec_.block_dim_, shared_mem_size_, stream>>>(
             gpu_data_A,
             gpu_data_C,
             spec_.n_,

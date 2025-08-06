@@ -102,9 +102,20 @@ void* align_pointer(void *ptr, const std::size_t alignment) {
 // Device function to get dynamic shared memory pointer - non-template to avoid symbol issues
 // We cannot declare dynamic_shm aligned with __aligned__(alignof(T)) because this would require
 // templatizing this function, which causes linker errors.
+__device__ __forceinline__ unsigned dynamic_shared_mem_size() {
+    unsigned ret;
+    asm volatile ("mov.u32 %0, %dynamic_smem_size;" : "=r"(ret));
+    return ret;
+}
+__device__ __forceinline__ unsigned total_shared_mem_size() {
+    unsigned ret;
+    asm volatile ("mov.u32 %0, %total_smem_size;" : "=r"(ret));
+    return ret;
+}
 template <typename T>
 __device__ __inline__
 T* get_dynamic_shared_memory() {
+    assert(dynamic_shared_mem_size() > sizeof(T));
     extern __shared__ void* dynamic_shm[];
     const std::size_t alignment = alignof(T);
     void* aligned_shm = align_pointer(dynamic_shm, alignment);
@@ -112,6 +123,7 @@ T* get_dynamic_shared_memory() {
 }
 __device__ __inline__
 void* get_dynamic_shared_memory(const std::size_t alignment) {
+    assert(dynamic_shared_mem_size() > alignment);
     extern __shared__ void* dynamic_shm[];
     void* aligned_shm = align_pointer(dynamic_shm, alignment);
     return aligned_shm;
