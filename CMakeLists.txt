@@ -153,12 +153,13 @@ link_libraries(OpenMP::OpenMP_CXX)
 find_package(Eigen3 REQUIRED)
 
 # # Add include directories
-# include_directories(
-#     ${CMAKE_CURRENT_SOURCE_DIR}/include
-#     # ${CMAKE_CURRENT_SOURCE_DIR}/include/cuda
-#     ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cxxopts/include
-#     ${EIGEN3_INCLUDE_DIR}
-# )
+include_directories(
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
+    ${CMAKE_SOURCE_DIR}/third-party/cutlass/include
+    ${CMAKE_SOURCE_DIR}/third-party/rocWMMA/library/include
+    ${EIGEN3_INCLUDE_DIR}
+)
 
 # # Conditionally add HIP include directory
 # if(HIP_AVAILABLE)
@@ -189,15 +190,6 @@ function(add_gpu_executable target_name source_file)
         CUDA_RUNTIME_LIBRARY Shared
         CUDA_ARCHITECTURES 89
         LINKER_LANGUAGE CUDA
-    )
-
-    # Add include directories
-    target_include_directories(${target_name} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/include/cuda
-        ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
-        ${CMAKE_SOURCE_DIR}/third-party/cutlass/include
-        ${EIGEN3_INCLUDE_DIR}
     )
 
     # Link CUDA libraries
@@ -253,15 +245,6 @@ function(add_hip_executable target_name source_file)
     set_target_properties(${target_name} PROPERTIES
         HIP_STANDARD 20
         HIP_ARCHITECTURES "gfx1201"
-    )
-
-    # Add include directories
-    target_include_directories(${target_name} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/include/hip
-        ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
-        ${CMAKE_SOURCE_DIR}/third-party/rocWMMA/library/include
-        ${EIGEN3_INCLUDE_DIR}
     )
 
     # Link HIP libraries
@@ -401,15 +384,6 @@ endif()
 #     separate_arguments(LOCAL_CUDA_FLAGS UNIX_COMMAND ${DEFAULT_CUDA_FLAGS})
 #     target_compile_options(cuda_headers_clangd_compile_command_trick PRIVATE ${LOCAL_CUDA_FLAGS})
 
-#         # Set include directories for the library
-#     target_include_directories(cuda_headers_clangd_compile_command_trick PUBLIC
-#         ${CMAKE_SOURCE_DIR}/include
-#         ${CMAKE_SOURCE_DIR}/include/cuda
-#         ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
-#         ${CMAKE_SOURCE_DIR}/third-party/cutlass/include
-#         ${EIGEN3_INCLUDE_DIR}
-#     )
-
 #     # Link CUDA libraries
 #     target_link_directories(cuda_headers_clangd_compile_command_trick PUBLIC
 #         ${CUDAToolkit_LIBRARY_DIR}
@@ -451,14 +425,6 @@ endif()
 #     set_target_properties(common_headers_clangd_compile_command_trick PROPERTIES
 #         CXX_STANDARD 20
 #         CXX_STANDARD_REQUIRED ON
-#     )
-
-#     # Set include directories for the library
-#     target_include_directories(common_headers_clangd_compile_command_trick PUBLIC
-#         ${CMAKE_SOURCE_DIR}/include
-#         ${CMAKE_SOURCE_DIR}/include/common
-#         ${CMAKE_SOURCE_DIR}/third-party/cxxopts/include
-#         ${EIGEN3_INCLUDE_DIR}
 #     )
 
 #     # Link libraries
