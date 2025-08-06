@@ -16,10 +16,20 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-set -euxo pipefail
+set -euo pipefail
+
+BUILD_PYTHON_PACKAGE=ON
+while [ $# -gt 0 ]; do
+    case "${1}" in
+        (--no-python) BUILD_PYTHON_PACKAGE=OFF; shift;;
+        (--python) BUILD_PYTHON_PACKAGE=ON; shift;;
+        (*) echo "[ERROR] unrecognized option: ${1}"; exit 1;;
+    esac
+done
+
 
 # $(dirname ${0})/create_clangd_helper_files.sh
-cmake -Wno-dev --preset=debug
-cmake -Wno-dev --preset=release
+cmake -Wno-dev --preset=debug -DBUILD_PYTHON_PACKAGE=ON "$@"
+cmake -Wno-dev --preset=release -DBUILD_PYTHON_PACKAGE=ON "$@"
 
 sed 's/--options-file /@/g' builds/debug/compile_commands.json > compile_commands.json
