@@ -405,7 +405,7 @@ class Benchmark_Vector_3In_1Out {
         const auto tolerance = Tolerance::tolerance(tol_bits);
         std::cout << "DONE: " << total_dt.count() << " ms total" << std::endl;
         std::cout << "Max error     : " << E_max << " at (" << E_max_idx << ")" << std::endl;
-        std::cout << "Max error pct : " << E_max_rel << " at (" << E_rel_max_idx << ")" << std::endl;
+        std::cout << "Max error rel : " << E_max_rel << " at (" << E_rel_max_idx << ")" << std::endl;
         std::cout << "Precision     : " << Tolerance::precision << " (" << Tolerance::name() << " with " << Tolerance::precision_bits << " bits of precision)" << std::endl;
         std::cout << "Tolerance pct : " << tolerance << "% assuming a loss of " << tol_bits << " bits of precision" << std::endl;
         std::cout << "Gross speedup : " << (cpu_step_dt2.count()/gpu_step_dt3) << std::endl;

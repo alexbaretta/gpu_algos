@@ -573,7 +573,7 @@ class GPUAlgoTest:
         # Look for timing information and tolerance
         timing_patterns = [
             (r"Max error\s*:\s*([\d.e-]+|nan|inf)", "max_error"),
-            (r"Max error pct\s*:\s*([\d.e-]+|nan|inf)", "max_error_rel"),
+            (r"Max error rel\s*:\s*([\d.e-]+|nan|inf)", "max_error_rel"),
             (r"Tolerance pct\s*:\s*([\d.e-]+)%", "tolerance"),
             (r"Gross speedup\s*:\s*([\d.e-]+)", "gross_speedup"),
             (r"Net speedup\s*:\s*([\d.e-]+)", "net_speedup"),
