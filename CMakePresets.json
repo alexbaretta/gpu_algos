@@ -29,7 +29,7 @@
           "CMAKE_BUILD_TYPE": "Debug",
           "CMAKE_CXX_FLAGS": "-O0 -g -Werror -Wall -DDEBUG",
           "DEFAULT_CUDA_FLAGS": "-O0 -g -G -DDEBUG",
-          "DEFAULT_HIP_FLAGS": "-O0 -g -DDEBUG"
+          "DEFAULT_HIP_FLAGS": "-O0 -ggdb -DDEBUG"
         }
       }
     ],
