@@ -328,6 +328,49 @@ foreach(tech_dir cuda hip)
     endif()
 endforeach()
 
+# Optional: Build Python package if requested
+option(BUILD_PYTHON_PACKAGE "Build py-gpu-algos Python package" OFF)
+if(BUILD_PYTHON_PACKAGE)
+    message(STATUS "Building py-gpu-algos Python package")
+
+    # Find Python3 for Python bindings
+    find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+
+    # Find pybind11
+    set(pybind11_FOUND FALSE)
+
+    # Try multiple detection methods for pybind11
+    if(DEFINED ENV{PYBIND11_DIR})
+        set(pybind11_DIR "$ENV{PYBIND11_DIR}")
+        find_package(pybind11 QUIET)
+    endif()
+
+    if(NOT pybind11_FOUND AND DEFINED ENV{CONDA_PREFIX})
+        set(pybind11_DIR "$ENV{CONDA_PREFIX}/share/cmake/pybind11")
+        find_package(pybind11 QUIET)
+    endif()
+
+    if(NOT pybind11_FOUND)
+        execute_process(
+            COMMAND ${Python3_EXECUTABLE} -c "import pybind11; print(pybind11.get_cmake_dir())"
+            OUTPUT_VARIABLE PYBIND11_CMAKE_DIR
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            RESULT_VARIABLE PYBIND11_PYTHON_RESULT
+        )
+        if(PYBIND11_PYTHON_RESULT EQUAL 0)
+            set(pybind11_DIR "${PYBIND11_CMAKE_DIR}")
+            find_package(pybind11 QUIET)
+        endif()
+    endif()
+
+    if(NOT pybind11_FOUND)
+        find_package(pybind11 REQUIRED)
+    endif()
+
+    message(STATUS "Found pybind11: ${pybind11_VERSION}")
+
+    add_subdirectory(python/py-gpu-algos)
+endif()
 
 # ######### CLANGD COMPILE COMMAND TRICK ********************************
 # # The followiing CMake targets are only needed to force CMake to output
