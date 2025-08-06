@@ -440,3 +440,37 @@ Correct results: 48
 ```
 
 This testing framework ensures comprehensive validation of all GPU algorithms across different problem sizes, data types, and GPU utilization patterns, making it an essential tool for maintaining code quality and performance optimization.
+
+# Bugs and workarounds
+
+## Eigen infinite loop when OpenMP enabled in HIP executables
+
+Some Eigen operations trigger an infinite loop when using OpenMP in HIP executables. Here is the deadlocked thread's stack trace, reported by gdb.
+```
+#0  std::__atomic_base<int>::load (this=0x7ffd25290248, __m=std::memory_order::seq_cst)
+    at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/atomic_base.h:505
+#1  std::__atomic_base<int>::operator int (this=0x7ffd25290248)
+    at /usr/lib/gcc/x86_64-linux-gnu/13/../../../../include/c++/13/bits/atomic_base.h:365
+#2  Eigen::internal::general_matrix_matrix_product<long, float, 1, false, float, 1, false, 0, 1>::run (rows=64, cols=128,
+    depth=96, _lhs=0x14679dd0, lhsStride=96, _rhs=0x1467fde0, rhsStride=128, _res=0x14e01b00, resIncr=1, resStride=64,
+    alpha=<error reading variable: That operation is not available on integers of more than 8 bytes.>, blocking=...,
+    info=0x7ffd25290240) at /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrix.h:112
+#3  0x000000000022b788 in Eigen::internal::gemm_functor<float, long, Eigen::internal::general_matrix_matrix_product<long, float, 1, false, float, 1, false, 0, 1>, Eigen::Map<Eigen::Matrix<float, -1, -1, 1, -1, -1>, 0, Eigen::Stride<0, 0> >, Eigen::Map<Eigen::Matrix<float, -1, -1, 1, -1, -1>, 0, Eigen::Stride<0, 0> >, Eigen::Matrix<float, -1, -1, 0, -1, -1>, Eigen::internal::gemm_blocking_space<0, float, float, -1, -1, -1, 1, false> >::operator() (this=<optimized out>,
+    row=<optimized out>, rows=<optimized out>, col=<optimized out>, cols=<optimized out>, info=<optimized out>)
+    at /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrix.h:230
+#4  0x000000000022b788 in _ZN5Eigen8internal16parallelize_gemmILb1ENS0_12gemm_functorIflNS0_29general_matrix_matrix_productIlfLi1ELb0EfLi1ELb0ELi0ELi1EEENS_3MapINS_6MatrixIfLin1ELin1ELi1ELin1ELin1EEELi0ENS_6StrideILi0ELi0EEEEESA_NS6_IfLin1ELin1ELi0ELin1ELin1EEENS0_19gemm_blocking_spaceILi0EffLin1ELin1ELin1ELi1ELb0EEEEElEEvRKT0_T1_SI_SI_b.omp_outlined_debug__ (
+    cols=<optimized out>, rows=<optimized out>, info=<optimized out>, transpose=<optimized out>, func=...,
+    .global_tid.=<optimized out>, .bound_tid.=<optimized out>)
+#5  _ZN5Eigen8internal16parallelize_gemmILb1ENS0_12gemm_functorIflNS0_29general_matrix_matrix_productIlfLi1ELb0EfLi1ELb0ELi0ELi1EEENS_3MapINS_6MatrixIfLin1ELin1ELi1ELin1ELin1EEELi0ENS_6StrideILi0ELi0EEEEESA_NS6_IfLin1ELin1ELi0ELin1ELin1EEENS0_19gemm_blocking_spaceILi0EffLin1ELin1ELin1ELi1ELb0EEEEElEEvRKT0_T1_SI_SI_b.omp_outlined(void) const (
+    .global_tid.=<optimized out>, .bound_tid.=<optimized out>, cols=<optimized out>, rows=<optimized out>,
+    info=<optimized out>, transpose=<optimized out>, func=...)
+    at /usr/include/eigen3/Eigen/src/Core/products/Parallelizer.h:151
+#6  0x00007f86589eb329 in __kmp_invoke_microtask () from /opt/rocm-6.4.1/lib/llvm/bin/../lib/libomp.so
+#7  0x00007f865896a30f in __kmp_invoke_task_func () from /opt/rocm-6.4.1/lib/llvm/bin/../lib/libomp.so
+#8  0x00007f8658968f6c in __kmp_launch_thread () from /opt/rocm-6.4.1/lib/llvm/bin/../lib/libomp.so
+#9  0x00007f86589cb708 in __kmp_launch_worker(void*) () from /opt/rocm-6.4.1/lib/llvm/bin/../lib/libomp.so
+#10 0x00007f86584a81f5 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:442
+#11 0x00007f865852889c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:81
+```
+
+This seems to be an Eigen bug. For the time being, the workaround is to disable OpenMP for all HIP executables.

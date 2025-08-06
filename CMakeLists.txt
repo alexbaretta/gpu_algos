@@ -101,9 +101,6 @@ if(CMAKE_HIP_COMPILER)
             message(STATUS "rocBLAS found")
         endif()
 
-        # Add OpenMP flags for HIP
-        set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp")
-
     else()
         message(WARNING "HIP compiler found but HIP package not found - HIP support disabled")
         set(HIP_AVAILABLE FALSE)
@@ -136,12 +133,17 @@ find_package(OpenMP REQUIRED)
 set(REQUIRED_CUDA_FLAGS "${REQUIRED_CUDA_FLAGS} -Xcompiler=-fopenmp,-Wall,-Werror -Werror all-warnings -diag-suppress 20012,20013 --expt-relaxed-constexpr")
 set(CMAKE_CUDA_FLAGS "${REQUIRED_CUDA_FLAGS}")
 set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS}")
+set(DEFAULT_CUDA_LINK_FLAGS "${DEFAULT_LINK_FLAGS} -fopenmp")
 
 # We need to disable GPU support in Eigen in HIP mode because Eigen uses 4-byte masks,
 # which in CUDA is allowed but in HIP fails.
 #  -Wno-unused-local-typedef is required for rocWMMA
-set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp -xhip -Wno-unused-local-typedef -DHIP_ENABLE_WARP_SYNC_BUILTINS -DEIGEN_NO_CUDA")
-set(DEFAULT_LINK_FLAGS "${DEFAULT_LINK_FLAGS} -fopenmp")
+
+# Disable OpenMP for HIP executables due to deadlock in Eigen. See README.md
+# set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -fopenmp -xhip -Wno-unused-local-typedef -DHIP_ENABLE_WARP_SYNC_BUILTINS -DEIGEN_NO_CUDA")
+# set(DEFAULT_HIP_LINK_FLAGS "${DEFAULT_LINK_FLAGS} -fopenmp")
+set(DEFAULT_HIP_FLAGS "${DEFAULT_HIP_FLAGS} -xhip -Wno-unused-local-typedef -DHIP_ENABLE_WARP_SYNC_BUILTINS -DEIGEN_NO_CUDA")
+set(DEFAULT_HIP_LINK_FLAGS "${DEFAULT_LINK_FLAGS}")
 
 
 # Link OpenMP to all targets
@@ -172,7 +174,7 @@ function(add_gpu_executable target_name source_file)
     )
 
     separate_arguments(LOCAL_CUDA_FLAGS UNIX_COMMAND ${DEFAULT_CUDA_FLAGS})
-    separate_arguments(LOCAL_LINK_FLAGS UNIX_COMMAND ${DEFAULT_LINK_FLAGS})
+    separate_arguments(LOCAL_LINK_FLAGS UNIX_COMMAND ${DEFAULT_CUDA_LINK_FLAGS})
     target_link_options(${target_name} PRIVATE "${LOCAL_LINK_FLAGS}")
     set_source_files_properties(${source_file} PROPERTIES
         COMPILE_OPTIONS "${LOCAL_CUDA_FLAGS}"
@@ -233,7 +235,7 @@ function(add_hip_executable target_name source_file)
     )
 
     separate_arguments(LOCAL_HIP_FLAGS UNIX_COMMAND ${DEFAULT_HIP_FLAGS})
-    separate_arguments(LOCAL_LINK_FLAGS UNIX_COMMAND ${DEFAULT_LINK_FLAGS})
+    separate_arguments(LOCAL_LINK_FLAGS UNIX_COMMAND ${DEFAULT_HIP_LINK_FLAGS})
     target_link_options(${target_name} PRIVATE "${LOCAL_LINK_FLAGS}")
     set_source_files_properties(${source_file} PROPERTIES
         COMPILE_OPTIONS "${LOCAL_HIP_FLAGS}"
