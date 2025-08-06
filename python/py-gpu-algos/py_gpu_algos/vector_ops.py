@@ -16,70 +16,79 @@ from typing import TypeVar, Union, overload, Literal
 import warnings
 
 try:
-    from . import _vector_ops_cuda
-    # Import functions from the CUDA module
-    _vector_cumsum_serial_cuda = _vector_ops_cuda.vector_cumsum_serial
-    _vector_cumsum_parallel_cuda = _vector_ops_cuda.vector_cumsum_parallel
-    _vector_cummax_parallel_cuda = _vector_ops_cuda.vector_cummax_parallel
-    _vector_scan_parallel_cuda = _vector_ops_cuda.vector_scan_parallel
+    from ._module_loader import get_cuda_module
 
-    # Import low-level type-specific functions
-    _vector_cumsum_serial_float32_cuda = _vector_ops_cuda.vector_cumsum_serial_float32
-    _vector_cumsum_serial_float64_cuda = _vector_ops_cuda.vector_cumsum_serial_float64
-    _vector_cumsum_serial_int8_cuda = _vector_ops_cuda.vector_cumsum_serial_int8
-    _vector_cumsum_serial_int16_cuda = _vector_ops_cuda.vector_cumsum_serial_int16
-    _vector_cumsum_serial_int32_cuda = _vector_ops_cuda.vector_cumsum_serial_int32
-    _vector_cumsum_serial_int64_cuda = _vector_ops_cuda.vector_cumsum_serial_int64
-    _vector_cumsum_serial_uint8_cuda = _vector_ops_cuda.vector_cumsum_serial_uint8
-    _vector_cumsum_serial_uint16_cuda = _vector_ops_cuda.vector_cumsum_serial_uint16
-    _vector_cumsum_serial_uint32_cuda = _vector_ops_cuda.vector_cumsum_serial_uint32
-    _vector_cumsum_serial_uint64_cuda = _vector_ops_cuda.vector_cumsum_serial_uint64
+    # Load the CUDA module from build directory
+    _vector_ops_cuda = get_cuda_module('_vector_ops_cuda')
 
-    _vector_cumsum_parallel_float32_cuda = _vector_ops_cuda.vector_cumsum_parallel_float32
-    _vector_cumsum_parallel_float64_cuda = _vector_ops_cuda.vector_cumsum_parallel_float64
-    _vector_cumsum_parallel_int8_cuda = _vector_ops_cuda.vector_cumsum_parallel_int8
-    _vector_cumsum_parallel_int16_cuda = _vector_ops_cuda.vector_cumsum_parallel_int16
-    _vector_cumsum_parallel_int32_cuda = _vector_ops_cuda.vector_cumsum_parallel_int32
-    _vector_cumsum_parallel_int64_cuda = _vector_ops_cuda.vector_cumsum_parallel_int64
-    _vector_cumsum_parallel_uint8_cuda = _vector_ops_cuda.vector_cumsum_parallel_uint8
-    _vector_cumsum_parallel_uint16_cuda = _vector_ops_cuda.vector_cumsum_parallel_uint16
-    _vector_cumsum_parallel_uint32_cuda = _vector_ops_cuda.vector_cumsum_parallel_uint32
-    _vector_cumsum_parallel_uint64_cuda = _vector_ops_cuda.vector_cumsum_parallel_uint64
+    if _vector_ops_cuda is not None:
+        # Import functions from the CUDA module
+        _vector_cumsum_serial_cuda = _vector_ops_cuda.vector_cumsum_serial
+        _vector_cumsum_parallel_cuda = _vector_ops_cuda.vector_cumsum_parallel
+        _vector_cummax_parallel_cuda = _vector_ops_cuda.vector_cummax_parallel
+        _vector_scan_parallel_cuda = _vector_ops_cuda.vector_scan_parallel
 
-    _vector_cummax_parallel_float32_cuda = _vector_ops_cuda.vector_cummax_parallel_float32
-    _vector_cummax_parallel_float64_cuda = _vector_ops_cuda.vector_cummax_parallel_float64
-    _vector_cummax_parallel_int8_cuda = _vector_ops_cuda.vector_cummax_parallel_int8
-    _vector_cummax_parallel_int16_cuda = _vector_ops_cuda.vector_cummax_parallel_int16
-    _vector_cummax_parallel_int32_cuda = _vector_ops_cuda.vector_cummax_parallel_int32
-    _vector_cummax_parallel_int64_cuda = _vector_ops_cuda.vector_cummax_parallel_int64
-    _vector_cummax_parallel_uint8_cuda = _vector_ops_cuda.vector_cummax_parallel_uint8
-    _vector_cummax_parallel_uint16_cuda = _vector_ops_cuda.vector_cummax_parallel_uint16
-    _vector_cummax_parallel_uint32_cuda = _vector_ops_cuda.vector_cummax_parallel_uint32
-    _vector_cummax_parallel_uint64_cuda = _vector_ops_cuda.vector_cummax_parallel_uint64
+        # Import low-level type-specific functions
+        _vector_cumsum_serial_float32_cuda = _vector_ops_cuda.vector_cumsum_serial_float32
+        _vector_cumsum_serial_float64_cuda = _vector_ops_cuda.vector_cumsum_serial_float64
+        _vector_cumsum_serial_int8_cuda = _vector_ops_cuda.vector_cumsum_serial_int8
+        _vector_cumsum_serial_int16_cuda = _vector_ops_cuda.vector_cumsum_serial_int16
+        _vector_cumsum_serial_int32_cuda = _vector_ops_cuda.vector_cumsum_serial_int32
+        _vector_cumsum_serial_int64_cuda = _vector_ops_cuda.vector_cumsum_serial_int64
+        _vector_cumsum_serial_uint8_cuda = _vector_ops_cuda.vector_cumsum_serial_uint8
+        _vector_cumsum_serial_uint16_cuda = _vector_ops_cuda.vector_cumsum_serial_uint16
+        _vector_cumsum_serial_uint32_cuda = _vector_ops_cuda.vector_cumsum_serial_uint32
+        _vector_cumsum_serial_uint64_cuda = _vector_ops_cuda.vector_cumsum_serial_uint64
 
-    # Scan operations with specific operations
-    _vector_scan_parallel_max_float32_cuda = _vector_ops_cuda.vector_scan_parallel_max_float32
-    _vector_scan_parallel_max_float64_cuda = _vector_ops_cuda.vector_scan_parallel_max_float64
-    _vector_scan_parallel_max_int32_cuda = _vector_ops_cuda.vector_scan_parallel_max_int32
-    _vector_scan_parallel_max_int64_cuda = _vector_ops_cuda.vector_scan_parallel_max_int64
+        _vector_cumsum_parallel_float32_cuda = _vector_ops_cuda.vector_cumsum_parallel_float32
+        _vector_cumsum_parallel_float64_cuda = _vector_ops_cuda.vector_cumsum_parallel_float64
+        _vector_cumsum_parallel_int8_cuda = _vector_ops_cuda.vector_cumsum_parallel_int8
+        _vector_cumsum_parallel_int16_cuda = _vector_ops_cuda.vector_cumsum_parallel_int16
+        _vector_cumsum_parallel_int32_cuda = _vector_ops_cuda.vector_cumsum_parallel_int32
+        _vector_cumsum_parallel_int64_cuda = _vector_ops_cuda.vector_cumsum_parallel_int64
+        _vector_cumsum_parallel_uint8_cuda = _vector_ops_cuda.vector_cumsum_parallel_uint8
+        _vector_cumsum_parallel_uint16_cuda = _vector_ops_cuda.vector_cumsum_parallel_uint16
+        _vector_cumsum_parallel_uint32_cuda = _vector_ops_cuda.vector_cumsum_parallel_uint32
+        _vector_cumsum_parallel_uint64_cuda = _vector_ops_cuda.vector_cumsum_parallel_uint64
 
-    _vector_scan_parallel_min_float32_cuda = _vector_ops_cuda.vector_scan_parallel_min_float32
-    _vector_scan_parallel_min_float64_cuda = _vector_ops_cuda.vector_scan_parallel_min_float64
-    _vector_scan_parallel_min_int32_cuda = _vector_ops_cuda.vector_scan_parallel_min_int32
-    _vector_scan_parallel_min_int64_cuda = _vector_ops_cuda.vector_scan_parallel_min_int64
+        _vector_cummax_parallel_float32_cuda = _vector_ops_cuda.vector_cummax_parallel_float32
+        _vector_cummax_parallel_float64_cuda = _vector_ops_cuda.vector_cummax_parallel_float64
+        _vector_cummax_parallel_int8_cuda = _vector_ops_cuda.vector_cummax_parallel_int8
+        _vector_cummax_parallel_int16_cuda = _vector_ops_cuda.vector_cummax_parallel_int16
+        _vector_cummax_parallel_int32_cuda = _vector_ops_cuda.vector_cummax_parallel_int32
+        _vector_cummax_parallel_int64_cuda = _vector_ops_cuda.vector_cummax_parallel_int64
+        _vector_cummax_parallel_uint8_cuda = _vector_ops_cuda.vector_cummax_parallel_uint8
+        _vector_cummax_parallel_uint16_cuda = _vector_ops_cuda.vector_cummax_parallel_uint16
+        _vector_cummax_parallel_uint32_cuda = _vector_ops_cuda.vector_cummax_parallel_uint32
+        _vector_cummax_parallel_uint64_cuda = _vector_ops_cuda.vector_cummax_parallel_uint64
 
-    _vector_scan_parallel_sum_float32_cuda = _vector_ops_cuda.vector_scan_parallel_sum_float32
-    _vector_scan_parallel_sum_float64_cuda = _vector_ops_cuda.vector_scan_parallel_sum_float64
-    _vector_scan_parallel_sum_int32_cuda = _vector_ops_cuda.vector_scan_parallel_sum_int32
-    _vector_scan_parallel_sum_int64_cuda = _vector_ops_cuda.vector_scan_parallel_sum_int64
+        # Scan operations with specific operations
+        _vector_scan_parallel_max_float32_cuda = _vector_ops_cuda.vector_scan_parallel_max_float32
+        _vector_scan_parallel_max_float64_cuda = _vector_ops_cuda.vector_scan_parallel_max_float64
+        _vector_scan_parallel_max_int32_cuda = _vector_ops_cuda.vector_scan_parallel_max_int32
+        _vector_scan_parallel_max_int64_cuda = _vector_ops_cuda.vector_scan_parallel_max_int64
 
-    _vector_scan_parallel_prod_float32_cuda = _vector_ops_cuda.vector_scan_parallel_prod_float32
-    _vector_scan_parallel_prod_float64_cuda = _vector_ops_cuda.vector_scan_parallel_prod_float64
-    _vector_scan_parallel_prod_int32_cuda = _vector_ops_cuda.vector_scan_parallel_prod_int32
-    _vector_scan_parallel_prod_int64_cuda = _vector_ops_cuda.vector_scan_parallel_prod_int64
+        _vector_scan_parallel_min_float32_cuda = _vector_ops_cuda.vector_scan_parallel_min_float32
+        _vector_scan_parallel_min_float64_cuda = _vector_ops_cuda.vector_scan_parallel_min_float64
+        _vector_scan_parallel_min_int32_cuda = _vector_ops_cuda.vector_scan_parallel_min_int32
+        _vector_scan_parallel_min_int64_cuda = _vector_ops_cuda.vector_scan_parallel_min_int64
 
-    _CUDA_AVAILABLE = True
-except ImportError as e:
+        _vector_scan_parallel_sum_float32_cuda = _vector_ops_cuda.vector_scan_parallel_sum_float32
+        _vector_scan_parallel_sum_float64_cuda = _vector_ops_cuda.vector_scan_parallel_sum_float64
+        _vector_scan_parallel_sum_int32_cuda = _vector_ops_cuda.vector_scan_parallel_sum_int32
+        _vector_scan_parallel_sum_int64_cuda = _vector_ops_cuda.vector_scan_parallel_sum_int64
+
+        _vector_scan_parallel_prod_float32_cuda = _vector_ops_cuda.vector_scan_parallel_prod_float32
+        _vector_scan_parallel_prod_float64_cuda = _vector_ops_cuda.vector_scan_parallel_prod_float64
+        _vector_scan_parallel_prod_int32_cuda = _vector_ops_cuda.vector_scan_parallel_prod_int32
+        _vector_scan_parallel_prod_int64_cuda = _vector_ops_cuda.vector_scan_parallel_prod_int64
+
+        _CUDA_AVAILABLE = True
+    else:
+        _CUDA_AVAILABLE = False
+        warnings.warn("CUDA backend not available: Could not load _vector_ops_cuda module from build directory")
+
+except Exception as e:
     _CUDA_AVAILABLE = False
     warnings.warn(f"CUDA backend not available: {e}")
 

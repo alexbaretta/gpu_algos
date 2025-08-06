@@ -13,6 +13,7 @@ try:
     import py_gpu_algos
     print("✅ py-gpu-algos imported successfully")
 except ImportError as e:
+    raise e
     print(f"❌ Failed to import py-gpu-algos: {e}")
     sys.exit(1)
 

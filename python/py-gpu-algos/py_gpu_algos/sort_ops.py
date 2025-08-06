@@ -19,24 +19,33 @@ from typing import TypeVar, Union, Literal
 import warnings
 
 try:
-    from . import _sort_ops_cuda
-    # Import functions from the CUDA module
-    _tensor_sort_bitonic_cuda = _sort_ops_cuda.tensor_sort_bitonic
+    from ._module_loader import get_cuda_module
 
-    # Import low-level type-specific functions
-    _tensor_sort_bitonic_float32_cuda = _sort_ops_cuda.tensor_sort_bitonic_float32
-    _tensor_sort_bitonic_float64_cuda = _sort_ops_cuda.tensor_sort_bitonic_float64
-    _tensor_sort_bitonic_int8_cuda = _sort_ops_cuda.tensor_sort_bitonic_int8
-    _tensor_sort_bitonic_int16_cuda = _sort_ops_cuda.tensor_sort_bitonic_int16
-    _tensor_sort_bitonic_int32_cuda = _sort_ops_cuda.tensor_sort_bitonic_int32
-    _tensor_sort_bitonic_int64_cuda = _sort_ops_cuda.tensor_sort_bitonic_int64
-    _tensor_sort_bitonic_uint8_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint8
-    _tensor_sort_bitonic_uint16_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint16
-    _tensor_sort_bitonic_uint32_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint32
-    _tensor_sort_bitonic_uint64_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint64
+    # Load the CUDA module from build directory
+    _sort_ops_cuda = get_cuda_module('_sort_ops_cuda')
 
-    _CUDA_AVAILABLE = True
-except ImportError as e:
+    if _sort_ops_cuda is not None:
+        # Import functions from the CUDA module
+        _tensor_sort_bitonic_cuda = _sort_ops_cuda.tensor_sort_bitonic
+
+        # Import low-level type-specific functions
+        _tensor_sort_bitonic_float32_cuda = _sort_ops_cuda.tensor_sort_bitonic_float32
+        _tensor_sort_bitonic_float64_cuda = _sort_ops_cuda.tensor_sort_bitonic_float64
+        _tensor_sort_bitonic_int8_cuda = _sort_ops_cuda.tensor_sort_bitonic_int8
+        _tensor_sort_bitonic_int16_cuda = _sort_ops_cuda.tensor_sort_bitonic_int16
+        _tensor_sort_bitonic_int32_cuda = _sort_ops_cuda.tensor_sort_bitonic_int32
+        _tensor_sort_bitonic_int64_cuda = _sort_ops_cuda.tensor_sort_bitonic_int64
+        _tensor_sort_bitonic_uint8_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint8
+        _tensor_sort_bitonic_uint16_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint16
+        _tensor_sort_bitonic_uint32_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint32
+        _tensor_sort_bitonic_uint64_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint64
+
+        _CUDA_AVAILABLE = True
+    else:
+        _CUDA_AVAILABLE = False
+        warnings.warn("CUDA backend not available: Could not load _sort_ops_cuda module from build directory")
+
+except Exception as e:
     _CUDA_AVAILABLE = False
     warnings.warn(f"CUDA backend not available: {e}")
 
