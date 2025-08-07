@@ -28,6 +28,11 @@
 #include "check_errors.cuh"
 #include "type_traits.cuh"
 
+#if __cplusplus <= 202002L
+namespace std {
+    using float16_t = _Float16;
+}
+#endif
 
 constexpr size_t NULL_FLAGS = 0;
 constexpr static long MAX_BLOCK_SIZE = 1024;
