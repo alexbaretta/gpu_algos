@@ -18,6 +18,11 @@
 
 set -euo pipefail
 
+function echodo() {
+    echo "$@" >&2
+    eval "$@"
+}
+
 BUILD_PYTHON_PACKAGE=ON
 while [ $# -gt 0 ]; do
     case "${1}" in
@@ -29,7 +34,7 @@ done
 
 
 # $(dirname ${0})/create_clangd_helper_files.sh
-cmake -Wno-dev --preset=debug -DBUILD_PYTHON_PACKAGE=ON "$@"
-cmake -Wno-dev --preset=release -DBUILD_PYTHON_PACKAGE=ON "$@"
+echodo cmake -Wno-dev --preset=debug -DBUILD_PYTHON_PACKAGE=ON "$@"
+echodo cmake -Wno-dev --preset=release -DBUILD_PYTHON_PACKAGE=ON "$@"
 
 sed 's/--options-file /@/g' builds/debug/compile_commands.json > compile_commands.json
