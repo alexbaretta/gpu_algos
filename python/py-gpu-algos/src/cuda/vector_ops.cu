@@ -19,11 +19,9 @@
 #include "cuda/cuda_utils.cuh"
 #include "cuda/check_errors.cuh"
 
-namespace py = pybind11;
-
 // Helper function to launch vector_cumsum_serial kernels
 template<typename T>
-py::array_t<T> vector_cumsum_serial_cuda_impl(const py::array_t<T>& a) {
+pybind11::array_t<T> vector_cumsum_serial_cuda_impl(const pybind11::array_t<T>& a) {
     // Validate input array
     auto a_buf = a.request();
 
@@ -31,7 +29,7 @@ py::array_t<T> vector_cumsum_serial_cuda_impl(const py::array_t<T>& a) {
         throw std::invalid_argument("Input array must be 1-dimensional");
     }
 
-    if (!a.flags() & py::array::c_style) {
+    if (!a.flags() & pybind11::array::c_style) {
         throw std::invalid_argument("Array must be C-contiguous");
     }
 
@@ -39,7 +37,7 @@ py::array_t<T> vector_cumsum_serial_cuda_impl(const py::array_t<T>& a) {
     long n = a_buf.shape[0];
 
     // Create output array
-    auto result = py::array_t<T>(n);
+    auto result = pybind11::array_t<T>(n);
     auto result_buf = result.request();
 
     // Get data pointers
@@ -101,7 +99,7 @@ py::array_t<T> vector_cumsum_serial_cuda_impl(const py::array_t<T>& a) {
 
 // Helper function to launch vector_cumsum_parallel kernels
 template<typename T>
-py::array_t<T> vector_cumsum_parallel_cuda_impl(const py::array_t<T>& a) {
+pybind11::array_t<T> vector_cumsum_parallel_cuda_impl(const pybind11::array_t<T>& a) {
     // Validate input array
     auto a_buf = a.request();
 
@@ -109,7 +107,7 @@ py::array_t<T> vector_cumsum_parallel_cuda_impl(const py::array_t<T>& a) {
         throw std::invalid_argument("Input array must be 1-dimensional");
     }
 
-    if (!a.flags() & py::array::c_style) {
+    if (!a.flags() & pybind11::array::c_style) {
         throw std::invalid_argument("Array must be C-contiguous");
     }
 
@@ -117,7 +115,7 @@ py::array_t<T> vector_cumsum_parallel_cuda_impl(const py::array_t<T>& a) {
     long n = a_buf.shape[0];
 
     // Create output array
-    auto result = py::array_t<T>(n);
+    auto result = pybind11::array_t<T>(n);
     auto result_buf = result.request();
 
     // Get data pointers
@@ -188,7 +186,7 @@ py::array_t<T> vector_cumsum_parallel_cuda_impl(const py::array_t<T>& a) {
 
 // Helper function to launch vector_cummax_parallel kernels
 template<typename T>
-py::array_t<T> vector_cummax_parallel_cuda_impl(const py::array_t<T>& a) {
+pybind11::array_t<T> vector_cummax_parallel_cuda_impl(const pybind11::array_t<T>& a) {
     // Validate input array
     auto a_buf = a.request();
 
@@ -196,7 +194,7 @@ py::array_t<T> vector_cummax_parallel_cuda_impl(const py::array_t<T>& a) {
         throw std::invalid_argument("Input array must be 1-dimensional");
     }
 
-    if (!a.flags() & py::array::c_style) {
+    if (!a.flags() & pybind11::array::c_style) {
         throw std::invalid_argument("Array must be C-contiguous");
     }
 
@@ -204,7 +202,7 @@ py::array_t<T> vector_cummax_parallel_cuda_impl(const py::array_t<T>& a) {
     long n = a_buf.shape[0];
 
     // Create output array
-    auto result = py::array_t<T>(n);
+    auto result = pybind11::array_t<T>(n);
     auto result_buf = result.request();
 
     // Get data pointers
@@ -275,7 +273,7 @@ py::array_t<T> vector_cummax_parallel_cuda_impl(const py::array_t<T>& a) {
 
 // Helper function to launch vector_scan_parallel kernels
 template<typename T, typename Op>
-py::array_t<T> vector_scan_parallel_cuda_impl(const py::array_t<T>& a) {
+pybind11::array_t<T> vector_scan_parallel_cuda_impl(const pybind11::array_t<T>& a) {
     // Validate input array
     auto a_buf = a.request();
 
@@ -283,7 +281,7 @@ py::array_t<T> vector_scan_parallel_cuda_impl(const py::array_t<T>& a) {
         throw std::invalid_argument("Input array must be 1-dimensional");
     }
 
-    if (!a.flags() & py::array::c_style) {
+    if (!a.flags() & pybind11::array::c_style) {
         throw std::invalid_argument("Array must be C-contiguous");
     }
 
@@ -291,7 +289,7 @@ py::array_t<T> vector_scan_parallel_cuda_impl(const py::array_t<T>& a) {
     long n = a_buf.shape[0];
 
     // Create output array
-    auto result = py::array_t<T>(n);
+    auto result = pybind11::array_t<T>(n);
     auto result_buf = result.request();
 
     // Get data pointers
@@ -377,180 +375,180 @@ py::array_t<T> vector_scan_parallel_cuda_impl(const py::array_t<T>& a) {
 }
 
 // High-level dispatch functions
-py::object vector_cumsum_serial_dispatch(py::array a) {
-    if (a.dtype().is(py::dtype::of<float>())) {
-        return vector_cumsum_serial_cuda_impl<float>(a.cast<py::array_t<float>>());
-    } else if (a.dtype().is(py::dtype::of<double>())) {
-        return vector_cumsum_serial_cuda_impl<double>(a.cast<py::array_t<double>>());
-    } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
-        return vector_cumsum_serial_cuda_impl<std::int8_t>(a.cast<py::array_t<std::int8_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
-        return vector_cumsum_serial_cuda_impl<std::int16_t>(a.cast<py::array_t<std::int16_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
-        return vector_cumsum_serial_cuda_impl<std::int32_t>(a.cast<py::array_t<std::int32_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
-        return vector_cumsum_serial_cuda_impl<std::int64_t>(a.cast<py::array_t<std::int64_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
-        return vector_cumsum_serial_cuda_impl<std::uint8_t>(a.cast<py::array_t<std::uint8_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
-        return vector_cumsum_serial_cuda_impl<std::uint16_t>(a.cast<py::array_t<std::uint16_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
-        return vector_cumsum_serial_cuda_impl<std::uint32_t>(a.cast<py::array_t<std::uint32_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
-        return vector_cumsum_serial_cuda_impl<std::uint64_t>(a.cast<py::array_t<std::uint64_t>>());
+pybind11::object vector_cumsum_serial_dispatch(pybind11::array a) {
+    if (a.dtype().is(pybind11::dtype::of<float>())) {
+        return vector_cumsum_serial_cuda_impl<float>(a.cast<pybind11::array_t<float>>());
+    } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+        return vector_cumsum_serial_cuda_impl<double>(a.cast<pybind11::array_t<double>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+        return vector_cumsum_serial_cuda_impl<std::int8_t>(a.cast<pybind11::array_t<std::int8_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+        return vector_cumsum_serial_cuda_impl<std::int16_t>(a.cast<pybind11::array_t<std::int16_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+        return vector_cumsum_serial_cuda_impl<std::int32_t>(a.cast<pybind11::array_t<std::int32_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+        return vector_cumsum_serial_cuda_impl<std::int64_t>(a.cast<pybind11::array_t<std::int64_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+        return vector_cumsum_serial_cuda_impl<std::uint8_t>(a.cast<pybind11::array_t<std::uint8_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+        return vector_cumsum_serial_cuda_impl<std::uint16_t>(a.cast<pybind11::array_t<std::uint16_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+        return vector_cumsum_serial_cuda_impl<std::uint32_t>(a.cast<pybind11::array_t<std::uint32_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+        return vector_cumsum_serial_cuda_impl<std::uint64_t>(a.cast<pybind11::array_t<std::uint64_t>>());
     } else {
-        throw std::invalid_argument("Unsupported dtype: " + py::str(a.dtype()).cast<std::string>());
+        throw std::invalid_argument("Unsupported dtype: " + pybind11::str(a.dtype()).cast<std::string>());
     }
 }
 
-py::object vector_cumsum_parallel_dispatch(py::array a) {
-    if (a.dtype().is(py::dtype::of<float>())) {
-        return vector_cumsum_parallel_cuda_impl<float>(a.cast<py::array_t<float>>());
-    } else if (a.dtype().is(py::dtype::of<double>())) {
-        return vector_cumsum_parallel_cuda_impl<double>(a.cast<py::array_t<double>>());
-    } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
-        return vector_cumsum_parallel_cuda_impl<std::int8_t>(a.cast<py::array_t<std::int8_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
-        return vector_cumsum_parallel_cuda_impl<std::int16_t>(a.cast<py::array_t<std::int16_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
-        return vector_cumsum_parallel_cuda_impl<std::int32_t>(a.cast<py::array_t<std::int32_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
-        return vector_cumsum_parallel_cuda_impl<std::int64_t>(a.cast<py::array_t<std::int64_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
-        return vector_cumsum_parallel_cuda_impl<std::uint8_t>(a.cast<py::array_t<std::uint8_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
-        return vector_cumsum_parallel_cuda_impl<std::uint16_t>(a.cast<py::array_t<std::uint16_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
-        return vector_cumsum_parallel_cuda_impl<std::uint32_t>(a.cast<py::array_t<std::uint32_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
-        return vector_cumsum_parallel_cuda_impl<std::uint64_t>(a.cast<py::array_t<std::uint64_t>>());
+pybind11::object vector_cumsum_parallel_dispatch(pybind11::array a) {
+    if (a.dtype().is(pybind11::dtype::of<float>())) {
+        return vector_cumsum_parallel_cuda_impl<float>(a.cast<pybind11::array_t<float>>());
+    } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+        return vector_cumsum_parallel_cuda_impl<double>(a.cast<pybind11::array_t<double>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+        return vector_cumsum_parallel_cuda_impl<std::int8_t>(a.cast<pybind11::array_t<std::int8_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+        return vector_cumsum_parallel_cuda_impl<std::int16_t>(a.cast<pybind11::array_t<std::int16_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+        return vector_cumsum_parallel_cuda_impl<std::int32_t>(a.cast<pybind11::array_t<std::int32_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+        return vector_cumsum_parallel_cuda_impl<std::int64_t>(a.cast<pybind11::array_t<std::int64_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+        return vector_cumsum_parallel_cuda_impl<std::uint8_t>(a.cast<pybind11::array_t<std::uint8_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+        return vector_cumsum_parallel_cuda_impl<std::uint16_t>(a.cast<pybind11::array_t<std::uint16_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+        return vector_cumsum_parallel_cuda_impl<std::uint32_t>(a.cast<pybind11::array_t<std::uint32_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+        return vector_cumsum_parallel_cuda_impl<std::uint64_t>(a.cast<pybind11::array_t<std::uint64_t>>());
     } else {
-        throw std::invalid_argument("Unsupported dtype: " + py::str(a.dtype()).cast<std::string>());
+        throw std::invalid_argument("Unsupported dtype: " + pybind11::str(a.dtype()).cast<std::string>());
     }
 }
 
-py::object vector_cummax_parallel_dispatch(py::array a) {
-    if (a.dtype().is(py::dtype::of<float>())) {
-        return vector_cummax_parallel_cuda_impl<float>(a.cast<py::array_t<float>>());
-    } else if (a.dtype().is(py::dtype::of<double>())) {
-        return vector_cummax_parallel_cuda_impl<double>(a.cast<py::array_t<double>>());
-    } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
-        return vector_cummax_parallel_cuda_impl<std::int8_t>(a.cast<py::array_t<std::int8_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
-        return vector_cummax_parallel_cuda_impl<std::int16_t>(a.cast<py::array_t<std::int16_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
-        return vector_cummax_parallel_cuda_impl<std::int32_t>(a.cast<py::array_t<std::int32_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
-        return vector_cummax_parallel_cuda_impl<std::int64_t>(a.cast<py::array_t<std::int64_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
-        return vector_cummax_parallel_cuda_impl<std::uint8_t>(a.cast<py::array_t<std::uint8_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
-        return vector_cummax_parallel_cuda_impl<std::uint16_t>(a.cast<py::array_t<std::uint16_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
-        return vector_cummax_parallel_cuda_impl<std::uint32_t>(a.cast<py::array_t<std::uint32_t>>());
-    } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
-        return vector_cummax_parallel_cuda_impl<std::uint64_t>(a.cast<py::array_t<std::uint64_t>>());
+pybind11::object vector_cummax_parallel_dispatch(pybind11::array a) {
+    if (a.dtype().is(pybind11::dtype::of<float>())) {
+        return vector_cummax_parallel_cuda_impl<float>(a.cast<pybind11::array_t<float>>());
+    } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+        return vector_cummax_parallel_cuda_impl<double>(a.cast<pybind11::array_t<double>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+        return vector_cummax_parallel_cuda_impl<std::int8_t>(a.cast<pybind11::array_t<std::int8_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+        return vector_cummax_parallel_cuda_impl<std::int16_t>(a.cast<pybind11::array_t<std::int16_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+        return vector_cummax_parallel_cuda_impl<std::int32_t>(a.cast<pybind11::array_t<std::int32_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+        return vector_cummax_parallel_cuda_impl<std::int64_t>(a.cast<pybind11::array_t<std::int64_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+        return vector_cummax_parallel_cuda_impl<std::uint8_t>(a.cast<pybind11::array_t<std::uint8_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+        return vector_cummax_parallel_cuda_impl<std::uint16_t>(a.cast<pybind11::array_t<std::uint16_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+        return vector_cummax_parallel_cuda_impl<std::uint32_t>(a.cast<pybind11::array_t<std::uint32_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+        return vector_cummax_parallel_cuda_impl<std::uint64_t>(a.cast<pybind11::array_t<std::uint64_t>>());
     } else {
-        throw std::invalid_argument("Unsupported dtype: " + py::str(a.dtype()).cast<std::string>());
+        throw std::invalid_argument("Unsupported dtype: " + pybind11::str(a.dtype()).cast<std::string>());
     }
 }
 
-py::object vector_scan_parallel_dispatch(py::array a, const std::string& operation) {
+pybind11::object vector_scan_parallel_dispatch(pybind11::array a, const std::string& operation) {
     if (operation == "max") {
-        if (a.dtype().is(py::dtype::of<float>())) {
-            return vector_scan_parallel_cuda_impl<float, cuda_max_op<float>>(a.cast<py::array_t<float>>());
-        } else if (a.dtype().is(py::dtype::of<double>())) {
-            return vector_scan_parallel_cuda_impl<double, cuda_max_op<double>>(a.cast<py::array_t<double>>());
-        } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_max_op<std::int8_t>>(a.cast<py::array_t<std::int8_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_max_op<std::int16_t>>(a.cast<py::array_t<std::int16_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int32_t, cuda_max_op<std::int32_t>>(a.cast<py::array_t<std::int32_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int64_t, cuda_max_op<std::int64_t>>(a.cast<py::array_t<std::int64_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_max_op<std::uint8_t>>(a.cast<py::array_t<std::uint8_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_max_op<std::uint16_t>>(a.cast<py::array_t<std::uint16_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_max_op<std::uint32_t>>(a.cast<py::array_t<std::uint32_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_max_op<std::uint64_t>>(a.cast<py::array_t<std::uint64_t>>());
+        if (a.dtype().is(pybind11::dtype::of<float>())) {
+            return vector_scan_parallel_cuda_impl<float, cuda_max_op<float>>(a.cast<pybind11::array_t<float>>());
+        } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+            return vector_scan_parallel_cuda_impl<double, cuda_max_op<double>>(a.cast<pybind11::array_t<double>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_max_op<std::int8_t>>(a.cast<pybind11::array_t<std::int8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_max_op<std::int16_t>>(a.cast<pybind11::array_t<std::int16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int32_t, cuda_max_op<std::int32_t>>(a.cast<pybind11::array_t<std::int32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int64_t, cuda_max_op<std::int64_t>>(a.cast<pybind11::array_t<std::int64_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_max_op<std::uint8_t>>(a.cast<pybind11::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_max_op<std::uint16_t>>(a.cast<pybind11::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_max_op<std::uint32_t>>(a.cast<pybind11::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_max_op<std::uint64_t>>(a.cast<pybind11::array_t<std::uint64_t>>());
         } else {
-            throw std::invalid_argument("Unsupported dtype for max operation: " + py::str(a.dtype()).cast<std::string>());
+            throw std::invalid_argument("Unsupported dtype for max operation: " + pybind11::str(a.dtype()).cast<std::string>());
         }
     } else if (operation == "min") {
-        if (a.dtype().is(py::dtype::of<float>())) {
-            return vector_scan_parallel_cuda_impl<float, cuda_min_op<float>>(a.cast<py::array_t<float>>());
-        } else if (a.dtype().is(py::dtype::of<double>())) {
-            return vector_scan_parallel_cuda_impl<double, cuda_min_op<double>>(a.cast<py::array_t<double>>());
-        } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_min_op<std::int8_t>>(a.cast<py::array_t<std::int8_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_min_op<std::int16_t>>(a.cast<py::array_t<std::int16_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int32_t, cuda_min_op<std::int32_t>>(a.cast<py::array_t<std::int32_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int64_t, cuda_min_op<std::int64_t>>(a.cast<py::array_t<std::int64_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_min_op<std::uint8_t>>(a.cast<py::array_t<std::uint8_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_min_op<std::uint16_t>>(a.cast<py::array_t<std::uint16_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_min_op<std::uint32_t>>(a.cast<py::array_t<std::uint32_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_min_op<std::uint64_t>>(a.cast<py::array_t<std::uint64_t>>());
+        if (a.dtype().is(pybind11::dtype::of<float>())) {
+            return vector_scan_parallel_cuda_impl<float, cuda_min_op<float>>(a.cast<pybind11::array_t<float>>());
+        } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+            return vector_scan_parallel_cuda_impl<double, cuda_min_op<double>>(a.cast<pybind11::array_t<double>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_min_op<std::int8_t>>(a.cast<pybind11::array_t<std::int8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_min_op<std::int16_t>>(a.cast<pybind11::array_t<std::int16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int32_t, cuda_min_op<std::int32_t>>(a.cast<pybind11::array_t<std::int32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int64_t, cuda_min_op<std::int64_t>>(a.cast<pybind11::array_t<std::int64_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_min_op<std::uint8_t>>(a.cast<pybind11::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_min_op<std::uint16_t>>(a.cast<pybind11::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_min_op<std::uint32_t>>(a.cast<pybind11::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_min_op<std::uint64_t>>(a.cast<pybind11::array_t<std::uint64_t>>());
         } else {
-            throw std::invalid_argument("Unsupported dtype for min operation: " + py::str(a.dtype()).cast<std::string>());
+            throw std::invalid_argument("Unsupported dtype for min operation: " + pybind11::str(a.dtype()).cast<std::string>());
         }
     } else if (operation == "sum") {
-        if (a.dtype().is(py::dtype::of<float>())) {
-            return vector_scan_parallel_cuda_impl<float, cuda_sum_op<float>>(a.cast<py::array_t<float>>());
-        } else if (a.dtype().is(py::dtype::of<double>())) {
-            return vector_scan_parallel_cuda_impl<double, cuda_sum_op<double>>(a.cast<py::array_t<double>>());
-        } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_sum_op<std::int8_t>>(a.cast<py::array_t<std::int8_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_sum_op<std::int16_t>>(a.cast<py::array_t<std::int16_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int32_t, cuda_sum_op<std::int32_t>>(a.cast<py::array_t<std::int32_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int64_t, cuda_sum_op<std::int64_t>>(a.cast<py::array_t<std::int64_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_sum_op<std::uint8_t>>(a.cast<py::array_t<std::uint8_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_sum_op<std::uint16_t>>(a.cast<py::array_t<std::uint16_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_sum_op<std::uint32_t>>(a.cast<py::array_t<std::uint32_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_sum_op<std::uint64_t>>(a.cast<py::array_t<std::uint64_t>>());
+        if (a.dtype().is(pybind11::dtype::of<float>())) {
+            return vector_scan_parallel_cuda_impl<float, cuda_sum_op<float>>(a.cast<pybind11::array_t<float>>());
+        } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+            return vector_scan_parallel_cuda_impl<double, cuda_sum_op<double>>(a.cast<pybind11::array_t<double>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_sum_op<std::int8_t>>(a.cast<pybind11::array_t<std::int8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_sum_op<std::int16_t>>(a.cast<pybind11::array_t<std::int16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int32_t, cuda_sum_op<std::int32_t>>(a.cast<pybind11::array_t<std::int32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int64_t, cuda_sum_op<std::int64_t>>(a.cast<pybind11::array_t<std::int64_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_sum_op<std::uint8_t>>(a.cast<pybind11::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_sum_op<std::uint16_t>>(a.cast<pybind11::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_sum_op<std::uint32_t>>(a.cast<pybind11::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_sum_op<std::uint64_t>>(a.cast<pybind11::array_t<std::uint64_t>>());
         } else {
-            throw std::invalid_argument("Unsupported dtype for sum operation: " + py::str(a.dtype()).cast<std::string>());
+            throw std::invalid_argument("Unsupported dtype for sum operation: " + pybind11::str(a.dtype()).cast<std::string>());
         }
     } else if (operation == "prod") {
-        if (a.dtype().is(py::dtype::of<float>())) {
-            return vector_scan_parallel_cuda_impl<float, cuda_prod_op<float>>(a.cast<py::array_t<float>>());
-        } else if (a.dtype().is(py::dtype::of<double>())) {
-            return vector_scan_parallel_cuda_impl<double, cuda_prod_op<double>>(a.cast<py::array_t<double>>());
-        } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_prod_op<std::int8_t>>(a.cast<py::array_t<std::int8_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_prod_op<std::int16_t>>(a.cast<py::array_t<std::int16_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int32_t, cuda_prod_op<std::int32_t>>(a.cast<py::array_t<std::int32_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
-            return vector_scan_parallel_cuda_impl<std::int64_t, cuda_prod_op<std::int64_t>>(a.cast<py::array_t<std::int64_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_prod_op<std::uint8_t>>(a.cast<py::array_t<std::uint8_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_prod_op<std::uint16_t>>(a.cast<py::array_t<std::uint16_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_prod_op<std::uint32_t>>(a.cast<py::array_t<std::uint32_t>>());
-        } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
-            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_prod_op<std::uint64_t>>(a.cast<py::array_t<std::uint64_t>>());
+        if (a.dtype().is(pybind11::dtype::of<float>())) {
+            return vector_scan_parallel_cuda_impl<float, cuda_prod_op<float>>(a.cast<pybind11::array_t<float>>());
+        } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+            return vector_scan_parallel_cuda_impl<double, cuda_prod_op<double>>(a.cast<pybind11::array_t<double>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_prod_op<std::int8_t>>(a.cast<pybind11::array_t<std::int8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_prod_op<std::int16_t>>(a.cast<pybind11::array_t<std::int16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int32_t, cuda_prod_op<std::int32_t>>(a.cast<pybind11::array_t<std::int32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int64_t, cuda_prod_op<std::int64_t>>(a.cast<pybind11::array_t<std::int64_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_prod_op<std::uint8_t>>(a.cast<pybind11::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_prod_op<std::uint16_t>>(a.cast<pybind11::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_prod_op<std::uint32_t>>(a.cast<pybind11::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_prod_op<std::uint64_t>>(a.cast<pybind11::array_t<std::uint64_t>>());
         } else {
-            throw std::invalid_argument("Unsupported dtype for prod operation: " + py::str(a.dtype()).cast<std::string>());
+            throw std::invalid_argument("Unsupported dtype for prod operation: " + pybind11::str(a.dtype()).cast<std::string>());
         }
     } else {
         throw std::invalid_argument("Unsupported operation: " + operation + ". Must be one of: max, min, sum, prod");
@@ -563,166 +561,166 @@ PYBIND11_MODULE(_vector_ops_cuda, m) {
 
     // Low-level type-specific functions for cumsum_serial
     m.def("vector_cumsum_serial_float32", &vector_cumsum_serial_cuda_impl<float>,
-          "Cumulative sum (serial algorithm) for float32", py::arg("a"));
+        "Cumulative sum (serial algorithm) for float32", pybind11::arg("a"));
     m.def("vector_cumsum_serial_float64", &vector_cumsum_serial_cuda_impl<double>,
-          "Cumulative sum (serial algorithm) for float64", py::arg("a"));
+          "Cumulative sum (serial algorithm) for float64", pybind11::arg("a"));
     m.def("vector_cumsum_serial_int8", &vector_cumsum_serial_cuda_impl<std::int8_t>,
-          "Cumulative sum (serial algorithm) for int8", py::arg("a"));
+          "Cumulative sum (serial algorithm) for int8", pybind11::arg("a"));
     m.def("vector_cumsum_serial_int16", &vector_cumsum_serial_cuda_impl<std::int16_t>,
-          "Cumulative sum (serial algorithm) for int16", py::arg("a"));
+          "Cumulative sum (serial algorithm) for int16", pybind11::arg("a"));
     m.def("vector_cumsum_serial_int32", &vector_cumsum_serial_cuda_impl<std::int32_t>,
-          "Cumulative sum (serial algorithm) for int32", py::arg("a"));
+          "Cumulative sum (serial algorithm) for int32", pybind11::arg("a"));
     m.def("vector_cumsum_serial_int64", &vector_cumsum_serial_cuda_impl<std::int64_t>,
-          "Cumulative sum (serial algorithm) for int64", py::arg("a"));
+          "Cumulative sum (serial algorithm) for int64", pybind11::arg("a"));
     m.def("vector_cumsum_serial_uint8", &vector_cumsum_serial_cuda_impl<std::uint8_t>,
-          "Cumulative sum (serial algorithm) for uint8", py::arg("a"));
+          "Cumulative sum (serial algorithm) for uint8", pybind11::arg("a"));
     m.def("vector_cumsum_serial_uint16", &vector_cumsum_serial_cuda_impl<std::uint16_t>,
-          "Cumulative sum (serial algorithm) for uint16", py::arg("a"));
+          "Cumulative sum (serial algorithm) for uint16", pybind11::arg("a"));
     m.def("vector_cumsum_serial_uint32", &vector_cumsum_serial_cuda_impl<std::uint32_t>,
-          "Cumulative sum (serial algorithm) for uint32", py::arg("a"));
+          "Cumulative sum (serial algorithm) for uint32", pybind11::arg("a"));
     m.def("vector_cumsum_serial_uint64", &vector_cumsum_serial_cuda_impl<std::uint64_t>,
-          "Cumulative sum (serial algorithm) for uint64", py::arg("a"));
+          "Cumulative sum (serial algorithm) for uint64", pybind11::arg("a"));
 
     // Low-level type-specific functions for cumsum_parallel
     m.def("vector_cumsum_parallel_float32", &vector_cumsum_parallel_cuda_impl<float>,
-          "Cumulative sum (parallel algorithm) for float32", py::arg("a"));
+        "Cumulative sum (parallel algorithm) for float32", pybind11::arg("a"));
     m.def("vector_cumsum_parallel_float64", &vector_cumsum_parallel_cuda_impl<double>,
-          "Cumulative sum (parallel algorithm) for float64", py::arg("a"));
+          "Cumulative sum (parallel algorithm) for float64", pybind11::arg("a"));
     m.def("vector_cumsum_parallel_int8", &vector_cumsum_parallel_cuda_impl<std::int8_t>,
-          "Cumulative sum (parallel algorithm) for int8", py::arg("a"));
+          "Cumulative sum (parallel algorithm) for int8", pybind11::arg("a"));
     m.def("vector_cumsum_parallel_int16", &vector_cumsum_parallel_cuda_impl<std::int16_t>,
-          "Cumulative sum (parallel algorithm) for int16", py::arg("a"));
+          "Cumulative sum (parallel algorithm) for int16", pybind11::arg("a"));
     m.def("vector_cumsum_parallel_int32", &vector_cumsum_parallel_cuda_impl<std::int32_t>,
-          "Cumulative sum (parallel algorithm) for int32", py::arg("a"));
+          "Cumulative sum (parallel algorithm) for int32", pybind11::arg("a"));
     m.def("vector_cumsum_parallel_int64", &vector_cumsum_parallel_cuda_impl<std::int64_t>,
-          "Cumulative sum (parallel algorithm) for int64", py::arg("a"));
+          "Cumulative sum (parallel algorithm) for int64", pybind11::arg("a"));
     m.def("vector_cumsum_parallel_uint8", &vector_cumsum_parallel_cuda_impl<std::uint8_t>,
-          "Cumulative sum (parallel algorithm) for uint8", py::arg("a"));
+          "Cumulative sum (parallel algorithm) for uint8", pybind11::arg("a"));
     m.def("vector_cumsum_parallel_uint16", &vector_cumsum_parallel_cuda_impl<std::uint16_t>,
-          "Cumulative sum (parallel algorithm) for uint16", py::arg("a"));
+          "Cumulative sum (parallel algorithm) for uint16", pybind11::arg("a"));
     m.def("vector_cumsum_parallel_uint32", &vector_cumsum_parallel_cuda_impl<std::uint32_t>,
-          "Cumulative sum (parallel algorithm) for uint32", py::arg("a"));
+          "Cumulative sum (parallel algorithm) for uint32", pybind11::arg("a"));
     m.def("vector_cumsum_parallel_uint64", &vector_cumsum_parallel_cuda_impl<std::uint64_t>,
-          "Cumulative sum (parallel algorithm) for uint64", py::arg("a"));
+          "Cumulative sum (parallel algorithm) for uint64", pybind11::arg("a"));
 
     // Low-level type-specific functions for cummax_parallel
     m.def("vector_cummax_parallel_float32", &vector_cummax_parallel_cuda_impl<float>,
-          "Cumulative maximum (parallel algorithm) for float32", py::arg("a"));
+        "Cumulative maximum (parallel algorithm) for float32", pybind11::arg("a"));
     m.def("vector_cummax_parallel_float64", &vector_cummax_parallel_cuda_impl<double>,
-          "Cumulative maximum (parallel algorithm) for float64", py::arg("a"));
+          "Cumulative maximum (parallel algorithm) for float64", pybind11::arg("a"));
     m.def("vector_cummax_parallel_int8", &vector_cummax_parallel_cuda_impl<std::int8_t>,
-          "Cumulative maximum (parallel algorithm) for int8", py::arg("a"));
+          "Cumulative maximum (parallel algorithm) for int8", pybind11::arg("a"));
     m.def("vector_cummax_parallel_int16", &vector_cummax_parallel_cuda_impl<std::int16_t>,
-          "Cumulative maximum (parallel algorithm) for int16", py::arg("a"));
+          "Cumulative maximum (parallel algorithm) for int16", pybind11::arg("a"));
     m.def("vector_cummax_parallel_int32", &vector_cummax_parallel_cuda_impl<std::int32_t>,
-          "Cumulative maximum (parallel algorithm) for int32", py::arg("a"));
+          "Cumulative maximum (parallel algorithm) for int32", pybind11::arg("a"));
     m.def("vector_cummax_parallel_int64", &vector_cummax_parallel_cuda_impl<std::int64_t>,
-          "Cumulative maximum (parallel algorithm) for int64", py::arg("a"));
+          "Cumulative maximum (parallel algorithm) for int64", pybind11::arg("a"));
     m.def("vector_cummax_parallel_uint8", &vector_cummax_parallel_cuda_impl<std::uint8_t>,
-          "Cumulative maximum (parallel algorithm) for uint8", py::arg("a"));
+          "Cumulative maximum (parallel algorithm) for uint8", pybind11::arg("a"));
     m.def("vector_cummax_parallel_uint16", &vector_cummax_parallel_cuda_impl<std::uint16_t>,
-          "Cumulative maximum (parallel algorithm) for uint16", py::arg("a"));
+          "Cumulative maximum (parallel algorithm) for uint16", pybind11::arg("a"));
     m.def("vector_cummax_parallel_uint32", &vector_cummax_parallel_cuda_impl<std::uint32_t>,
-          "Cumulative maximum (parallel algorithm) for uint32", py::arg("a"));
+          "Cumulative maximum (parallel algorithm) for uint32", pybind11::arg("a"));
     m.def("vector_cummax_parallel_uint64", &vector_cummax_parallel_cuda_impl<std::uint64_t>,
-          "Cumulative maximum (parallel algorithm) for uint64", py::arg("a"));
+          "Cumulative maximum (parallel algorithm) for uint64", pybind11::arg("a"));
 
     // Low-level type-specific functions for scan_parallel with specific operations
     // Max operations
     m.def("vector_scan_parallel_max_float32", &vector_scan_parallel_cuda_impl<float, cuda_max_op<float>>,
-          "Parallel scan with max operation for float32", py::arg("a"));
+        "Parallel scan with max operation for float32", pybind11::arg("a"));
     m.def("vector_scan_parallel_max_float64", &vector_scan_parallel_cuda_impl<double, cuda_max_op<double>>,
-          "Parallel scan with max operation for float64", py::arg("a"));
+          "Parallel scan with max operation for float64", pybind11::arg("a"));
     m.def("vector_scan_parallel_max_int8", &vector_scan_parallel_cuda_impl<std::int8_t, cuda_max_op<std::int8_t>>,
-          "Parallel scan with max operation for int8", py::arg("a"));
+          "Parallel scan with max operation for int8", pybind11::arg("a"));
     m.def("vector_scan_parallel_max_int16", &vector_scan_parallel_cuda_impl<std::int16_t, cuda_max_op<std::int16_t>>,
-          "Parallel scan with max operation for int16", py::arg("a"));
+          "Parallel scan with max operation for int16", pybind11::arg("a"));
     m.def("vector_scan_parallel_max_int32", &vector_scan_parallel_cuda_impl<std::int32_t, cuda_max_op<std::int32_t>>,
-          "Parallel scan with max operation for int32", py::arg("a"));
+          "Parallel scan with max operation for int32", pybind11::arg("a"));
     m.def("vector_scan_parallel_max_int64", &vector_scan_parallel_cuda_impl<std::int64_t, cuda_max_op<std::int64_t>>,
-          "Parallel scan with max operation for int64", py::arg("a"));
+          "Parallel scan with max operation for int64", pybind11::arg("a"));
     m.def("vector_scan_parallel_max_uint8", &vector_scan_parallel_cuda_impl<std::uint8_t, cuda_max_op<std::uint8_t>>,
-          "Parallel scan with max operation for uint8", py::arg("a"));
+          "Parallel scan with max operation for uint8", pybind11::arg("a"));
     m.def("vector_scan_parallel_max_uint16", &vector_scan_parallel_cuda_impl<std::uint16_t, cuda_max_op<std::uint16_t>>,
-          "Parallel scan with max operation for uint16", py::arg("a"));
+          "Parallel scan with max operation for uint16", pybind11::arg("a"));
     m.def("vector_scan_parallel_max_uint32", &vector_scan_parallel_cuda_impl<std::uint32_t, cuda_max_op<std::uint32_t>>,
-          "Parallel scan with max operation for uint32", py::arg("a"));
+          "Parallel scan with max operation for uint32", pybind11::arg("a"));
     m.def("vector_scan_parallel_max_uint64", &vector_scan_parallel_cuda_impl<std::uint64_t, cuda_max_op<std::uint64_t>>,
-          "Parallel scan with max operation for uint64", py::arg("a"));
+          "Parallel scan with max operation for uint64", pybind11::arg("a"));
 
     // Min operations
     m.def("vector_scan_parallel_min_float32", &vector_scan_parallel_cuda_impl<float, cuda_min_op<float>>,
-          "Parallel scan with min operation for float32", py::arg("a"));
+        "Parallel scan with min operation for float32", pybind11::arg("a"));
     m.def("vector_scan_parallel_min_float64", &vector_scan_parallel_cuda_impl<double, cuda_min_op<double>>,
-          "Parallel scan with min operation for float64", py::arg("a"));
+          "Parallel scan with min operation for float64", pybind11::arg("a"));
     m.def("vector_scan_parallel_min_int8", &vector_scan_parallel_cuda_impl<std::int8_t, cuda_min_op<std::int8_t>>,
-          "Parallel scan with min operation for int8", py::arg("a"));
+          "Parallel scan with min operation for int8", pybind11::arg("a"));
     m.def("vector_scan_parallel_min_int16", &vector_scan_parallel_cuda_impl<std::int16_t, cuda_min_op<std::int16_t>>,
-          "Parallel scan with min operation for int16", py::arg("a"));
+          "Parallel scan with min operation for int16", pybind11::arg("a"));
     m.def("vector_scan_parallel_min_int32", &vector_scan_parallel_cuda_impl<std::int32_t, cuda_min_op<std::int32_t>>,
-          "Parallel scan with min operation for int32", py::arg("a"));
+          "Parallel scan with min operation for int32", pybind11::arg("a"));
     m.def("vector_scan_parallel_min_int64", &vector_scan_parallel_cuda_impl<std::int64_t, cuda_min_op<std::int64_t>>,
-          "Parallel scan with min operation for int64", py::arg("a"));
+          "Parallel scan with min operation for int64", pybind11::arg("a"));
     m.def("vector_scan_parallel_min_uint8", &vector_scan_parallel_cuda_impl<std::uint8_t, cuda_min_op<std::uint8_t>>,
-          "Parallel scan with min operation for uint8", py::arg("a"));
+          "Parallel scan with min operation for uint8", pybind11::arg("a"));
     m.def("vector_scan_parallel_min_uint16", &vector_scan_parallel_cuda_impl<std::uint16_t, cuda_min_op<std::uint16_t>>,
-          "Parallel scan with min operation for uint16", py::arg("a"));
+          "Parallel scan with min operation for uint16", pybind11::arg("a"));
     m.def("vector_scan_parallel_min_uint32", &vector_scan_parallel_cuda_impl<std::uint32_t, cuda_min_op<std::uint32_t>>,
-          "Parallel scan with min operation for uint32", py::arg("a"));
+          "Parallel scan with min operation for uint32", pybind11::arg("a"));
     m.def("vector_scan_parallel_min_uint64", &vector_scan_parallel_cuda_impl<std::uint64_t, cuda_min_op<std::uint64_t>>,
-          "Parallel scan with min operation for uint64", py::arg("a"));
+          "Parallel scan with min operation for uint64", pybind11::arg("a"));
 
     // Sum operations
     m.def("vector_scan_parallel_sum_float32", &vector_scan_parallel_cuda_impl<float, cuda_sum_op<float>>,
-          "Parallel scan with sum operation for float32", py::arg("a"));
+        "Parallel scan with sum operation for float32", pybind11::arg("a"));
     m.def("vector_scan_parallel_sum_float64", &vector_scan_parallel_cuda_impl<double, cuda_sum_op<double>>,
-          "Parallel scan with sum operation for float64", py::arg("a"));
+          "Parallel scan with sum operation for float64", pybind11::arg("a"));
     m.def("vector_scan_parallel_sum_int8", &vector_scan_parallel_cuda_impl<std::int8_t, cuda_sum_op<std::int8_t>>,
-          "Parallel scan with sum operation for int8", py::arg("a"));
+          "Parallel scan with sum operation for int8", pybind11::arg("a"));
     m.def("vector_scan_parallel_sum_int16", &vector_scan_parallel_cuda_impl<std::int16_t, cuda_sum_op<std::int16_t>>,
-          "Parallel scan with sum operation for int16", py::arg("a"));
+          "Parallel scan with sum operation for int16", pybind11::arg("a"));
     m.def("vector_scan_parallel_sum_int32", &vector_scan_parallel_cuda_impl<std::int32_t, cuda_sum_op<std::int32_t>>,
-          "Parallel scan with sum operation for int32", py::arg("a"));
+          "Parallel scan with sum operation for int32", pybind11::arg("a"));
     m.def("vector_scan_parallel_sum_int64", &vector_scan_parallel_cuda_impl<std::int64_t, cuda_sum_op<std::int64_t>>,
-          "Parallel scan with sum operation for int64", py::arg("a"));
+          "Parallel scan with sum operation for int64", pybind11::arg("a"));
     m.def("vector_scan_parallel_sum_uint8", &vector_scan_parallel_cuda_impl<std::uint8_t, cuda_sum_op<std::uint8_t>>,
-          "Parallel scan with sum operation for uint8", py::arg("a"));
+          "Parallel scan with sum operation for uint8", pybind11::arg("a"));
     m.def("vector_scan_parallel_sum_uint16", &vector_scan_parallel_cuda_impl<std::uint16_t, cuda_sum_op<std::uint16_t>>,
-          "Parallel scan with sum operation for uint16", py::arg("a"));
+          "Parallel scan with sum operation for uint16", pybind11::arg("a"));
     m.def("vector_scan_parallel_sum_uint32", &vector_scan_parallel_cuda_impl<std::uint32_t, cuda_sum_op<std::uint32_t>>,
-          "Parallel scan with sum operation for uint32", py::arg("a"));
+          "Parallel scan with sum operation for uint32", pybind11::arg("a"));
     m.def("vector_scan_parallel_sum_uint64", &vector_scan_parallel_cuda_impl<std::uint64_t, cuda_sum_op<std::uint64_t>>,
-          "Parallel scan with sum operation for uint64", py::arg("a"));
+          "Parallel scan with sum operation for uint64", pybind11::arg("a"));
 
     // Prod operations
     m.def("vector_scan_parallel_prod_float32", &vector_scan_parallel_cuda_impl<float, cuda_prod_op<float>>,
-          "Parallel scan with prod operation for float32", py::arg("a"));
+        "Parallel scan with prod operation for float32", pybind11::arg("a"));
     m.def("vector_scan_parallel_prod_float64", &vector_scan_parallel_cuda_impl<double, cuda_prod_op<double>>,
-          "Parallel scan with prod operation for float64", py::arg("a"));
+          "Parallel scan with prod operation for float64", pybind11::arg("a"));
     m.def("vector_scan_parallel_prod_int8", &vector_scan_parallel_cuda_impl<std::int8_t, cuda_prod_op<std::int8_t>>,
-          "Parallel scan with prod operation for int8", py::arg("a"));
+          "Parallel scan with prod operation for int8", pybind11::arg("a"));
     m.def("vector_scan_parallel_prod_int16", &vector_scan_parallel_cuda_impl<std::int16_t, cuda_prod_op<std::int16_t>>,
-          "Parallel scan with prod operation for int16", py::arg("a"));
+          "Parallel scan with prod operation for int16", pybind11::arg("a"));
     m.def("vector_scan_parallel_prod_int32", &vector_scan_parallel_cuda_impl<std::int32_t, cuda_prod_op<std::int32_t>>,
-          "Parallel scan with prod operation for int32", py::arg("a"));
+          "Parallel scan with prod operation for int32", pybind11::arg("a"));
     m.def("vector_scan_parallel_prod_int64", &vector_scan_parallel_cuda_impl<std::int64_t, cuda_prod_op<std::int64_t>>,
-          "Parallel scan with prod operation for int64", py::arg("a"));
+          "Parallel scan with prod operation for int64", pybind11::arg("a"));
     m.def("vector_scan_parallel_prod_uint8", &vector_scan_parallel_cuda_impl<std::uint8_t, cuda_prod_op<std::uint8_t>>,
-          "Parallel scan with prod operation for uint8", py::arg("a"));
+          "Parallel scan with prod operation for uint8", pybind11::arg("a"));
     m.def("vector_scan_parallel_prod_uint16", &vector_scan_parallel_cuda_impl<std::uint16_t, cuda_prod_op<std::uint16_t>>,
-          "Parallel scan with prod operation for uint16", py::arg("a"));
+          "Parallel scan with prod operation for uint16", pybind11::arg("a"));
     m.def("vector_scan_parallel_prod_uint32", &vector_scan_parallel_cuda_impl<std::uint32_t, cuda_prod_op<std::uint32_t>>,
-          "Parallel scan with prod operation for uint32", py::arg("a"));
+          "Parallel scan with prod operation for uint32", pybind11::arg("a"));
     m.def("vector_scan_parallel_prod_uint64", &vector_scan_parallel_cuda_impl<std::uint64_t, cuda_prod_op<std::uint64_t>>,
-          "Parallel scan with prod operation for uint64", py::arg("a"));
+          "Parallel scan with prod operation for uint64", pybind11::arg("a"));
 
     // High-level dispatch functions
     m.def("vector_cumsum_serial", &vector_cumsum_serial_dispatch,
-          "Cumulative sum (serial algorithm) with automatic type dispatch", py::arg("a"));
+          "Cumulative sum (serial algorithm) with automatic type dispatch", pybind11::arg("a"));
     m.def("vector_cumsum_parallel", &vector_cumsum_parallel_dispatch,
-          "Cumulative sum (parallel algorithm) with automatic type dispatch", py::arg("a"));
+          "Cumulative sum (parallel algorithm) with automatic type dispatch", pybind11::arg("a"));
     m.def("vector_cummax_parallel", &vector_cummax_parallel_dispatch,
-          "Cumulative maximum (parallel algorithm) with automatic type dispatch", py::arg("a"));
+          "Cumulative maximum (parallel algorithm) with automatic type dispatch", pybind11::arg("a"));
     m.def("vector_scan_parallel", &vector_scan_parallel_dispatch,
-          "Parallel scan with automatic type dispatch", py::arg("a"), py::arg("operation"));
+          "Parallel scan with automatic type dispatch", pybind11::arg("a"), pybind11::arg("operation"));
 }
