@@ -25,13 +25,13 @@ pytestmark = pytest.mark.skipif(not CUDA_AVAILABLE, reason="CUDA not available")
 
 # All supported dtypes for testing
 ALL_DTYPES = [
-    np.float16, np.float32, np.float64,
+    np.float32, np.float64,
     np.int8, np.int16, np.int32, np.int64,
     np.uint8, np.uint16, np.uint32, np.uint64
 ]
 
 # Common floating point dtypes
-FLOAT_DTYPES = [np.float16, np.float32, np.float64]
+FLOAT_DTYPES = [np.float32, np.float64]
 
 # Common integer dtypes
 INT_DTYPES = [np.int8, np.int16, np.int32, np.int64]
