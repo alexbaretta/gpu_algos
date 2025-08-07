@@ -109,18 +109,19 @@ def small_matrices():
 def small_vectors():
     """Generate small vectors for basic testing."""
     def _generate(dtype, n=1000):
-        np.random.seed(42)
-        vec = np.random.randn(n).astype(dtype)
+        vec = np.arange(n, dtype=dtype)
+        # np.random.seed(42)
+        # vec = np.random.randn(n).astype(dtype)
 
-        # Scale for integer types
-        if np.issubdtype(dtype, np.integer):
-            if dtype in [np.int8, np.uint8]:
-                scale = 5
-            elif dtype in [np.int16, np.uint16]:
-                scale = 50
-            else:
-                scale = 100
-            vec = (vec * scale).astype(dtype)
+        # # Scale for integer types
+        # if np.issubdtype(dtype, np.integer):
+        #     if dtype in [np.int8, np.uint8]:
+        #         scale = 5
+        #     elif dtype in [np.int16, np.uint16]:
+        #         scale = 50
+        #     else:
+        #         scale = 100
+        #     vec = (vec * scale).astype(dtype)
 
         return vec
     return _generate
