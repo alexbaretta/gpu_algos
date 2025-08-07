@@ -136,12 +136,17 @@ py::array_t<T> vector_cumsum_parallel_cuda_impl(const py::array_t<T>& a) {
     // Allocate GPU memory
     T* d_a = nullptr;
     T* d_result = nullptr;
+    T* d_temp = nullptr;
 
     size_t size_a = n * sizeof(T);
     size_t size_result = n * sizeof(T);
+    size_t size_temp = spec.n_temp_ * sizeof(T);
 
     cuda_check_error(cudaMalloc(&d_a, size_a), "cudaMalloc for vector A");
     cuda_check_error(cudaMalloc(&d_result, size_result), "cudaMalloc for result vector");
+    if (spec.n_temp_ > 0) {
+        cuda_check_error(cudaMalloc(&d_temp, size_temp), "cudaMalloc for temp vector");
+    }
 
     try {
         // Copy data to device
@@ -152,7 +157,7 @@ py::array_t<T> vector_cumsum_parallel_cuda_impl(const py::array_t<T>& a) {
         cuda_check_error(cudaStreamCreate(&stream), "cudaStreamCreate");
 
         // Run kernel
-        kernel.run_device_kernel(d_a, d_result, nullptr, stream);
+        kernel.run_device_kernel(d_a, d_result, d_temp, stream);
 
         // Wait for completion
         cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
@@ -167,12 +172,16 @@ py::array_t<T> vector_cumsum_parallel_cuda_impl(const py::array_t<T>& a) {
         // Cleanup on error
         if (d_a) cudaFree(d_a);
         if (d_result) cudaFree(d_result);
+        if (d_temp) cudaFree(d_temp);
         throw;
     }
 
     // Cleanup GPU memory
     cuda_check_error(cudaFree(d_a), "cudaFree A");
     cuda_check_error(cudaFree(d_result), "cudaFree result");
+    if (d_temp) {
+        cuda_check_error(cudaFree(d_temp), "cudaFree temp");
+    }
 
     return result;
 }
@@ -214,12 +223,17 @@ py::array_t<T> vector_cummax_parallel_cuda_impl(const py::array_t<T>& a) {
     // Allocate GPU memory
     T* d_a = nullptr;
     T* d_result = nullptr;
+    T* d_temp = nullptr;
 
     size_t size_a = n * sizeof(T);
     size_t size_result = n * sizeof(T);
+    size_t size_temp = spec.n_temp_ * sizeof(T);
 
     cuda_check_error(cudaMalloc(&d_a, size_a), "cudaMalloc for vector A");
     cuda_check_error(cudaMalloc(&d_result, size_result), "cudaMalloc for result vector");
+    if (spec.n_temp_ > 0) {
+        cuda_check_error(cudaMalloc(&d_temp, size_temp), "cudaMalloc for temp vector");
+    }
 
     try {
         // Copy data to device
@@ -230,7 +244,7 @@ py::array_t<T> vector_cummax_parallel_cuda_impl(const py::array_t<T>& a) {
         cuda_check_error(cudaStreamCreate(&stream), "cudaStreamCreate");
 
         // Run kernel
-        kernel.run_device_kernel(d_a, d_result, nullptr, stream);
+        kernel.run_device_kernel(d_a, d_result, d_temp, stream);
 
         // Wait for completion
         cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
@@ -245,12 +259,16 @@ py::array_t<T> vector_cummax_parallel_cuda_impl(const py::array_t<T>& a) {
         // Cleanup on error
         if (d_a) cudaFree(d_a);
         if (d_result) cudaFree(d_result);
+        if (d_temp) cudaFree(d_temp);
         throw;
     }
 
     // Cleanup GPU memory
     cuda_check_error(cudaFree(d_a), "cudaFree A");
     cuda_check_error(cudaFree(d_result), "cudaFree result");
+    if (d_temp) {
+        cuda_check_error(cudaFree(d_temp), "cudaFree temp");
+    }
 
     return result;
 }
@@ -308,12 +326,17 @@ py::array_t<T> vector_scan_parallel_cuda_impl(const py::array_t<T>& a) {
     // Allocate GPU memory
     T* d_a = nullptr;
     T* d_result = nullptr;
+    T* d_temp = nullptr;
 
     size_t size_a = n * sizeof(T);
     size_t size_result = n * sizeof(T);
+    size_t size_temp = spec.n_temp_ * sizeof(T);
 
     cuda_check_error(cudaMalloc(&d_a, size_a), "cudaMalloc for vector A");
     cuda_check_error(cudaMalloc(&d_result, size_result), "cudaMalloc for result vector");
+    if (spec.n_temp_ > 0) {
+        cuda_check_error(cudaMalloc(&d_temp, size_temp), "cudaMalloc for temp vector");
+    }
 
     try {
         // Copy data to device
@@ -324,7 +347,7 @@ py::array_t<T> vector_scan_parallel_cuda_impl(const py::array_t<T>& a) {
         cuda_check_error(cudaStreamCreate(&stream), "cudaStreamCreate");
 
         // Run kernel
-        kernel.run_device_kernel(d_a, d_result, nullptr, stream);
+        kernel.run_device_kernel(d_a, d_result, d_temp, stream);
 
         // Wait for completion
         cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
@@ -339,12 +362,16 @@ py::array_t<T> vector_scan_parallel_cuda_impl(const py::array_t<T>& a) {
         // Cleanup on error
         if (d_a) cudaFree(d_a);
         if (d_result) cudaFree(d_result);
+        if (d_temp) cudaFree(d_temp);
         throw;
     }
 
     // Cleanup GPU memory
     cuda_check_error(cudaFree(d_a), "cudaFree A");
     cuda_check_error(cudaFree(d_result), "cudaFree result");
+    if (d_temp) {
+        cuda_check_error(cudaFree(d_temp), "cudaFree temp");
+    }
 
     return result;
 }
@@ -434,10 +461,22 @@ py::object vector_scan_parallel_dispatch(py::array a, const std::string& operati
             return vector_scan_parallel_cuda_impl<float, cuda_max_op<float>>(a.cast<py::array_t<float>>());
         } else if (a.dtype().is(py::dtype::of<double>())) {
             return vector_scan_parallel_cuda_impl<double, cuda_max_op<double>>(a.cast<py::array_t<double>>());
+        } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_max_op<std::int8_t>>(a.cast<py::array_t<std::int8_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_max_op<std::int16_t>>(a.cast<py::array_t<std::int16_t>>());
         } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
             return vector_scan_parallel_cuda_impl<std::int32_t, cuda_max_op<std::int32_t>>(a.cast<py::array_t<std::int32_t>>());
         } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
             return vector_scan_parallel_cuda_impl<std::int64_t, cuda_max_op<std::int64_t>>(a.cast<py::array_t<std::int64_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_max_op<std::uint8_t>>(a.cast<py::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_max_op<std::uint16_t>>(a.cast<py::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_max_op<std::uint32_t>>(a.cast<py::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_max_op<std::uint64_t>>(a.cast<py::array_t<std::uint64_t>>());
         } else {
             throw std::invalid_argument("Unsupported dtype for max operation: " + py::str(a.dtype()).cast<std::string>());
         }
@@ -446,10 +485,22 @@ py::object vector_scan_parallel_dispatch(py::array a, const std::string& operati
             return vector_scan_parallel_cuda_impl<float, cuda_min_op<float>>(a.cast<py::array_t<float>>());
         } else if (a.dtype().is(py::dtype::of<double>())) {
             return vector_scan_parallel_cuda_impl<double, cuda_min_op<double>>(a.cast<py::array_t<double>>());
+        } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_min_op<std::int8_t>>(a.cast<py::array_t<std::int8_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_min_op<std::int16_t>>(a.cast<py::array_t<std::int16_t>>());
         } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
             return vector_scan_parallel_cuda_impl<std::int32_t, cuda_min_op<std::int32_t>>(a.cast<py::array_t<std::int32_t>>());
         } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
             return vector_scan_parallel_cuda_impl<std::int64_t, cuda_min_op<std::int64_t>>(a.cast<py::array_t<std::int64_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_min_op<std::uint8_t>>(a.cast<py::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_min_op<std::uint16_t>>(a.cast<py::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_min_op<std::uint32_t>>(a.cast<py::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_min_op<std::uint64_t>>(a.cast<py::array_t<std::uint64_t>>());
         } else {
             throw std::invalid_argument("Unsupported dtype for min operation: " + py::str(a.dtype()).cast<std::string>());
         }
@@ -458,10 +509,22 @@ py::object vector_scan_parallel_dispatch(py::array a, const std::string& operati
             return vector_scan_parallel_cuda_impl<float, cuda_sum_op<float>>(a.cast<py::array_t<float>>());
         } else if (a.dtype().is(py::dtype::of<double>())) {
             return vector_scan_parallel_cuda_impl<double, cuda_sum_op<double>>(a.cast<py::array_t<double>>());
+        } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_sum_op<std::int8_t>>(a.cast<py::array_t<std::int8_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_sum_op<std::int16_t>>(a.cast<py::array_t<std::int16_t>>());
         } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
             return vector_scan_parallel_cuda_impl<std::int32_t, cuda_sum_op<std::int32_t>>(a.cast<py::array_t<std::int32_t>>());
         } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
             return vector_scan_parallel_cuda_impl<std::int64_t, cuda_sum_op<std::int64_t>>(a.cast<py::array_t<std::int64_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_sum_op<std::uint8_t>>(a.cast<py::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_sum_op<std::uint16_t>>(a.cast<py::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_sum_op<std::uint32_t>>(a.cast<py::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_sum_op<std::uint64_t>>(a.cast<py::array_t<std::uint64_t>>());
         } else {
             throw std::invalid_argument("Unsupported dtype for sum operation: " + py::str(a.dtype()).cast<std::string>());
         }
@@ -470,10 +533,22 @@ py::object vector_scan_parallel_dispatch(py::array a, const std::string& operati
             return vector_scan_parallel_cuda_impl<float, cuda_prod_op<float>>(a.cast<py::array_t<float>>());
         } else if (a.dtype().is(py::dtype::of<double>())) {
             return vector_scan_parallel_cuda_impl<double, cuda_prod_op<double>>(a.cast<py::array_t<double>>());
+        } else if (a.dtype().is(py::dtype::of<std::int8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int8_t, cuda_prod_op<std::int8_t>>(a.cast<py::array_t<std::int8_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::int16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::int16_t, cuda_prod_op<std::int16_t>>(a.cast<py::array_t<std::int16_t>>());
         } else if (a.dtype().is(py::dtype::of<std::int32_t>())) {
             return vector_scan_parallel_cuda_impl<std::int32_t, cuda_prod_op<std::int32_t>>(a.cast<py::array_t<std::int32_t>>());
         } else if (a.dtype().is(py::dtype::of<std::int64_t>())) {
             return vector_scan_parallel_cuda_impl<std::int64_t, cuda_prod_op<std::int64_t>>(a.cast<py::array_t<std::int64_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint8_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint8_t, cuda_prod_op<std::uint8_t>>(a.cast<py::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint16_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint16_t, cuda_prod_op<std::uint16_t>>(a.cast<py::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint32_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint32_t, cuda_prod_op<std::uint32_t>>(a.cast<py::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(py::dtype::of<std::uint64_t>())) {
+            return vector_scan_parallel_cuda_impl<std::uint64_t, cuda_prod_op<std::uint64_t>>(a.cast<py::array_t<std::uint64_t>>());
         } else {
             throw std::invalid_argument("Unsupported dtype for prod operation: " + py::str(a.dtype()).cast<std::string>());
         }
@@ -558,40 +633,88 @@ PYBIND11_MODULE(_vector_ops_cuda, m) {
           "Parallel scan with max operation for float32", py::arg("a"));
     m.def("vector_scan_parallel_max_float64", &vector_scan_parallel_cuda_impl<double, cuda_max_op<double>>,
           "Parallel scan with max operation for float64", py::arg("a"));
+    m.def("vector_scan_parallel_max_int8", &vector_scan_parallel_cuda_impl<std::int8_t, cuda_max_op<std::int8_t>>,
+          "Parallel scan with max operation for int8", py::arg("a"));
+    m.def("vector_scan_parallel_max_int16", &vector_scan_parallel_cuda_impl<std::int16_t, cuda_max_op<std::int16_t>>,
+          "Parallel scan with max operation for int16", py::arg("a"));
     m.def("vector_scan_parallel_max_int32", &vector_scan_parallel_cuda_impl<std::int32_t, cuda_max_op<std::int32_t>>,
           "Parallel scan with max operation for int32", py::arg("a"));
     m.def("vector_scan_parallel_max_int64", &vector_scan_parallel_cuda_impl<std::int64_t, cuda_max_op<std::int64_t>>,
           "Parallel scan with max operation for int64", py::arg("a"));
+    m.def("vector_scan_parallel_max_uint8", &vector_scan_parallel_cuda_impl<std::uint8_t, cuda_max_op<std::uint8_t>>,
+          "Parallel scan with max operation for uint8", py::arg("a"));
+    m.def("vector_scan_parallel_max_uint16", &vector_scan_parallel_cuda_impl<std::uint16_t, cuda_max_op<std::uint16_t>>,
+          "Parallel scan with max operation for uint16", py::arg("a"));
+    m.def("vector_scan_parallel_max_uint32", &vector_scan_parallel_cuda_impl<std::uint32_t, cuda_max_op<std::uint32_t>>,
+          "Parallel scan with max operation for uint32", py::arg("a"));
+    m.def("vector_scan_parallel_max_uint64", &vector_scan_parallel_cuda_impl<std::uint64_t, cuda_max_op<std::uint64_t>>,
+          "Parallel scan with max operation for uint64", py::arg("a"));
 
     // Min operations
     m.def("vector_scan_parallel_min_float32", &vector_scan_parallel_cuda_impl<float, cuda_min_op<float>>,
           "Parallel scan with min operation for float32", py::arg("a"));
     m.def("vector_scan_parallel_min_float64", &vector_scan_parallel_cuda_impl<double, cuda_min_op<double>>,
           "Parallel scan with min operation for float64", py::arg("a"));
+    m.def("vector_scan_parallel_min_int8", &vector_scan_parallel_cuda_impl<std::int8_t, cuda_min_op<std::int8_t>>,
+          "Parallel scan with min operation for int8", py::arg("a"));
+    m.def("vector_scan_parallel_min_int16", &vector_scan_parallel_cuda_impl<std::int16_t, cuda_min_op<std::int16_t>>,
+          "Parallel scan with min operation for int16", py::arg("a"));
     m.def("vector_scan_parallel_min_int32", &vector_scan_parallel_cuda_impl<std::int32_t, cuda_min_op<std::int32_t>>,
           "Parallel scan with min operation for int32", py::arg("a"));
     m.def("vector_scan_parallel_min_int64", &vector_scan_parallel_cuda_impl<std::int64_t, cuda_min_op<std::int64_t>>,
           "Parallel scan with min operation for int64", py::arg("a"));
+    m.def("vector_scan_parallel_min_uint8", &vector_scan_parallel_cuda_impl<std::uint8_t, cuda_min_op<std::uint8_t>>,
+          "Parallel scan with min operation for uint8", py::arg("a"));
+    m.def("vector_scan_parallel_min_uint16", &vector_scan_parallel_cuda_impl<std::uint16_t, cuda_min_op<std::uint16_t>>,
+          "Parallel scan with min operation for uint16", py::arg("a"));
+    m.def("vector_scan_parallel_min_uint32", &vector_scan_parallel_cuda_impl<std::uint32_t, cuda_min_op<std::uint32_t>>,
+          "Parallel scan with min operation for uint32", py::arg("a"));
+    m.def("vector_scan_parallel_min_uint64", &vector_scan_parallel_cuda_impl<std::uint64_t, cuda_min_op<std::uint64_t>>,
+          "Parallel scan with min operation for uint64", py::arg("a"));
 
     // Sum operations
     m.def("vector_scan_parallel_sum_float32", &vector_scan_parallel_cuda_impl<float, cuda_sum_op<float>>,
           "Parallel scan with sum operation for float32", py::arg("a"));
     m.def("vector_scan_parallel_sum_float64", &vector_scan_parallel_cuda_impl<double, cuda_sum_op<double>>,
           "Parallel scan with sum operation for float64", py::arg("a"));
+    m.def("vector_scan_parallel_sum_int8", &vector_scan_parallel_cuda_impl<std::int8_t, cuda_sum_op<std::int8_t>>,
+          "Parallel scan with sum operation for int8", py::arg("a"));
+    m.def("vector_scan_parallel_sum_int16", &vector_scan_parallel_cuda_impl<std::int16_t, cuda_sum_op<std::int16_t>>,
+          "Parallel scan with sum operation for int16", py::arg("a"));
     m.def("vector_scan_parallel_sum_int32", &vector_scan_parallel_cuda_impl<std::int32_t, cuda_sum_op<std::int32_t>>,
           "Parallel scan with sum operation for int32", py::arg("a"));
     m.def("vector_scan_parallel_sum_int64", &vector_scan_parallel_cuda_impl<std::int64_t, cuda_sum_op<std::int64_t>>,
           "Parallel scan with sum operation for int64", py::arg("a"));
+    m.def("vector_scan_parallel_sum_uint8", &vector_scan_parallel_cuda_impl<std::uint8_t, cuda_sum_op<std::uint8_t>>,
+          "Parallel scan with sum operation for uint8", py::arg("a"));
+    m.def("vector_scan_parallel_sum_uint16", &vector_scan_parallel_cuda_impl<std::uint16_t, cuda_sum_op<std::uint16_t>>,
+          "Parallel scan with sum operation for uint16", py::arg("a"));
+    m.def("vector_scan_parallel_sum_uint32", &vector_scan_parallel_cuda_impl<std::uint32_t, cuda_sum_op<std::uint32_t>>,
+          "Parallel scan with sum operation for uint32", py::arg("a"));
+    m.def("vector_scan_parallel_sum_uint64", &vector_scan_parallel_cuda_impl<std::uint64_t, cuda_sum_op<std::uint64_t>>,
+          "Parallel scan with sum operation for uint64", py::arg("a"));
 
     // Prod operations
     m.def("vector_scan_parallel_prod_float32", &vector_scan_parallel_cuda_impl<float, cuda_prod_op<float>>,
           "Parallel scan with prod operation for float32", py::arg("a"));
     m.def("vector_scan_parallel_prod_float64", &vector_scan_parallel_cuda_impl<double, cuda_prod_op<double>>,
           "Parallel scan with prod operation for float64", py::arg("a"));
+    m.def("vector_scan_parallel_prod_int8", &vector_scan_parallel_cuda_impl<std::int8_t, cuda_prod_op<std::int8_t>>,
+          "Parallel scan with prod operation for int8", py::arg("a"));
+    m.def("vector_scan_parallel_prod_int16", &vector_scan_parallel_cuda_impl<std::int16_t, cuda_prod_op<std::int16_t>>,
+          "Parallel scan with prod operation for int16", py::arg("a"));
     m.def("vector_scan_parallel_prod_int32", &vector_scan_parallel_cuda_impl<std::int32_t, cuda_prod_op<std::int32_t>>,
           "Parallel scan with prod operation for int32", py::arg("a"));
     m.def("vector_scan_parallel_prod_int64", &vector_scan_parallel_cuda_impl<std::int64_t, cuda_prod_op<std::int64_t>>,
           "Parallel scan with prod operation for int64", py::arg("a"));
+    m.def("vector_scan_parallel_prod_uint8", &vector_scan_parallel_cuda_impl<std::uint8_t, cuda_prod_op<std::uint8_t>>,
+          "Parallel scan with prod operation for uint8", py::arg("a"));
+    m.def("vector_scan_parallel_prod_uint16", &vector_scan_parallel_cuda_impl<std::uint16_t, cuda_prod_op<std::uint16_t>>,
+          "Parallel scan with prod operation for uint16", py::arg("a"));
+    m.def("vector_scan_parallel_prod_uint32", &vector_scan_parallel_cuda_impl<std::uint32_t, cuda_prod_op<std::uint32_t>>,
+          "Parallel scan with prod operation for uint32", py::arg("a"));
+    m.def("vector_scan_parallel_prod_uint64", &vector_scan_parallel_cuda_impl<std::uint64_t, cuda_prod_op<std::uint64_t>>,
+          "Parallel scan with prod operation for uint64", py::arg("a"));
 
     // High-level dispatch functions
     m.def("vector_cumsum_serial", &vector_cumsum_serial_dispatch,
