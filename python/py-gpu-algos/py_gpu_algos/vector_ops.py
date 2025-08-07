@@ -108,12 +108,18 @@ _TYPE_DISPATCH_MAP = {
     np.dtype(np.uint64): 'uint64',
 }
 
-# Type mapping for scan operations (reduced set of supported types)
+# Type mapping for scan operations (all supported types)
 _SCAN_TYPE_DISPATCH_MAP = {
     np.dtype(np.float32): 'float32',
     np.dtype(np.float64): 'float64',
+    np.dtype(np.int8): 'int8',
+    np.dtype(np.int16): 'int16',
     np.dtype(np.int32): 'int32',
     np.dtype(np.int64): 'int64',
+    np.dtype(np.uint8): 'uint8',
+    np.dtype(np.uint16): 'uint16',
+    np.dtype(np.uint32): 'uint32',
+    np.dtype(np.uint64): 'uint64',
 }
 
 def _validate_vector_inputs(a: np.ndarray, operation_name: str) -> None:
@@ -130,7 +136,7 @@ def _validate_vector_scan_inputs(a: np.ndarray, operation_name: str) -> None:
         raise ValueError(f"{operation_name}: Input array must be 1-dimensional")
 
     if a.dtype not in _SCAN_TYPE_DISPATCH_MAP:
-        raise ValueError(f"{operation_name}: Unsupported dtype {a.dtype}. Scan operations support: float32, float64, int32, int64")
+        raise ValueError(f"{operation_name}: Unsupported dtype {a.dtype}. Scan operations support: float32, float64, int8, int16, int32, int64, uint8, uint16, uint32, uint64")
 
 def _ensure_contiguous(arr: np.ndarray) -> np.ndarray:
     """Ensure array is C-contiguous."""
@@ -466,6 +472,26 @@ def vector_scan_parallel_max_float64(a: NDArray[np.float64]) -> NDArray[np.float
 
     return _vector_scan_parallel_max_float64_cuda(a_contig)
 
+def vector_scan_parallel_max_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
+    """Parallel scan with max operation for int8 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_max_int8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_max_int8_cuda(a_contig)
+
+def vector_scan_parallel_max_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
+    """Parallel scan with max operation for int16 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_max_int16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_max_int16_cuda(a_contig)
+
 def vector_scan_parallel_max_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
     """Parallel scan with max operation for int32 arrays."""
     if not _CUDA_AVAILABLE:
@@ -485,6 +511,46 @@ def vector_scan_parallel_max_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
     a_contig = _ensure_contiguous(a)
 
     return _vector_scan_parallel_max_int64_cuda(a_contig)
+
+def vector_scan_parallel_max_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Parallel scan with max operation for uint8 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_max_uint8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_max_uint8_cuda(a_contig)
+
+def vector_scan_parallel_max_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
+    """Parallel scan with max operation for uint16 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_max_uint16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_max_uint16_cuda(a_contig)
+
+def vector_scan_parallel_max_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
+    """Parallel scan with max operation for uint32 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_max_uint32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_max_uint32_cuda(a_contig)
+
+def vector_scan_parallel_max_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
+    """Parallel scan with max operation for uint64 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_max_uint64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_max_uint64_cuda(a_contig)
 
 def vector_scan_parallel_min_float32(a: NDArray[np.float32]) -> NDArray[np.float32]:
     """Parallel scan with min operation for float32 arrays."""
@@ -506,6 +572,26 @@ def vector_scan_parallel_min_float64(a: NDArray[np.float64]) -> NDArray[np.float
 
     return _vector_scan_parallel_min_float64_cuda(a_contig)
 
+def vector_scan_parallel_min_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
+    """Parallel scan with min operation for int8 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_min_int8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_min_int8_cuda(a_contig)
+
+def vector_scan_parallel_min_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
+    """Parallel scan with min operation for int16 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_min_int16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_min_int16_cuda(a_contig)
+
 def vector_scan_parallel_min_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
     """Parallel scan with min operation for int32 arrays."""
     if not _CUDA_AVAILABLE:
@@ -525,6 +611,46 @@ def vector_scan_parallel_min_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
     a_contig = _ensure_contiguous(a)
 
     return _vector_scan_parallel_min_int64_cuda(a_contig)
+
+def vector_scan_parallel_min_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Parallel scan with min operation for uint8 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_min_uint8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_min_uint8_cuda(a_contig)
+
+def vector_scan_parallel_min_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
+    """Parallel scan with min operation for uint16 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_min_uint16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_min_uint16_cuda(a_contig)
+
+def vector_scan_parallel_min_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
+    """Parallel scan with min operation for uint32 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_min_uint32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_min_uint32_cuda(a_contig)
+
+def vector_scan_parallel_min_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
+    """Parallel scan with min operation for uint64 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_min_uint64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_min_uint64_cuda(a_contig)
 
 def vector_scan_parallel_sum_float32(a: NDArray[np.float32]) -> NDArray[np.float32]:
     """Parallel scan with sum operation for float32 arrays."""
@@ -546,6 +672,26 @@ def vector_scan_parallel_sum_float64(a: NDArray[np.float64]) -> NDArray[np.float
 
     return _vector_scan_parallel_sum_float64_cuda(a_contig)
 
+def vector_scan_parallel_sum_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
+    """Parallel scan with sum operation for int8 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_sum_int8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_sum_int8_cuda(a_contig)
+
+def vector_scan_parallel_sum_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
+    """Parallel scan with sum operation for int16 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_sum_int16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_sum_int16_cuda(a_contig)
+
 def vector_scan_parallel_sum_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
     """Parallel scan with sum operation for int32 arrays."""
     if not _CUDA_AVAILABLE:
@@ -565,6 +711,46 @@ def vector_scan_parallel_sum_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
     a_contig = _ensure_contiguous(a)
 
     return _vector_scan_parallel_sum_int64_cuda(a_contig)
+
+def vector_scan_parallel_sum_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Parallel scan with sum operation for uint8 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_sum_uint8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_sum_uint8_cuda(a_contig)
+
+def vector_scan_parallel_sum_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
+    """Parallel scan with sum operation for uint16 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_sum_uint16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_sum_uint16_cuda(a_contig)
+
+def vector_scan_parallel_sum_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
+    """Parallel scan with sum operation for uint32 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_sum_uint32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_sum_uint32_cuda(a_contig)
+
+def vector_scan_parallel_sum_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
+    """Parallel scan with sum operation for uint64 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_sum_uint64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_sum_uint64_cuda(a_contig)
 
 def vector_scan_parallel_prod_float32(a: NDArray[np.float32]) -> NDArray[np.float32]:
     """Parallel scan with prod operation for float32 arrays."""
@@ -586,6 +772,26 @@ def vector_scan_parallel_prod_float64(a: NDArray[np.float64]) -> NDArray[np.floa
 
     return _vector_scan_parallel_prod_float64_cuda(a_contig)
 
+def vector_scan_parallel_prod_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
+    """Parallel scan with prod operation for int8 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_prod_int8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_prod_int8_cuda(a_contig)
+
+def vector_scan_parallel_prod_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
+    """Parallel scan with prod operation for int16 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_prod_int16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_prod_int16_cuda(a_contig)
+
 def vector_scan_parallel_prod_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
     """Parallel scan with prod operation for int32 arrays."""
     if not _CUDA_AVAILABLE:
@@ -605,6 +811,46 @@ def vector_scan_parallel_prod_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
     a_contig = _ensure_contiguous(a)
 
     return _vector_scan_parallel_prod_int64_cuda(a_contig)
+
+def vector_scan_parallel_prod_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Parallel scan with prod operation for uint8 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_prod_uint8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_prod_uint8_cuda(a_contig)
+
+def vector_scan_parallel_prod_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
+    """Parallel scan with prod operation for uint16 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_prod_uint16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_prod_uint16_cuda(a_contig)
+
+def vector_scan_parallel_prod_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
+    """Parallel scan with prod operation for uint32 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_prod_uint32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_prod_uint32_cuda(a_contig)
+
+def vector_scan_parallel_prod_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
+    """Parallel scan with prod operation for uint64 arrays."""
+    if not _CUDA_AVAILABLE:
+        raise RuntimeError("CUDA backend not available")
+
+    _validate_vector_scan_inputs(a, "vector_scan_parallel_prod_uint64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_scan_parallel_prod_uint64_cuda(a_contig)
 
 # High-level dispatch functions
 
@@ -756,18 +1002,42 @@ __all__ = [
     # Low-level type-specific functions for scan_parallel
     'vector_scan_parallel_max_float32',
     'vector_scan_parallel_max_float64',
+    'vector_scan_parallel_max_int8',
+    'vector_scan_parallel_max_int16',
     'vector_scan_parallel_max_int32',
     'vector_scan_parallel_max_int64',
+    'vector_scan_parallel_max_uint8',
+    'vector_scan_parallel_max_uint16',
+    'vector_scan_parallel_max_uint32',
+    'vector_scan_parallel_max_uint64',
     'vector_scan_parallel_min_float32',
     'vector_scan_parallel_min_float64',
+    'vector_scan_parallel_min_int8',
+    'vector_scan_parallel_min_int16',
     'vector_scan_parallel_min_int32',
     'vector_scan_parallel_min_int64',
+    'vector_scan_parallel_min_uint8',
+    'vector_scan_parallel_min_uint16',
+    'vector_scan_parallel_min_uint32',
+    'vector_scan_parallel_min_uint64',
     'vector_scan_parallel_sum_float32',
     'vector_scan_parallel_sum_float64',
+    'vector_scan_parallel_sum_int8',
+    'vector_scan_parallel_sum_int16',
     'vector_scan_parallel_sum_int32',
     'vector_scan_parallel_sum_int64',
+    'vector_scan_parallel_sum_uint8',
+    'vector_scan_parallel_sum_uint16',
+    'vector_scan_parallel_sum_uint32',
+    'vector_scan_parallel_sum_uint64',
     'vector_scan_parallel_prod_float32',
     'vector_scan_parallel_prod_float64',
+    'vector_scan_parallel_prod_int8',
+    'vector_scan_parallel_prod_int16',
     'vector_scan_parallel_prod_int32',
     'vector_scan_parallel_prod_int64',
+    'vector_scan_parallel_prod_uint8',
+    'vector_scan_parallel_prod_uint16',
+    'vector_scan_parallel_prod_uint32',
+    'vector_scan_parallel_prod_uint64',
 ]
