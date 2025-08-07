@@ -132,26 +132,26 @@ def compare_with_numpy_reference(gpu_func: Callable, numpy_func: Callable,
 
 def get_numpy_reference_cumsum_serial(vec):
     """NumPy reference for serial cumulative sum."""
-    return np.cumsum(vec)
+    return np.cumsum(vec, dtype=vec.dtype)
 
 def get_numpy_reference_cumsum_parallel(vec):
     """NumPy reference for parallel cumulative sum."""
-    return np.cumsum(vec)
+    return np.cumsum(vec, dtype=vec.dtype)
 
 def get_numpy_reference_cummax_parallel(vec):
     """NumPy reference for parallel cumulative maximum."""
-    return np.maximum.accumulate(vec)
+    return np.maximum.accumulate(vec, dtype=vec.dtype)
 
 def get_numpy_reference_scan_parallel(vec, operation):
     """NumPy reference for parallel scan operations."""
     if operation == "sum":
-        return np.cumsum(vec)
+        return np.cumsum(vec, dtype=vec.dtype)
     elif operation == "max":
-        return np.maximum.accumulate(vec)
+        return np.maximum.accumulate(vec, dtype=vec.dtype)
     elif operation == "min":
-        return np.minimum.accumulate(vec)
+        return np.minimum.accumulate(vec, dtype=vec.dtype)
     elif operation == "prod":
-        return np.cumprod(vec)
+        return np.cumprod(vec, dtype=vec.dtype)
     else:
         raise ValueError(f"Unknown scan operation: {operation}")
 
