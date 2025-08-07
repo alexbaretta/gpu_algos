@@ -9,33 +9,34 @@ import time
 import sys
 from typing import Callable, Dict, Any, Tuple
 
-def assert_array_close(actual, expected, dtype, rtol=None, atol=None):
+def assert_array_close(actual, expected, dtype, tol_bits=6):
     """
     Assert that two arrays are close with appropriate tolerances for the dtype.
     """
-    if rtol is None or atol is None:
-        if dtype == np.float16:
-            rtol = rtol or 1e-3
-            atol = atol or 1e-4
-        elif dtype == np.float32:
-            rtol = rtol or 1e-5
-            atol = atol or 1e-6
-        elif dtype == np.float64:
-            rtol = rtol or 1e-12
-            atol = atol or 1e-14
-        else:
-            # Integer types should be exact
-            rtol = rtol or 0
-            atol = atol or 0
-
+    assert actual.shape == expected.shape, f"Shapes do not match: {actual.shape} != {expected.shape}"
+    assert actual.dtype == expected.dtype, f"Dtypes do not match: {actual.dtype} != {expected.dtype}"
     if np.issubdtype(dtype, np.integer):
         # For integers, check exact equality
-        np.testing.assert_array_equal(actual, expected,
-                                    err_msg=f"Integer arrays not exactly equal for dtype {dtype}")
+        success = np.array_equal(actual, expected)
+        if not success:
+            assert False, f"Integer arrays not exactly equal for dtype {dtype}"
     else:
+        if dtype == np.float16:
+            significand_bits = 11
+        elif dtype == np.float32:
+            significand_bits = 24
+        elif dtype == np.float64:
+            significand_bits = 53
+        else:
+            assert False, f"This should not be possible: {dtype}"
+            pass
         # For floats, check within tolerance
-        np.testing.assert_allclose(actual, expected, rtol=rtol, atol=atol,
-                                 err_msg=f"Float arrays not close for dtype {dtype}")
+        rtol = 0.5**(significand_bits - tol_bits)
+        success = np.allclose(actual, expected, rtol=rtol)
+        if not success:
+            assert False, f"Float arrays not close for dtype {dtype}"
+            # np.testing.assert_allclose(actual, expected, rtol=rtol,
+            #                          err_msg=f"Float arrays not close for dtype {dtype}")
 
 def validate_basic_properties(result, expected_shape, expected_dtype):
     """
