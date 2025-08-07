@@ -65,23 +65,47 @@ try:
         # Scan operations with specific operations
         _vector_scan_parallel_max_float32_cuda = _vector_ops_cuda.vector_scan_parallel_max_float32
         _vector_scan_parallel_max_float64_cuda = _vector_ops_cuda.vector_scan_parallel_max_float64
+        _vector_scan_parallel_max_int8_cuda = _vector_ops_cuda.vector_scan_parallel_max_int8
+        _vector_scan_parallel_max_int16_cuda = _vector_ops_cuda.vector_scan_parallel_max_int16
         _vector_scan_parallel_max_int32_cuda = _vector_ops_cuda.vector_scan_parallel_max_int32
         _vector_scan_parallel_max_int64_cuda = _vector_ops_cuda.vector_scan_parallel_max_int64
+        _vector_scan_parallel_max_uint8_cuda = _vector_ops_cuda.vector_scan_parallel_max_uint8
+        _vector_scan_parallel_max_uint16_cuda = _vector_ops_cuda.vector_scan_parallel_max_uint16
+        _vector_scan_parallel_max_uint32_cuda = _vector_ops_cuda.vector_scan_parallel_max_uint32
+        _vector_scan_parallel_max_uint64_cuda = _vector_ops_cuda.vector_scan_parallel_max_uint64
 
         _vector_scan_parallel_min_float32_cuda = _vector_ops_cuda.vector_scan_parallel_min_float32
         _vector_scan_parallel_min_float64_cuda = _vector_ops_cuda.vector_scan_parallel_min_float64
+        _vector_scan_parallel_min_int8_cuda = _vector_ops_cuda.vector_scan_parallel_min_int8
+        _vector_scan_parallel_min_int16_cuda = _vector_ops_cuda.vector_scan_parallel_min_int16
         _vector_scan_parallel_min_int32_cuda = _vector_ops_cuda.vector_scan_parallel_min_int32
         _vector_scan_parallel_min_int64_cuda = _vector_ops_cuda.vector_scan_parallel_min_int64
+        _vector_scan_parallel_min_uint8_cuda = _vector_ops_cuda.vector_scan_parallel_min_uint8
+        _vector_scan_parallel_min_uint16_cuda = _vector_ops_cuda.vector_scan_parallel_min_uint16
+        _vector_scan_parallel_min_uint32_cuda = _vector_ops_cuda.vector_scan_parallel_min_uint32
+        _vector_scan_parallel_min_uint64_cuda = _vector_ops_cuda.vector_scan_parallel_min_uint64
 
         _vector_scan_parallel_sum_float32_cuda = _vector_ops_cuda.vector_scan_parallel_sum_float32
         _vector_scan_parallel_sum_float64_cuda = _vector_ops_cuda.vector_scan_parallel_sum_float64
+        _vector_scan_parallel_sum_int8_cuda = _vector_ops_cuda.vector_scan_parallel_sum_int8
+        _vector_scan_parallel_sum_int16_cuda = _vector_ops_cuda.vector_scan_parallel_sum_int16
         _vector_scan_parallel_sum_int32_cuda = _vector_ops_cuda.vector_scan_parallel_sum_int32
         _vector_scan_parallel_sum_int64_cuda = _vector_ops_cuda.vector_scan_parallel_sum_int64
+        _vector_scan_parallel_sum_uint8_cuda = _vector_ops_cuda.vector_scan_parallel_sum_uint8
+        _vector_scan_parallel_sum_uint16_cuda = _vector_ops_cuda.vector_scan_parallel_sum_uint16
+        _vector_scan_parallel_sum_uint32_cuda = _vector_ops_cuda.vector_scan_parallel_sum_uint32
+        _vector_scan_parallel_sum_uint64_cuda = _vector_ops_cuda.vector_scan_parallel_sum_uint64
 
         _vector_scan_parallel_prod_float32_cuda = _vector_ops_cuda.vector_scan_parallel_prod_float32
         _vector_scan_parallel_prod_float64_cuda = _vector_ops_cuda.vector_scan_parallel_prod_float64
+        _vector_scan_parallel_prod_int8_cuda = _vector_ops_cuda.vector_scan_parallel_prod_int8
+        _vector_scan_parallel_prod_int16_cuda = _vector_ops_cuda.vector_scan_parallel_prod_int16
         _vector_scan_parallel_prod_int32_cuda = _vector_ops_cuda.vector_scan_parallel_prod_int32
         _vector_scan_parallel_prod_int64_cuda = _vector_ops_cuda.vector_scan_parallel_prod_int64
+        _vector_scan_parallel_prod_uint8_cuda = _vector_ops_cuda.vector_scan_parallel_prod_uint8
+        _vector_scan_parallel_prod_uint16_cuda = _vector_ops_cuda.vector_scan_parallel_prod_uint16
+        _vector_scan_parallel_prod_uint32_cuda = _vector_ops_cuda.vector_scan_parallel_prod_uint32
+        _vector_scan_parallel_prod_uint64_cuda = _vector_ops_cuda.vector_scan_parallel_prod_uint64
 
         _CUDA_AVAILABLE = True
     else:
@@ -93,20 +117,6 @@ except Exception as e:
     warnings.warn(f"CUDA backend not available: {e}")
 
 T = TypeVar('T', bound=np.generic)
-
-# Type mapping for low-level function dispatch
-_TYPE_DISPATCH_MAP = {
-    np.dtype(np.float32): 'float32',
-    np.dtype(np.float64): 'float64',
-    np.dtype(np.int8): 'int8',
-    np.dtype(np.int16): 'int16',
-    np.dtype(np.int32): 'int32',
-    np.dtype(np.int64): 'int64',
-    np.dtype(np.uint8): 'uint8',
-    np.dtype(np.uint16): 'uint16',
-    np.dtype(np.uint32): 'uint32',
-    np.dtype(np.uint64): 'uint64',
-}
 
 # Type mapping for scan operations (all supported types)
 _SCAN_TYPE_DISPATCH_MAP = {
@@ -122,13 +132,6 @@ _SCAN_TYPE_DISPATCH_MAP = {
     np.dtype(np.uint64): 'uint64',
 }
 
-def _validate_vector_inputs(a: np.ndarray, operation_name: str) -> None:
-    """Validate inputs for vector operations."""
-    if a.ndim != 1:
-        raise ValueError(f"{operation_name}: Input array must be 1-dimensional")
-
-    if a.dtype not in _TYPE_DISPATCH_MAP:
-        raise ValueError(f"{operation_name}: Unsupported dtype {a.dtype}")
 
 def _validate_vector_scan_inputs(a: np.ndarray, operation_name: str) -> None:
     """Validate inputs for vector scan operations (more restrictive type support)."""
@@ -151,7 +154,7 @@ def vector_cumsum_serial_float32(a: NDArray[np.float32]) -> NDArray[np.float32]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial_float32")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial_float32")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_float32_cuda(a_contig)
@@ -161,7 +164,7 @@ def vector_cumsum_serial_float64(a: NDArray[np.float64]) -> NDArray[np.float64]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial_float64")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial_float64")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_float64_cuda(a_contig)
@@ -171,7 +174,7 @@ def vector_cumsum_serial_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial_int8")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial_int8")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_int8_cuda(a_contig)
@@ -181,7 +184,7 @@ def vector_cumsum_serial_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial_int16")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial_int16")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_int16_cuda(a_contig)
@@ -191,7 +194,7 @@ def vector_cumsum_serial_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial_int32")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial_int32")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_int32_cuda(a_contig)
@@ -201,7 +204,7 @@ def vector_cumsum_serial_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial_int64")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial_int64")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_int64_cuda(a_contig)
@@ -211,7 +214,7 @@ def vector_cumsum_serial_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial_uint8")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial_uint8")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_uint8_cuda(a_contig)
@@ -221,7 +224,7 @@ def vector_cumsum_serial_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial_uint16")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial_uint16")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_uint16_cuda(a_contig)
@@ -231,7 +234,7 @@ def vector_cumsum_serial_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial_uint32")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial_uint32")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_uint32_cuda(a_contig)
@@ -241,7 +244,7 @@ def vector_cumsum_serial_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial_uint64")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial_uint64")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_uint64_cuda(a_contig)
@@ -253,7 +256,7 @@ def vector_cumsum_parallel_float32(a: NDArray[np.float32]) -> NDArray[np.float32
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel_float32")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel_float32")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_float32_cuda(a_contig)
@@ -263,7 +266,7 @@ def vector_cumsum_parallel_float64(a: NDArray[np.float64]) -> NDArray[np.float64
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel_float64")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel_float64")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_float64_cuda(a_contig)
@@ -273,7 +276,7 @@ def vector_cumsum_parallel_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel_int8")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel_int8")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_int8_cuda(a_contig)
@@ -283,7 +286,7 @@ def vector_cumsum_parallel_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel_int16")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel_int16")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_int16_cuda(a_contig)
@@ -293,7 +296,7 @@ def vector_cumsum_parallel_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel_int32")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel_int32")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_int32_cuda(a_contig)
@@ -303,7 +306,7 @@ def vector_cumsum_parallel_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel_int64")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel_int64")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_int64_cuda(a_contig)
@@ -313,7 +316,7 @@ def vector_cumsum_parallel_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel_uint8")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel_uint8")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_uint8_cuda(a_contig)
@@ -323,7 +326,7 @@ def vector_cumsum_parallel_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel_uint16")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel_uint16")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_uint16_cuda(a_contig)
@@ -333,7 +336,7 @@ def vector_cumsum_parallel_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel_uint32")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel_uint32")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_uint32_cuda(a_contig)
@@ -343,7 +346,7 @@ def vector_cumsum_parallel_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel_uint64")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel_uint64")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_uint64_cuda(a_contig)
@@ -355,7 +358,7 @@ def vector_cummax_parallel_float32(a: NDArray[np.float32]) -> NDArray[np.float32
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel_float32")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel_float32")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_float32_cuda(a_contig)
@@ -365,7 +368,7 @@ def vector_cummax_parallel_float64(a: NDArray[np.float64]) -> NDArray[np.float64
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel_float64")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel_float64")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_float64_cuda(a_contig)
@@ -375,7 +378,7 @@ def vector_cummax_parallel_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel_int8")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel_int8")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_int8_cuda(a_contig)
@@ -385,7 +388,7 @@ def vector_cummax_parallel_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel_int16")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel_int16")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_int16_cuda(a_contig)
@@ -395,7 +398,7 @@ def vector_cummax_parallel_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel_int32")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel_int32")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_int32_cuda(a_contig)
@@ -405,7 +408,7 @@ def vector_cummax_parallel_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel_int64")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel_int64")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_int64_cuda(a_contig)
@@ -415,7 +418,7 @@ def vector_cummax_parallel_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel_uint8")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel_uint8")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_uint8_cuda(a_contig)
@@ -425,7 +428,7 @@ def vector_cummax_parallel_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel_uint16")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel_uint16")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_uint16_cuda(a_contig)
@@ -435,7 +438,7 @@ def vector_cummax_parallel_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel_uint32")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel_uint32")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_uint32_cuda(a_contig)
@@ -445,7 +448,7 @@ def vector_cummax_parallel_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel_uint64")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel_uint64")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_uint64_cuda(a_contig)
@@ -883,7 +886,7 @@ def vector_cumsum_serial(a: Union[NDArray[T], np.ndarray]) -> Union[NDArray[T], 
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_serial")
+    _validate_vector_scan_inputs(a, "vector_cumsum_serial")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_serial_cuda(a_contig)
@@ -903,7 +906,7 @@ def vector_cumsum_parallel(a: Union[NDArray[T], np.ndarray]) -> Union[NDArray[T]
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cumsum_parallel")
+    _validate_vector_scan_inputs(a, "vector_cumsum_parallel")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cumsum_parallel_cuda(a_contig)
@@ -923,7 +926,7 @@ def vector_cummax_parallel(a: Union[NDArray[T], np.ndarray]) -> Union[NDArray[T]
     if not _CUDA_AVAILABLE:
         raise RuntimeError("CUDA backend not available")
 
-    _validate_vector_inputs(a, "vector_cummax_parallel")
+    _validate_vector_scan_inputs(a, "vector_cummax_parallel")
     a_contig = _ensure_contiguous(a)
 
     return _vector_cummax_parallel_cuda(a_contig)
