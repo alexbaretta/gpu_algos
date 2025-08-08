@@ -287,7 +287,7 @@ struct cuda_prod_op {
     constexpr static std::string_view name = "prod";
 
     __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
-        if (accumulator == Number(0) && !std::isnan(next_value)) {
+        if (accumulator == Number(0) || next_value == Number(0)) {
             return Number(0);
         } else {
             return accumulator * next_value;
