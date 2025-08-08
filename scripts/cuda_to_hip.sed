@@ -13,7 +13,11 @@ s,cuda_fp16.h,hip/hip_fp16.h,
 s,cuda_runtime.h,hip/hip_runtime.h,
 s,.cuh,.hiph,
 s,CUDA_,HIP_,g
+s,CUDART_,HIPRT_,
 s,cuda,hip,g
 s,cublasLt,hipblasLt,g
 /cublasComputeType_t/d
 /nvcc/d
+# HIP does not permit querying the size of dynamic shared memory
+s@assert(dynamic_shared_mem_size@//assert(dynamic_shared_mem_size@
+s@asm volatile ("mov.u32 %0, %@//asm volatile ("mov.u32 %0, %@

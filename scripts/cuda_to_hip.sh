@@ -38,7 +38,7 @@ for cuda_file in $(find include src -name "*.${CUDA_HEADER_EXT}" -o -name "*.${C
 
     # We need to perform pattern substitution twice, so we use `hip_header` as a temporary value...
     hip_file="$(echo ${cuda_file} | sed s/cuda/hip/g)"
-    hip_file="${cuda_file/cuda/hip}"
+
     # ...then we store the final result in it.
     hip_file="${hip_file/.${CUDA_SRC_EXT}/.${HIP_SRC_EXT}}"
     hip_dir="$(dirname ${hip_file})"

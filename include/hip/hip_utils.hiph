@@ -20,8 +20,11 @@
 
 #pragma once
 
+#include <cassert>
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
+#include <type_traits>
+
 #include "check_errors.hiph"
 #include "type_traits.hiph"
 
@@ -33,14 +36,33 @@ namespace std {
 
 constexpr size_t NULL_FLAGS = 0;
 constexpr static long MAX_BLOCK_SIZE = 1024;
-constexpr static unsigned long FULL_MASK = std::numeric_limits<unsigned>::max();
+constexpr static unsigned FULL_MASK = std::numeric_limits<unsigned>::max();
 
+#define STATIC_WARP_SIZE 32 // TODO: How can I check that warpSize is less than or equal to this?
 #define WARP_SIZE warpSize
 #define MAX_N_WARPS (MAX_BLOCK_SIZE / WARP_SIZE)
 #define LAST_LANE (WARP_SIZE - 1)
 
+// Utility macros for thread indexing
+#define BLOCK_1D_NTHREADS   (blockDim.x)
+#define BLOCK_2D_NTHREADS   (BLOCK_1D_NTHREADS * blockDim.y)
+#define BLOCK_3D_NTHREADS   (BLOCK_3D_NTHREADS * blockDim.Z)
+#define BLOCK_1D_NWARPS     (BLOCK_1D_NTHREADS / warpSize)
+#define BLOCK_2D_NWARPS     (BLOCK_2D_NTHREADS / warpSize)
+#define BLOCK_3D_NWARPS     (BLOCK_3D_NTHREADS / warpSize)
+#define GRID_1D_BID         (blockIdx.x)
+#define GRID_2D_BID         (GRID_1D_BID + blockIdx.y * gridDim.x)
+#define GRID_3D_BID         (GRID_2D_BID + blockIdx.z * gridDim.y * gridDim.x)
+#define BLOCK_1D_TID_BLOCK  (threadIdx.x)
+#define BLOCK_2D_TID_BLOCK  (BLOCK_1D_TID_BLOCK + blockDim.x * threadIdx.y)
+#define BLOCK_3D_TID_BLOCK  (BLOCK_2D_TID_BLOCK + blockDim.x * blockDim.y * threadIdx.z)
+#define BLOCK_1D_WID_BLOCK  (BLOCK_1D_TID_BLOCK / warpSize)
+#define BLOCK_2D_WID_BLOCK  (BLOCK_2D_TID_BLOCK / warpSize)
+#define BLOCK_3D_WID_BLOCK  (BLOCK_3D_TID_BLOCK / warpSize)
+
+
 __host__ __inline__
-int get_warp_size() {
+unsigned int get_warp_size() {
     hipDeviceProp_t props;
     hip_check_error(hipGetDeviceProperties(&props, 0), "hipGetDeviceProperties");
     return props.warpSize;
@@ -74,7 +96,6 @@ unsigned int get_n_warps_per_block() {
     return (compute_n_threads_per_block() + warpSize - 1) / warpSize;
 }
 
-
 __host__ __device__ __inline__
 void* align_pointer(void *ptr, const std::size_t alignment) {
     const std::size_t ptr_value = reinterpret_cast<size_t>(ptr);
@@ -86,8 +107,28 @@ void* align_pointer(void *ptr, const std::size_t alignment) {
 // Device function to get dynamic shared memory pointer - non-template to avoid symbol issues
 // We cannot declare dynamic_shm aligned with __aligned__(alignof(T)) because this would require
 // templatizing this function, which causes linker errors.
+__device__ __forceinline__ unsigned dynamic_shared_mem_size() {
+    unsigned ret;
+    //asm volatile ("mov.u32 %0, %dynamic_smem_size;" : "=r"(ret));
+    return ret;
+}
+__device__ __forceinline__ unsigned total_shared_mem_size() {
+    unsigned ret;
+    //asm volatile ("mov.u32 %0, %total_smem_size;" : "=r"(ret));
+    return ret;
+}
+template <typename T>
+__device__ __inline__
+T* get_dynamic_shared_memory() {
+    //assert(dynamic_shared_mem_size() > sizeof(T));
+    extern __shared__ void* dynamic_shm[];
+    const std::size_t alignment = alignof(T);
+    void* aligned_shm = align_pointer(dynamic_shm, alignment);
+    return reinterpret_cast<T*>(aligned_shm);
+}
 __device__ __inline__
 void* get_dynamic_shared_memory(const std::size_t alignment) {
+    //assert(dynamic_shared_mem_size() > alignment);
     extern __shared__ void* dynamic_shm[];
     void* aligned_shm = align_pointer(dynamic_shm, alignment);
     return aligned_shm;
@@ -95,67 +136,78 @@ void* get_dynamic_shared_memory(const std::size_t alignment) {
 
 
 template <HIP_scalar Number>
-__host__ __device__ Number hip_max(Number a, Number b) {
-    return max(a, b);
+__host__ __device__ Number hip_max(const Number accumulator, const Number next_value) {
+    return max(accumulator, next_value);
 }
 
-// Template specialization definition (inline to avoid linker issues)
 template <>
-__host__ __device__ inline __half hip_max<__half>(__half a, __half b) {
-    return fmaxf(float(a), float(b));
+__forceinline__ __host__ __device__ __half hip_max<__half>(const __half accumulator, const __half next_value) {
+    return __hmax(accumulator, next_value);
 }
+
 
 template <HIP_scalar Number>
-__host__ __device__ Number hip_min(Number a, Number b) {
-    return min(a, b);
+__host__ __device__ Number hip_min(const Number accumulator, const Number next_value) {
+    return min(accumulator, next_value);
 }
 
-// Template specialization definition (inline to avoid linker issues)
 template <>
-__host__ __device__ inline __half hip_min<__half>(__half a, __half b) {
-    return fminf(float(a), float(b));
+__forceinline__ __host__ __device__ __half hip_min<__half>(const __half accumulator, const __half next_value) {
+    return __hmin(accumulator, next_value);
+}
+
+
+template <HIP_scalar Number>
+__host__ __device__ Number hip_sum(const Number accumulator, const Number next_value) {
+    return accumulator + next_value;
 }
 
 template <HIP_scalar Number>
-__host__ __device__ Number hip_sum(Number a, Number b) {
-    return a + b;
-}
-
-template <HIP_scalar Number>
-__host__ __device__ Number hip_prod(Number a, Number b) {
-    return a * b;
+__host__ __device__ Number hip_prod(const Number accumulator, const Number next_value) {
+    if (accumulator == Number(0)) {
+        return Number(0);
+    } else {
+        return accumulator * next_value;
+    }
 }
 
 template <HIP_scalar Number>
 __host__ __device__ Number device_nan() {
+    // Use the DEVICE_NAN macro to get the line number in the NaN payload
     static_assert(std::is_floating_point_v<Number>, "device_nan only supports floating point types");
-    if constexpr (std::is_same_v<Number, float>) {
-        return nanf("");
-    } else if constexpr (std::is_same_v<Number, double>) {
-        return nan("");
-    }
-    // __half specialization is defined below
+    return std::numeric_limits<Number>::quiet_NaN();
 }
 
-// Template specialization definition (inline to avoid linker issues)
 template <>
-__host__ __device__ inline __half device_nan<__half>() {
-    return nanf("");
+__forceinline__ __host__ __device__ __half device_nan<__half>() {
+    return HIPRT_NAN_FP16;
+}
+
+#define DEVICE_NAN (device_nan<Number>())
+
+// Extend std::isnan to __half
+namespace std {
+    __host__ __device__ __inline__ bool isnan(const __half& a) { return __hisnan(a); }
 }
 
 void report_completion_time_callback(hipStream_t stream, hipError_t status, void* userData);
 
-// Function objects for HIP operations - these work reliably in device code
+// Function objects for CUDA operations - these work reliably in device code
 template <typename Number_>
 struct hip_max_op {
     using Number = Number_;
-    __host__ __device__ static Number apply(Number a, Number b) {
-        return max(a, b);
+
+    constexpr static std::string_view name = "max";
+
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        return max(accumulator, next_value);
     }
 
     __host__ __device__ static Number identity() {
-        if constexpr (std::is_floating_point_v<Number>) {
-            return -INFINITY;
+        if constexpr (std::is_same_v<Number, __half>) {
+            return -HIPRT_INF_FP16;
+        } else if constexpr (std::is_floating_point_v<Number>) {
+            return -std::numeric_limits<Number>::infinity();
         } else {
             return Number(1) << (sizeof(Number) * 8 - 1);
         }
@@ -165,25 +217,33 @@ struct hip_max_op {
 template <>
 struct hip_max_op<__half> {
     using Number = __half;
-    __host__ __device__ static __half apply(__half a, __half b) {
-        return __hmax(a, b);
+
+    constexpr static std::string_view name = "max";
+
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        return __hmax(accumulator, next_value);
     }
 
-    __host__ __device__ static __half identity() {
-        return __hmax(__hneg(0x7c00), __hneg(0x7c00));
+    __host__ __device__ static Number identity() {
+        return -HIPRT_INF_FP16;
     }
 };
 
 template <typename Number_>
 struct hip_min_op {
     using Number = Number_;
-    __host__ __device__ static Number apply(Number a, Number b) {
-        return min(a, b);
+
+    constexpr static std::string_view name = "min";
+
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        return min(accumulator, next_value);
     }
 
     __host__ __device__ static Number identity() {
-        if constexpr (std::is_floating_point_v<Number>) {
-            return INFINITY;
+        if constexpr (std::is_same_v<Number, __half>) {
+            return HIPRT_INF_FP16;
+        } else if constexpr (std::is_floating_point_v<Number>) {
+            return std::numeric_limits<Number>::infinity();
         } else {
             return ~(Number(1) << (sizeof(Number) * 8 - 1));
         }
@@ -193,20 +253,26 @@ struct hip_min_op {
 template <>
 struct hip_min_op<__half> {
     using Number = __half;
-    __host__ __device__ static __half apply(__half a, __half b) {
-        return __hmin(a, b);
+
+    constexpr static std::string_view name = "min";
+
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        return __hmin(accumulator, next_value);
     }
 
-    __host__ __device__ static __half identity() {
-        return __hmin(__hneg(0x7c00), __hneg(0x7c00));
+    __host__ __device__ static Number identity() {
+        return HIPRT_INF_FP16;
     }
 };
 
 template <typename Number_>
 struct hip_sum_op {
     using Number = Number_;
-    __host__ __device__ static Number apply(Number a, Number b) {
-        return a + b;
+
+    constexpr static std::string_view name = "sum";
+
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        return accumulator + next_value;
     }
 
     __host__ __device__ static Number identity() {
@@ -217,8 +283,15 @@ struct hip_sum_op {
 template <typename Number_>
 struct hip_prod_op {
     using Number = Number_;
-    __host__ __device__ static Number apply(Number a, Number b) {
-        return a * b;
+
+    constexpr static std::string_view name = "prod";
+
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        if (accumulator == Number(0) || next_value == Number(0)) {
+            return Number(0);
+        } else {
+            return accumulator * next_value;
+        }
     }
 
     __host__ __device__ static Number identity() {
@@ -228,3 +301,172 @@ struct hip_prod_op {
 
 hipDeviceProp_t get_device_prop(const int device_id);
 hipDeviceProp_t get_default_device_prop();
+
+template <typename Number_, int size>
+requires (size <= 4)
+struct HIP_vector {
+    // You must use a specialization
+    std::enable_if_t<false, Number_> must_use_a_specialization;
+};
+template <typename Number_, int size>
+using HIP_vector_t = typename HIP_vector<Number_, size>::vector_type;
+
+template <>
+struct HIP_vector<std::int8_t, 2> {
+    using scalar_type = std::int8_t;
+    using vector_type = char2;
+};
+template <>
+struct HIP_vector<std::int8_t, 3> {
+    using scalar_type = std::int8_t;
+    using vector_type = char3;
+};
+template <>
+struct HIP_vector<std::int8_t, 4> {
+    using scalar_type = std::int8_t;
+    using vector_type = char4;
+};
+
+template <>
+struct HIP_vector<std::uint8_t, 2> {
+    using scalar_type = std::uint8_t;
+    using vector_type = uchar2;
+};
+template <>
+struct HIP_vector<std::uint8_t, 3> {
+    using scalar_type = std::uint8_t;
+    using vector_type = uchar3;
+};
+template <>
+struct HIP_vector<std::uint8_t, 4> {
+    using scalar_type = std::uint8_t;
+    using vector_type = uchar4;
+};
+template <>
+struct HIP_vector<std::int16_t, 2> {
+    using scalar_type = std::int16_t;
+    using vector_type = short2;
+};
+template <>
+struct HIP_vector<std::int16_t, 3> {
+    using scalar_type = std::int16_t;
+    using vector_type = short3;
+};
+template <>
+struct HIP_vector<std::int16_t, 4> {
+    using scalar_type = std::int16_t;
+    using vector_type = short4;
+};
+
+template <>
+struct HIP_vector<std::uint16_t, 2> {
+    using scalar_type = std::uint16_t;
+    using vector_type = ushort2;
+};
+template <>
+struct HIP_vector<std::uint16_t, 3> {
+    using scalar_type = std::uint16_t;
+    using vector_type = ushort3;
+};
+template <>
+struct HIP_vector<std::uint16_t, 4> {
+    using scalar_type = std::uint16_t;
+    using vector_type = ushort4;
+};
+
+template <>
+struct HIP_vector<std::int32_t, 2> {
+    using scalar_type = std::int32_t;
+    using vector_type = int2;
+};
+template <>
+struct HIP_vector<std::int32_t, 3> {
+    using scalar_type = std::int32_t;
+    using vector_type = int3;
+};
+template <>
+struct HIP_vector<std::int32_t, 4> {
+    using scalar_type = std::int32_t;
+    using vector_type = int4;
+};
+
+template <>
+struct HIP_vector<std::uint32_t, 2> {
+    using scalar_type = uint32_t;
+    using vector_type = uint2;
+};
+template <>
+struct HIP_vector<std::uint32_t, 3> {
+    using scalar_type = uint32_t;
+    using vector_type = uint3;
+};
+template <>
+struct HIP_vector<std::uint32_t, 4> {
+    using scalar_type = uint32_t;
+    using vector_type = uint4;
+};
+
+template <>
+struct HIP_vector<std::int64_t, 2> {
+    using scalar_type = std::int64_t;
+    using vector_type = long2;
+};
+template <>
+struct HIP_vector<std::int64_t, 3> {
+    using scalar_type = std::int64_t;
+    using vector_type = long3;
+};
+template <>
+struct HIP_vector<std::int64_t, 4> {
+    using scalar_type = std::int64_t;
+    using vector_type = long4;
+};
+
+template <>
+struct HIP_vector<std::uint64_t, 2> {
+    using scalar_type = std::uint64_t;
+    using vector_type = ulong2;
+};
+template <>
+struct HIP_vector<std::uint64_t, 3> {
+    using scalar_type = std::uint64_t;
+    using vector_type = ulong3;
+};
+template <>
+struct HIP_vector<std::uint64_t, 4> {
+    using scalar_type = std::uint64_t;
+    using vector_type = ulong4;
+};
+
+
+template <>
+struct HIP_vector<float, 2> {
+    using scalar_type = float;
+    using vector_type = float2;
+};
+template <>
+struct HIP_vector<float, 3> {
+    using scalar_type = float;
+    using vector_type = float3;
+};
+template <>
+struct HIP_vector<float, 4> {
+    using scalar_type = float;
+    using vector_type = float4;
+};
+
+template <>
+struct HIP_vector<double, 2> {
+    using scalar_type = double;
+    using vector_type = double2;
+};
+template <>
+struct HIP_vector<double, 3> {
+    using scalar_type = double;
+    using vector_type = double3;
+};
+template <>
+struct HIP_vector<double, 4> {
+    using scalar_type = double;
+    using vector_type = double4;
+};
