@@ -54,7 +54,7 @@ __global__ void vector_scan_write_back_parallel(
     const long curr_n_elems,  // size of vector
     const long stride_A
 ) {
-    __shared__ Number shm[1]; // for writing, index this using `wid_block` (warp id)
+    __shared__ Number shm[1]; // This will contain the last value of the previous block
 
     // We have to update our block of prev_result with the final value from the previous block
 
@@ -66,17 +66,19 @@ __global__ void vector_scan_write_back_parallel(
 
     if (tid_block == 0) {
         // This is the first thread in the block.
-        // We need to read the element from curr_result that corresponds to this block,
-        const Number curr_bid_minus_1_value = (bid_grid > 0) ? curr_result[bid_grid-1] : Number(0);
+        // We read from curr_result the last element of this block in prev_result
+        const Number curr_bid_minus_1_value = curr_result[bid_grid];
         shm[0] = curr_bid_minus_1_value;
     }
 
     __syncthreads();
 
-    if (tid_grid < prev_n_elems) {
-        const Number prev_value = prev_result[tid_grid];
-        const Number updated_value = Op::apply(prev_value, shm[0]);
-        prev_result[tid_grid] = updated_value;
+    // We use the last element of this block to update the next block
+    const auto write_to_index = tid_grid + blockDim.x;
+    if (write_to_index < prev_n_elems) {
+        const Number prev_value = prev_result[write_to_index];
+        const Number updated_value = Op::apply(shm[0], prev_value);
+        prev_result[write_to_index] = updated_value;
     }
 }
 
@@ -141,7 +143,8 @@ __global__ void vector_scan_by_blocks_parallel(
         const Number received_value = __shfl_sync(__activemask(), value, from_lane);
         if (subtree_id % 2 == 1) {
             const auto computed_value = Operation::apply(received_value, value);
-            if constexpr (DEBUG && std::is_floating_point_v<Number>) {
+            #ifdef DEBUG
+            if constexpr (std::is_floating_point_v<Number>) {
                 if (std::isnan(computed_value)
                     && !std::isnan(value)
                     && !std::isnan(received_value)
@@ -150,6 +153,7 @@ __global__ void vector_scan_by_blocks_parallel(
                         float(computed_value), float(value), float(received_value));
                 }
             }
+            #endif // DEBUG
             value = computed_value;
         }
     }
@@ -186,7 +190,8 @@ __global__ void vector_scan_by_blocks_parallel(
             }
 
             if (tid_warp < n_warps_per_block) {
-                shm_value = shm[tid_warp]; // Read the final value from the previous warp
+                // Read the final value from the warp with wid_block == tid_warp
+                shm_value = shm[tid_warp];
             }
             for (int subtree_size = 1, subtree_id = tid_warp;
                 subtree_size < WARP_SIZE;
@@ -195,7 +200,8 @@ __global__ void vector_scan_by_blocks_parallel(
                 const Number received_value = __shfl_sync(__activemask(), shm_value, from_lane);
                 if (subtree_id % 2 == 1) {
                     const auto computed_value = Operation::apply(received_value, shm_value);
-                    if constexpr (DEBUG && std::is_floating_point_v<Number>) {
+                    #ifdef DEBUG
+                    if constexpr (std::is_floating_point_v<Number>) {
                         if (std::isnan(computed_value)
                             && !std::isnan(shm_value)
                             && !std::isnan(received_value)
@@ -204,6 +210,7 @@ __global__ void vector_scan_by_blocks_parallel(
                                 float(computed_value), float(shm_value), float(received_value));
                         }
                     }
+                    #endif // DEBUG
                     shm_value = computed_value;
                 }
             }
@@ -218,7 +225,8 @@ __global__ void vector_scan_by_blocks_parallel(
         if (wid_block > 0) {
             Number wid_minus_1_value = shm[wid_block-1];
             const auto computed_value = Operation::apply(wid_minus_1_value, value);
-            if constexpr (DEBUG && std::is_floating_point_v<Number>) {
+            #ifdef DEBUG
+            if constexpr (std::is_floating_point_v<Number>) {
                 if (std::isnan(computed_value)
                     && !std::isnan(value)
                     && !std::isnan(wid_minus_1_value)
@@ -227,6 +235,7 @@ __global__ void vector_scan_by_blocks_parallel(
                         float(computed_value), float(value), float(wid_minus_1_value));
                 }
             }
+            #endif // DEBUG
             value = computed_value;
         }
         // For wid_block == 0 (first warp), value is already correct - no combination needed
@@ -252,9 +261,9 @@ struct Vector_scan_parallel_spec {
     const long n_C_;
     const long n_temp_;
 
-    const dim3 block_dim_;
-    const dim3 grid_dim_;
-    const size_t dynamic_shared_mem_words_ = 0;
+    const dim3 block_dim_ = 0;
+    const dim3 grid_dim_ = 0;
+    const size_t shared_mem_size_ = 0;
 
     constexpr static int DEFAULT_M = 0;    // unused
     constexpr static int DEFAULT_N = 3000; // size of vector
@@ -288,7 +297,7 @@ struct Vector_scan_parallel_spec {
         const auto block_dim_option = options_parsed["block-dim"].as<unsigned>();
         const auto warp_size = get_warp_size();
         const auto block_size = (std::min(size, (long)block_dim_option)  + warp_size - 1) / warp_size * warp_size;
-        return Vector_scan_parallel_spec(
+        return make(
             type,
             operation,
             size,
@@ -296,7 +305,7 @@ struct Vector_scan_parallel_spec {
         );
     }
 
-    int compute_size_of_temp(const int n_elems, const int block_size) {
+    static int compute_size_of_temp(const int n_elems, const int block_size) {
         assert(block_size > 1);
         if (n_elems <= block_size) {
             return 0;
@@ -305,18 +314,111 @@ struct Vector_scan_parallel_spec {
         for(int n_elems_remaining = (n_elems + block_size - 1) / block_size;
             n_elems_remaining > 1;
             n_elems_remaining = (n_elems_remaining + block_size - 1) / block_size
-            ) {
+        ) {
             size_temp += n_elems_remaining;
         }
         const int n_blocks = (size_temp + block_size - 1) / block_size;
         return n_blocks * block_size;
     }
 
-    Vector_scan_parallel_spec(
-        const std::string& type,
-        const std::string& operation,
+    inline static Vector_scan_parallel_spec make(
+        const auto& type,
+        const auto& operation,
         const long size,
         const long block_size
+    ) {
+        const auto [scalar_size, cuda_occupancy_kernel]  = (
+            type == "half" ? std::make_tuple(sizeof(__half), (void*)vector_scan_by_blocks_parallel<half, cuda_sum_op<half>>) :
+            type == "single" || type == "float" ? std::make_tuple(sizeof(float), (void*)vector_scan_by_blocks_parallel<float, cuda_sum_op<float>>) :
+            type == "double" ? std::make_tuple(sizeof(double), (void*)vector_scan_by_blocks_parallel<double, cuda_sum_op<double>>) :
+            type == "int8" ? std::make_tuple(sizeof(int8_t), (void*)vector_scan_by_blocks_parallel<int8_t, cuda_sum_op<int8_t>>) :
+            type == "int16" ? std::make_tuple(sizeof(int16_t), (void*)vector_scan_by_blocks_parallel<int16_t, cuda_sum_op<int16_t>>) :
+            type == "int32" ? std::make_tuple(sizeof(int32_t), (void*)vector_scan_by_blocks_parallel<int32_t, cuda_sum_op<int32_t>>) :
+            type == "int64" ? std::make_tuple(sizeof(int64_t), (void*)vector_scan_by_blocks_parallel<int64_t, cuda_sum_op<int64_t>>) :
+            type == "uint8" ? std::make_tuple(sizeof(uint8_t), (void*)vector_scan_by_blocks_parallel<uint8_t, cuda_sum_op<uint8_t>>) :
+            type == "uint16" ? std::make_tuple(sizeof(uint16_t), (void*)vector_scan_by_blocks_parallel<uint16_t, cuda_sum_op<uint16_t>>) :
+            type == "uint32" ? std::make_tuple(sizeof(uint32_t), (void*)vector_scan_by_blocks_parallel<uint32_t, cuda_sum_op<uint32_t>>) :
+            type == "uint64" ? std::make_tuple(sizeof(uint64_t), (void*)vector_scan_by_blocks_parallel<uint64_t, cuda_sum_op<uint64_t>>) :
+            std::make_tuple(0, nullptr)
+        );
+        if (cuda_occupancy_kernel == nullptr) {
+            std::cerr << "[ERROR] Invalid type: " << type << std::endl;
+            throw cxxopts::exceptions::exception("Invalid type: " + type);
+        }
+        return make(type, operation, scalar_size, cuda_occupancy_kernel, size, block_size);
+    }
+
+    template <CUDA_scalar Number_, typename Operation_= cuda_sum_op<Number_>>
+    inline static Vector_scan_parallel_spec make(
+        const long size,
+        const long block_size
+    ) {
+        const auto scalar_size = sizeof(Number_);
+        const auto cuda_occupancy_kernel = vector_scan_by_blocks_parallel<Number_, Operation_>;
+        return make(type_name<Number_>, Operation_::name, scalar_size, (void*)cuda_occupancy_kernel, size, block_size);
+    }
+
+    protected:
+    inline static Vector_scan_parallel_spec make(
+        const auto& type,
+        const auto& operation,
+        const size_t scalar_size,
+        const void* const cuda_occupancy_kernel,
+        const long size,
+        const long block_size
+    ) {
+        if (block_size < 1) {
+            throw std::invalid_argument("block_size must be at least 1");
+        };
+        if (cuda_occupancy_kernel == nullptr) {
+            throw std::invalid_argument("cuda_occupancy_kernel must not be nullptr");
+        };
+        if (scalar_size <= 0) {
+            throw std::invalid_argument("scalar_size must be positive");
+        };
+
+        int max_block_size = 0;
+        int opt_grid_size = 0;
+        int max_active_blocks_per_multiprocessor = 0;
+        const auto shared_mem_guess = (compute_n_warps_per_block(block_size/4)+1) * scalar_size;
+        cuda_check_error(cudaOccupancyMaxPotentialBlockSize(
+            &opt_grid_size,
+            &max_block_size,
+            cuda_occupancy_kernel,
+            shared_mem_guess,
+            block_size
+        ), "cudaOccupancyMaxPotentialBlockSize");
+
+        // opt_grid_size is a good-to-know number, but we have to compute grid_dim based on the size of vector
+        const auto grid_dim = dim3((size+max_block_size-1)/max_block_size);
+        const auto block_dim = dim3(max_block_size);
+        const auto shared_mem_size = (compute_n_warps_per_block(max_block_size)+1) * scalar_size;
+        const auto n_temp = compute_size_of_temp(size, max_block_size);
+        cuda_check_error(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+            &max_active_blocks_per_multiprocessor,
+            cuda_occupancy_kernel,
+            block_dim.x,
+            shared_mem_size
+        ), "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
+        std::cout << "[INFO] max_active_blocks_per_multiprocessor: " << max_active_blocks_per_multiprocessor
+                  << " at block_size:" << max_block_size << std::endl;
+        std::cout << "[INFO] max_block_size: " << max_block_size << std::endl;
+        std::cout << "[INFO] opt_grid_size: " << opt_grid_size << std::endl;
+        std::cout << "[INFO] grid_dim: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
+        std::cout << "[INFO] block_dim: " << block_dim.x << ", " << block_dim.y << ", " << block_dim.z << std::endl;
+        std::cout << "[INFO] shared_mem_size: " << shared_mem_size << std::endl;
+        return Vector_scan_parallel_spec(type, operation, size, block_dim, grid_dim, shared_mem_size, n_temp);
+    }
+
+    protected:
+    Vector_scan_parallel_spec(
+        const auto& type,
+        const auto& operation,
+        const long size,
+        const dim3 block_dim,
+        const dim3 grid_dim,
+        const size_t shared_mem_size,
+        const int n_temp
     ) : device_prop_(get_default_device_prop()),
         type_(type),
         operation_(operation),  // Store the actual operation string
@@ -325,9 +427,10 @@ struct Vector_scan_parallel_spec {
         k_(0),  // unused
         n_A_(size),
         n_C_(size),
-        n_temp_(compute_size_of_temp(size, block_size)),
-        block_dim_(block_size),
-        grid_dim_((size + block_size - 1) / block_size)
+        n_temp_(n_temp),
+        block_dim_(block_dim),
+        grid_dim_(grid_dim),
+        shared_mem_size_(shared_mem_size)
     {}
 };
 
@@ -342,13 +445,10 @@ class Vector_scan_parallel_kernel {
     using Kernel_spec = Vector_scan_parallel_spec;
 
     const Kernel_spec spec_;
-    const size_t shared_mem_size_;
 
     Vector_scan_parallel_kernel(
         const Kernel_spec spec
-    ) : spec_(spec),
-        shared_mem_size_((compute_n_warps_per_block(spec_.block_dim_)+1) * sizeof(Number))
-        {}
+    ) : spec_(spec) {}
 
     void block_strided_pass(
         Number* const input_buffer,
@@ -363,28 +463,30 @@ class Vector_scan_parallel_kernel {
         Number* const curr_result = output_buffer + curr_result_index;
         const int curr_n_elems = prev_n_blocks;
         const int curr_n_blocks = (curr_n_elems + spec_.block_dim_.x - 1)/spec_.block_dim_.x;
-        vector_scan_by_blocks_parallel<Number, Operation><<<curr_n_blocks, spec_.block_dim_, shared_mem_size_, stream>>>(
-            prev_result,
-            curr_result,
-            curr_n_elems,
-            spec_.block_dim_.x,
-            prev_n_elems
-        );
-        if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
-            const auto next_result_index = curr_result_index + curr_n_elems;
-            block_strided_pass(output_buffer, curr_result_index, curr_n_elems, output_buffer, next_result_index, stream);
-            // By the powers of recursion, curr_result is fully scanned
-            // Now we have to compute the deltas between curr_result and the final elements
-            // of each stride of prev_result, and apply those delta retroactively to the strides
-            // of prev_result
-
-            vector_scan_write_back_parallel<Number, Operation><<<prev_n_blocks, spec_.block_dim_, 0, stream>>>(
+        if (curr_n_elems > 1) {
+            vector_scan_by_blocks_parallel<Number, Operation><<<curr_n_blocks, spec_.block_dim_, spec_.shared_mem_size_, stream>>>(
                 prev_result,
-                prev_n_elems,
                 curr_result,
                 curr_n_elems,
-                spec_.block_dim_.x
+                spec_.block_dim_.x,
+                prev_n_elems
             );
+            if (prev_n_elems > static_cast<int>(spec_.block_dim_.x)) {
+                const auto next_result_index = curr_result_index + curr_n_elems;
+                block_strided_pass(output_buffer, curr_result_index, curr_n_elems, output_buffer, next_result_index, stream);
+                // By the powers of recursion, curr_result is fully scanned
+                // Now we have to compute the deltas between curr_result and the final elements
+                // of each stride of prev_result, and apply those delta retroactively to the strides
+                // of prev_result
+
+                vector_scan_write_back_parallel<Number, Operation><<<prev_n_blocks-1, spec_.block_dim_, 0, stream>>>(
+                    prev_result,
+                    prev_n_elems,
+                    curr_result,
+                    curr_n_elems,
+                    spec_.block_dim_.x
+                );
+            }
         }
     }
 
@@ -394,38 +496,11 @@ class Vector_scan_parallel_kernel {
         Number* const gpu_data_temp,
         cudaStream_t stream
     ) {
-        // int max_block_size = 0;
-        // int opt_grid_size = 0;
-        // int max_active_blocks_per_multiprocessor = 0;
-        // cuda_check_error(cudaOccupancyMaxPotentialBlockSize(
-        //     &max_block_size,
-        //     &opt_grid_size,
-        //     vector_scan_by_blocks_parallel<Number, Operation>,
-        //     shared_mem_size_,
-        //     0
-        // ), "cudaOccupancyMaxPotentialBlockSize");
-        // cuda_check_error(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-        //     &max_active_blocks_per_multiprocessor,
-        //     vector_scan_by_blocks_parallel<Number, Operation>,
-        //     max_block_size,
-        //     shared_mem_size_
-        // ), "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
-        // block_dim_ = dim3(max_block_size);
-        // grid_dim_ = dim3(opt_grid_size);
-        // std::cout << "[INFO] max_active_blocks_per_multiprocessor: " << max_active_blocks_per_multiprocessor
-        //           << " at block_size:" << max_block_size << std::endl;
-        // std::cout << "[INFO] max_block_size: " << max_block_size << std::endl;
-        // std::cout << "[INFO] opt_grid_size: " << opt_grid_size << std::endl;
-
-        std::cout << "[INFO] grid_dim_: " << spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << std::endl;
-        std::cout << "[INFO] block_dim_: " << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << std::endl;
-        std::cout << "[INFO] shared_mem_size_: " << shared_mem_size_ << std::endl;
-
-        // In our downard iteration we start by processing A block-wise.
+        // In our downward iteration we start by processing A block-wise.
         // The produces in C an array of block-wise scans that we can further process with a stride = block_size.
         // This downward iteration ends when the number of blocks is 1, which means that the result is the
         // global scan.
-        vector_scan_by_blocks_parallel<Number, Operation><<<spec_.grid_dim_, spec_.block_dim_, shared_mem_size_, stream>>>(
+        vector_scan_by_blocks_parallel<Number, Operation><<<spec_.grid_dim_, spec_.block_dim_, spec_.shared_mem_size_, stream>>>(
             gpu_data_A,
             gpu_data_C,
             spec_.n_,
