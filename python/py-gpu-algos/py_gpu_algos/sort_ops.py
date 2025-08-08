@@ -24,30 +24,22 @@ try:
     # Load the CUDA module from build directory
     _sort_ops_cuda = get_cuda_module('_sort_ops_cuda')
 
-    if _sort_ops_cuda is not None:
-        # Import functions from the CUDA module
-        _tensor_sort_bitonic_cuda = _sort_ops_cuda.tensor_sort_bitonic
+    # Import functions from the CUDA module
+    _tensor_sort_bitonic_cuda = _sort_ops_cuda.tensor_sort_bitonic
 
-        # Import low-level type-specific functions
-        _tensor_sort_bitonic_float32_cuda = _sort_ops_cuda.tensor_sort_bitonic_float32
-        _tensor_sort_bitonic_float64_cuda = _sort_ops_cuda.tensor_sort_bitonic_float64
-        _tensor_sort_bitonic_int8_cuda = _sort_ops_cuda.tensor_sort_bitonic_int8
-        _tensor_sort_bitonic_int16_cuda = _sort_ops_cuda.tensor_sort_bitonic_int16
-        _tensor_sort_bitonic_int32_cuda = _sort_ops_cuda.tensor_sort_bitonic_int32
-        _tensor_sort_bitonic_int64_cuda = _sort_ops_cuda.tensor_sort_bitonic_int64
-        _tensor_sort_bitonic_uint8_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint8
-        _tensor_sort_bitonic_uint16_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint16
-        _tensor_sort_bitonic_uint32_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint32
-        _tensor_sort_bitonic_uint64_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint64
-
-        _CUDA_AVAILABLE = True
-    else:
-        _CUDA_AVAILABLE = False
-        warnings.warn("CUDA backend not available: Could not load _sort_ops_cuda module from build directory")
-
+    # Import low-level type-specific functions
+    _tensor_sort_bitonic_float32_cuda = _sort_ops_cuda.tensor_sort_bitonic_float32
+    _tensor_sort_bitonic_float64_cuda = _sort_ops_cuda.tensor_sort_bitonic_float64
+    _tensor_sort_bitonic_int8_cuda = _sort_ops_cuda.tensor_sort_bitonic_int8
+    _tensor_sort_bitonic_int16_cuda = _sort_ops_cuda.tensor_sort_bitonic_int16
+    _tensor_sort_bitonic_int32_cuda = _sort_ops_cuda.tensor_sort_bitonic_int32
+    _tensor_sort_bitonic_int64_cuda = _sort_ops_cuda.tensor_sort_bitonic_int64
+    _tensor_sort_bitonic_uint8_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint8
+    _tensor_sort_bitonic_uint16_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint16
+    _tensor_sort_bitonic_uint32_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint32
+    _tensor_sort_bitonic_uint64_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint64
 except Exception as e:
-    _CUDA_AVAILABLE = False
-    warnings.warn(f"CUDA backend not available: {e}")
+    raise e
 
 T = TypeVar('T', bound=np.generic)
 
@@ -106,9 +98,6 @@ def tensor_sort_bitonic_float32(tensor: NDArray[np.float32], sort_dim: Literal["
         This operation modifies the input tensor in-place.
         The size of the sort dimension must be a power of 2.
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_float32")
     tensor_contig = _ensure_contiguous(tensor)
 
@@ -116,9 +105,6 @@ def tensor_sort_bitonic_float32(tensor: NDArray[np.float32], sort_dim: Literal["
 
 def tensor_sort_bitonic_float64(tensor: NDArray[np.float64], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
     """3D tensor bitonic sort for float64 arrays (in-place operation)."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_float64")
     tensor_contig = _ensure_contiguous(tensor)
 
@@ -126,9 +112,6 @@ def tensor_sort_bitonic_float64(tensor: NDArray[np.float64], sort_dim: Literal["
 
 def tensor_sort_bitonic_int8(tensor: NDArray[np.int8], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
     """3D tensor bitonic sort for int8 arrays (in-place operation)."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_int8")
     tensor_contig = _ensure_contiguous(tensor)
 
@@ -136,9 +119,6 @@ def tensor_sort_bitonic_int8(tensor: NDArray[np.int8], sort_dim: Literal["rows",
 
 def tensor_sort_bitonic_int16(tensor: NDArray[np.int16], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
     """3D tensor bitonic sort for int16 arrays (in-place operation)."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_int16")
     tensor_contig = _ensure_contiguous(tensor)
 
@@ -146,9 +126,6 @@ def tensor_sort_bitonic_int16(tensor: NDArray[np.int16], sort_dim: Literal["rows
 
 def tensor_sort_bitonic_int32(tensor: NDArray[np.int32], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
     """3D tensor bitonic sort for int32 arrays (in-place operation)."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_int32")
     tensor_contig = _ensure_contiguous(tensor)
 
@@ -156,9 +133,6 @@ def tensor_sort_bitonic_int32(tensor: NDArray[np.int32], sort_dim: Literal["rows
 
 def tensor_sort_bitonic_int64(tensor: NDArray[np.int64], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
     """3D tensor bitonic sort for int64 arrays (in-place operation)."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_int64")
     tensor_contig = _ensure_contiguous(tensor)
 
@@ -166,9 +140,6 @@ def tensor_sort_bitonic_int64(tensor: NDArray[np.int64], sort_dim: Literal["rows
 
 def tensor_sort_bitonic_uint8(tensor: NDArray[np.uint8], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
     """3D tensor bitonic sort for uint8 arrays (in-place operation)."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_uint8")
     tensor_contig = _ensure_contiguous(tensor)
 
@@ -176,9 +147,6 @@ def tensor_sort_bitonic_uint8(tensor: NDArray[np.uint8], sort_dim: Literal["rows
 
 def tensor_sort_bitonic_uint16(tensor: NDArray[np.uint16], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
     """3D tensor bitonic sort for uint16 arrays (in-place operation)."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_uint16")
     tensor_contig = _ensure_contiguous(tensor)
 
@@ -186,9 +154,6 @@ def tensor_sort_bitonic_uint16(tensor: NDArray[np.uint16], sort_dim: Literal["ro
 
 def tensor_sort_bitonic_uint32(tensor: NDArray[np.uint32], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
     """3D tensor bitonic sort for uint32 arrays (in-place operation)."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_uint32")
     tensor_contig = _ensure_contiguous(tensor)
 
@@ -196,9 +161,6 @@ def tensor_sort_bitonic_uint32(tensor: NDArray[np.uint32], sort_dim: Literal["ro
 
 def tensor_sort_bitonic_uint64(tensor: NDArray[np.uint64], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
     """3D tensor bitonic sort for uint64 arrays (in-place operation)."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_uint64")
     tensor_contig = _ensure_contiguous(tensor)
 
@@ -238,9 +200,6 @@ def tensor_sort_bitonic(tensor: Union[NDArray[T], np.ndarray], sort_dim: Literal
         >>> # Sort along sheets dimension
         >>> tensor_sort_bitonic(tensor, "sheets")  # Sort along third dimension (size 16 = 2^4)
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic")
     tensor_contig = _ensure_contiguous(tensor)
 

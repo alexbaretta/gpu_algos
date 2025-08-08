@@ -21,54 +21,47 @@ try:
     # Load the CUDA module from build directory
     _matrix_ops_cuda = get_cuda_module('_matrix_ops_cuda')
 
-    if _matrix_ops_cuda is not None:
-        # Import functions from the CUDA module
-        _matrix_product_naive_cuda = _matrix_ops_cuda.matrix_product_naive
-        # _matrix_product_naive_float16_cuda = _matrix_ops_cuda.matrix_product_naive_float16  # TODO: Handle float16 properly
-        _matrix_product_naive_float32_cuda = _matrix_ops_cuda.matrix_product_naive_float32
-        _matrix_product_naive_float64_cuda = _matrix_ops_cuda.matrix_product_naive_float64
-        _matrix_product_naive_int8_cuda = _matrix_ops_cuda.matrix_product_naive_int8
-        _matrix_product_naive_int16_cuda = _matrix_ops_cuda.matrix_product_naive_int16
-        _matrix_product_naive_int32_cuda = _matrix_ops_cuda.matrix_product_naive_int32
-        _matrix_product_naive_int64_cuda = _matrix_ops_cuda.matrix_product_naive_int64
-        _matrix_product_naive_uint8_cuda = _matrix_ops_cuda.matrix_product_naive_uint8
-        _matrix_product_naive_uint16_cuda = _matrix_ops_cuda.matrix_product_naive_uint16
-        _matrix_product_naive_uint32_cuda = _matrix_ops_cuda.matrix_product_naive_uint32
-        _matrix_product_naive_uint64_cuda = _matrix_ops_cuda.matrix_product_naive_uint64
+    # Import functions from the CUDA module
+    _matrix_product_naive_cuda = _matrix_ops_cuda.matrix_product_naive
+    # _matrix_product_naive_float16_cuda = _matrix_ops_cuda.matrix_product_naive_float16  # TODO: Handle float16 properly
+    _matrix_product_naive_float32_cuda = _matrix_ops_cuda.matrix_product_naive_float32
+    _matrix_product_naive_float64_cuda = _matrix_ops_cuda.matrix_product_naive_float64
+    _matrix_product_naive_int8_cuda = _matrix_ops_cuda.matrix_product_naive_int8
+    _matrix_product_naive_int16_cuda = _matrix_ops_cuda.matrix_product_naive_int16
+    _matrix_product_naive_int32_cuda = _matrix_ops_cuda.matrix_product_naive_int32
+    _matrix_product_naive_int64_cuda = _matrix_ops_cuda.matrix_product_naive_int64
+    _matrix_product_naive_uint8_cuda = _matrix_ops_cuda.matrix_product_naive_uint8
+    _matrix_product_naive_uint16_cuda = _matrix_ops_cuda.matrix_product_naive_uint16
+    _matrix_product_naive_uint32_cuda = _matrix_ops_cuda.matrix_product_naive_uint32
+    _matrix_product_naive_uint64_cuda = _matrix_ops_cuda.matrix_product_naive_uint64
 
-        # Additional matrix operations
-        _matrix_product_tiled_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled', None)
-        _matrix_product_tiled_float32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_float32', None)
-        _matrix_product_tiled_float64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_float64', None)
-        _matrix_product_tiled_int8_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int8', None)
-        _matrix_product_tiled_int16_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int16', None)
-        _matrix_product_tiled_int32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int32', None)
-        _matrix_product_tiled_int64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int64', None)
-        _matrix_product_tiled_uint8_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint8', None)
-        _matrix_product_tiled_uint16_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint16', None)
-        _matrix_product_tiled_uint32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint32', None)
-        _matrix_product_tiled_uint64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint64', None)
+    # Additional matrix operations
+    _matrix_product_tiled_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled', None)
+    _matrix_product_tiled_float32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_float32', None)
+    _matrix_product_tiled_float64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_float64', None)
+    _matrix_product_tiled_int8_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int8', None)
+    _matrix_product_tiled_int16_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int16', None)
+    _matrix_product_tiled_int32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int32', None)
+    _matrix_product_tiled_int64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_int64', None)
+    _matrix_product_tiled_uint8_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint8', None)
+    _matrix_product_tiled_uint16_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint16', None)
+    _matrix_product_tiled_uint32_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint32', None)
+    _matrix_product_tiled_uint64_cuda = getattr(_matrix_ops_cuda, 'matrix_product_tiled_uint64', None)
 
-        _matrix_transpose_striped_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped', None)
-        _matrix_transpose_striped_float32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_float32', None)
-        _matrix_transpose_striped_float64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_float64', None)
-        _matrix_transpose_striped_int8_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int8', None)
-        _matrix_transpose_striped_int16_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int16', None)
-        _matrix_transpose_striped_int32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int32', None)
-        _matrix_transpose_striped_int64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int64', None)
-        _matrix_transpose_striped_uint8_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint8', None)
-        _matrix_transpose_striped_uint16_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint16', None)
-        _matrix_transpose_striped_uint32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint32', None)
-        _matrix_transpose_striped_uint64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint64', None)
-
-        _CUDA_AVAILABLE = True
-    else:
-        _CUDA_AVAILABLE = False
-        warnings.warn("CUDA backend not available: Could not load _matrix_ops_cuda module from build directory")
-
+    _matrix_transpose_striped_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped', None)
+    _matrix_transpose_striped_float32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_float32', None)
+    _matrix_transpose_striped_float64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_float64', None)
+    _matrix_transpose_striped_int8_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int8', None)
+    _matrix_transpose_striped_int16_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int16', None)
+    _matrix_transpose_striped_int32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int32', None)
+    _matrix_transpose_striped_int64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_int64', None)
+    _matrix_transpose_striped_uint8_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint8', None)
+    _matrix_transpose_striped_uint16_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint16', None)
+    _matrix_transpose_striped_uint32_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint32', None)
+    _matrix_transpose_striped_uint64_cuda = getattr(_matrix_ops_cuda, 'matrix_transpose_striped_uint64', None)
 except Exception as e:
-    _CUDA_AVAILABLE = False
-    warnings.warn(f"CUDA backend not available: {e}")
+    raise e
+
 
 T = TypeVar('T', bound=np.generic)
 
@@ -144,9 +137,6 @@ def _ensure_contiguous(arr: np.ndarray) -> np.ndarray:
 
 def matrix_product_naive_float32(a: NDArray[np.float32], b: NDArray[np.float32]) -> NDArray[np.float32]:
     """Matrix multiplication using naive algorithm for float32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive_float32")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -155,9 +145,6 @@ def matrix_product_naive_float32(a: NDArray[np.float32], b: NDArray[np.float32])
 
 def matrix_product_naive_float64(a: NDArray[np.float64], b: NDArray[np.float64]) -> NDArray[np.float64]:
     """Matrix multiplication using naive algorithm for float64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive_float64")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -166,9 +153,6 @@ def matrix_product_naive_float64(a: NDArray[np.float64], b: NDArray[np.float64])
 
 def matrix_product_naive_int8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
     """Matrix multiplication using naive algorithm for int8 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive_int8")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -177,9 +161,6 @@ def matrix_product_naive_int8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArr
 
 def matrix_product_naive_int16(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
     """Matrix multiplication using naive algorithm for int16 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive_int16")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -188,9 +169,6 @@ def matrix_product_naive_int16(a: NDArray[np.int16], b: NDArray[np.int16]) -> ND
 
 def matrix_product_naive_int32(a: NDArray[np.int32], b: NDArray[np.int32]) -> NDArray[np.int32]:
     """Matrix multiplication using naive algorithm for int32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive_int32")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -199,9 +177,6 @@ def matrix_product_naive_int32(a: NDArray[np.int32], b: NDArray[np.int32]) -> ND
 
 def matrix_product_naive_int64(a: NDArray[np.int64], b: NDArray[np.int64]) -> NDArray[np.int64]:
     """Matrix multiplication using naive algorithm for int64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive_int64")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -210,9 +185,6 @@ def matrix_product_naive_int64(a: NDArray[np.int64], b: NDArray[np.int64]) -> ND
 
 def matrix_product_naive_uint8(a: NDArray[np.uint8], b: NDArray[np.uint8]) -> NDArray[np.uint8]:
     """Matrix multiplication using naive algorithm for uint8 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive_uint8")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -221,9 +193,6 @@ def matrix_product_naive_uint8(a: NDArray[np.uint8], b: NDArray[np.uint8]) -> ND
 
 def matrix_product_naive_uint16(a: NDArray[np.uint16], b: NDArray[np.uint16]) -> NDArray[np.uint16]:
     """Matrix multiplication using naive algorithm for uint16 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive_uint16")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -232,9 +201,6 @@ def matrix_product_naive_uint16(a: NDArray[np.uint16], b: NDArray[np.uint16]) ->
 
 def matrix_product_naive_uint32(a: NDArray[np.uint32], b: NDArray[np.uint32]) -> NDArray[np.uint32]:
     """Matrix multiplication using naive algorithm for uint32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive_uint32")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -243,9 +209,6 @@ def matrix_product_naive_uint32(a: NDArray[np.uint32], b: NDArray[np.uint32]) ->
 
 def matrix_product_naive_uint64(a: NDArray[np.uint64], b: NDArray[np.uint64]) -> NDArray[np.uint64]:
     """Matrix multiplication using naive algorithm for uint64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive_uint64")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -282,9 +245,6 @@ def matrix_product_naive(a: Union[NDArray[T], np.ndarray], b: Union[NDArray[T], 
         >>> c.shape
         (100, 80)
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_naive")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -297,9 +257,6 @@ def matrix_product_naive(a: Union[NDArray[T], np.ndarray], b: Union[NDArray[T], 
 
 def matrix_product_tiled_float32(a: NDArray[np.float32], b: NDArray[np.float32]) -> NDArray[np.float32]:
     """Matrix multiplication using tiled algorithm for float32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_tiled_float32")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -308,9 +265,6 @@ def matrix_product_tiled_float32(a: NDArray[np.float32], b: NDArray[np.float32])
 
 def matrix_product_tiled_float64(a: NDArray[np.float64], b: NDArray[np.float64]) -> NDArray[np.float64]:
     """Matrix multiplication using tiled algorithm for float64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_tiled_float64")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -319,9 +273,6 @@ def matrix_product_tiled_float64(a: NDArray[np.float64], b: NDArray[np.float64])
 
 def matrix_product_tiled_int32(a: NDArray[np.int32], b: NDArray[np.int32]) -> NDArray[np.int32]:
     """Matrix multiplication using tiled algorithm for int32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_tiled_int32")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -330,9 +281,6 @@ def matrix_product_tiled_int32(a: NDArray[np.int32], b: NDArray[np.int32]) -> ND
 
 def matrix_product_tiled_int64(a: NDArray[np.int64], b: NDArray[np.int64]) -> NDArray[np.int64]:
     """Matrix multiplication using tiled algorithm for int64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_tiled_int64")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -354,9 +302,6 @@ def matrix_product_tiled_int8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArr
 
 def matrix_product_tiled_int16(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
     """Matrix multiplication using tiled algorithm for int16 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_tiled_int16")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -365,9 +310,6 @@ def matrix_product_tiled_int16(a: NDArray[np.int16], b: NDArray[np.int16]) -> ND
 
 def matrix_product_tiled_uint8(a: NDArray[np.uint8], b: NDArray[np.uint8]) -> NDArray[np.uint8]:
     """Matrix multiplication using tiled algorithm for uint8 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_tiled_uint8")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -376,9 +318,6 @@ def matrix_product_tiled_uint8(a: NDArray[np.uint8], b: NDArray[np.uint8]) -> ND
 
 def matrix_product_tiled_uint16(a: NDArray[np.uint16], b: NDArray[np.uint16]) -> NDArray[np.uint16]:
     """Matrix multiplication using tiled algorithm for uint16 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_tiled_uint16")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -387,9 +326,6 @@ def matrix_product_tiled_uint16(a: NDArray[np.uint16], b: NDArray[np.uint16]) ->
 
 def matrix_product_tiled_uint32(a: NDArray[np.uint32], b: NDArray[np.uint32]) -> NDArray[np.uint32]:
     """Matrix multiplication using tiled algorithm for uint32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_tiled_uint32")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -398,9 +334,6 @@ def matrix_product_tiled_uint32(a: NDArray[np.uint32], b: NDArray[np.uint32]) ->
 
 def matrix_product_tiled_uint64(a: NDArray[np.uint64], b: NDArray[np.uint64]) -> NDArray[np.uint64]:
     """Matrix multiplication using tiled algorithm for uint64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_tiled_uint64")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -425,9 +358,6 @@ def matrix_product_tiled(a: Union[NDArray[T], np.ndarray], b: Union[NDArray[T], 
     Note:
         This function supports all numeric types: float32, float64, int8, int16, int32, int64, uint8, uint16, uint32, uint64
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_inputs(a, b, "matrix_product_tiled")
     a_contig = _ensure_contiguous(a)
     b_contig = _ensure_contiguous(b)
@@ -438,9 +368,6 @@ def matrix_product_tiled(a: Union[NDArray[T], np.ndarray], b: Union[NDArray[T], 
 
 def matrix_transpose_striped_float32(a: NDArray[np.float32]) -> NDArray[np.float32]:
     """Matrix transpose using striped algorithm for float32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped_float32")
     a_contig = _ensure_contiguous(a)
 
@@ -448,9 +375,6 @@ def matrix_transpose_striped_float32(a: NDArray[np.float32]) -> NDArray[np.float
 
 def matrix_transpose_striped_float64(a: NDArray[np.float64]) -> NDArray[np.float64]:
     """Matrix transpose using striped algorithm for float64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped_float64")
     a_contig = _ensure_contiguous(a)
 
@@ -458,9 +382,6 @@ def matrix_transpose_striped_float64(a: NDArray[np.float64]) -> NDArray[np.float
 
 def matrix_transpose_striped_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
     """Matrix transpose using striped algorithm for int8 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped_int8")
     a_contig = _ensure_contiguous(a)
 
@@ -468,9 +389,6 @@ def matrix_transpose_striped_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
 
 def matrix_transpose_striped_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
     """Matrix transpose using striped algorithm for int16 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped_int16")
     a_contig = _ensure_contiguous(a)
 
@@ -478,9 +396,6 @@ def matrix_transpose_striped_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
 
 def matrix_transpose_striped_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
     """Matrix transpose using striped algorithm for int32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped_int32")
     a_contig = _ensure_contiguous(a)
 
@@ -488,9 +403,6 @@ def matrix_transpose_striped_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
 
 def matrix_transpose_striped_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
     """Matrix transpose using striped algorithm for int64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped_int64")
     a_contig = _ensure_contiguous(a)
 
@@ -498,9 +410,6 @@ def matrix_transpose_striped_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
 
 def matrix_transpose_striped_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
     """Matrix transpose using striped algorithm for uint8 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped_uint8")
     a_contig = _ensure_contiguous(a)
 
@@ -508,9 +417,6 @@ def matrix_transpose_striped_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
 
 def matrix_transpose_striped_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
     """Matrix transpose using striped algorithm for uint16 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped_uint16")
     a_contig = _ensure_contiguous(a)
 
@@ -518,9 +424,6 @@ def matrix_transpose_striped_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]
 
 def matrix_transpose_striped_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
     """Matrix transpose using striped algorithm for uint32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped_uint32")
     a_contig = _ensure_contiguous(a)
 
@@ -528,9 +431,6 @@ def matrix_transpose_striped_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]
 
 def matrix_transpose_striped_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
     """Matrix transpose using striped algorithm for uint64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped_uint64")
     a_contig = _ensure_contiguous(a)
 
@@ -550,9 +450,6 @@ def matrix_transpose_striped(a: Union[NDArray[T], np.ndarray]) -> Union[NDArray[
     Returns:
         Transposed matrix of shape (n, m)
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_matrix_transpose_inputs(a, "matrix_transpose_striped")
     a_contig = _ensure_contiguous(a)
 

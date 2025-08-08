@@ -22,7 +22,7 @@ import warnings
 
 try:
     from ._module_loader import get_cuda_module
-    
+
     # Load the CUDA module from build directory
     _glm_ops_cuda = get_cuda_module('_glm_ops_cuda')
     # Import functions from the CUDA module
@@ -45,12 +45,8 @@ try:
     _glm_gradient_xyyhat_float64_cuda = _glm_ops_cuda.glm_gradient_xyyhat_float64
     _glm_gradient_xyyhat_int32_cuda = _glm_ops_cuda.glm_gradient_xyyhat_int32
     _glm_gradient_xyyhat_int64_cuda = _glm_ops_cuda.glm_gradient_xyyhat_int64
-
-    _CUDA_AVAILABLE = True
 except Exception as e:
     raise e
-    _CUDA_AVAILABLE = False
-    warnings.warn(f"CUDA backend not available: {e}")
 
 T = TypeVar('T', bound=np.generic)
 
@@ -125,9 +121,6 @@ def glm_predict_naive_float32(X: NDArray[np.float32], M: NDArray[np.float32]) ->
     Returns:
         Predictions tensor of shape (ntargets, ntasks, nobs)
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_predict_inputs(X, M, "glm_predict_naive_float32")
     X_contig = _ensure_contiguous(X)
     M_contig = _ensure_contiguous(M)
@@ -136,9 +129,6 @@ def glm_predict_naive_float32(X: NDArray[np.float32], M: NDArray[np.float32]) ->
 
 def glm_predict_naive_float64(X: NDArray[np.float64], M: NDArray[np.float64]) -> NDArray[np.float64]:
     """GLM prediction using naive algorithm for float64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_predict_inputs(X, M, "glm_predict_naive_float64")
     X_contig = _ensure_contiguous(X)
     M_contig = _ensure_contiguous(M)
@@ -147,9 +137,6 @@ def glm_predict_naive_float64(X: NDArray[np.float64], M: NDArray[np.float64]) ->
 
 def glm_predict_naive_int32(X: NDArray[np.int32], M: NDArray[np.int32]) -> NDArray[np.int32]:
     """GLM prediction using naive algorithm for int32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_predict_inputs(X, M, "glm_predict_naive_int32")
     X_contig = _ensure_contiguous(X)
     M_contig = _ensure_contiguous(M)
@@ -158,9 +145,6 @@ def glm_predict_naive_int32(X: NDArray[np.int32], M: NDArray[np.int32]) -> NDArr
 
 def glm_predict_naive_int64(X: NDArray[np.int64], M: NDArray[np.int64]) -> NDArray[np.int64]:
     """GLM prediction using naive algorithm for int64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_predict_inputs(X, M, "glm_predict_naive_int64")
     X_contig = _ensure_contiguous(X)
     M_contig = _ensure_contiguous(M)
@@ -180,9 +164,6 @@ def glm_gradient_naive_float32(X: NDArray[np.float32], Y: NDArray[np.float32], M
     Returns:
         Gradient tensor of shape (nfeatures, ntargets, ntasks)
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_gradient_inputs(X, Y, M, "glm_gradient_naive_float32")
     X_contig = _ensure_contiguous(X)
     Y_contig = _ensure_contiguous(Y)
@@ -192,9 +173,6 @@ def glm_gradient_naive_float32(X: NDArray[np.float32], Y: NDArray[np.float32], M
 
 def glm_gradient_naive_float64(X: NDArray[np.float64], Y: NDArray[np.float64], M: NDArray[np.float64]) -> NDArray[np.float64]:
     """GLM gradient computation using naive algorithm for float64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_gradient_inputs(X, Y, M, "glm_gradient_naive_float64")
     X_contig = _ensure_contiguous(X)
     Y_contig = _ensure_contiguous(Y)
@@ -204,9 +182,6 @@ def glm_gradient_naive_float64(X: NDArray[np.float64], Y: NDArray[np.float64], M
 
 def glm_gradient_naive_int32(X: NDArray[np.int32], Y: NDArray[np.int32], M: NDArray[np.int32]) -> NDArray[np.int32]:
     """GLM gradient computation using naive algorithm for int32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_gradient_inputs(X, Y, M, "glm_gradient_naive_int32")
     X_contig = _ensure_contiguous(X)
     Y_contig = _ensure_contiguous(Y)
@@ -216,9 +191,6 @@ def glm_gradient_naive_int32(X: NDArray[np.int32], Y: NDArray[np.int32], M: NDAr
 
 def glm_gradient_naive_int64(X: NDArray[np.int64], Y: NDArray[np.int64], M: NDArray[np.int64]) -> NDArray[np.int64]:
     """GLM gradient computation using naive algorithm for int64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_gradient_inputs(X, Y, M, "glm_gradient_naive_int64")
     X_contig = _ensure_contiguous(X)
     Y_contig = _ensure_contiguous(Y)
@@ -239,9 +211,6 @@ def glm_gradient_xyyhat_float32(X: NDArray[np.float32], Y: NDArray[np.float32], 
     Returns:
         Gradient tensor of shape (nfeatures, ntargets, ntasks)
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_gradient_inputs(X, Y, M, "glm_gradient_xyyhat_float32")
     X_contig = _ensure_contiguous(X)
     Y_contig = _ensure_contiguous(Y)
@@ -251,9 +220,6 @@ def glm_gradient_xyyhat_float32(X: NDArray[np.float32], Y: NDArray[np.float32], 
 
 def glm_gradient_xyyhat_float64(X: NDArray[np.float64], Y: NDArray[np.float64], M: NDArray[np.float64]) -> NDArray[np.float64]:
     """GLM gradient computation using XYYhat algorithm for float64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_gradient_inputs(X, Y, M, "glm_gradient_xyyhat_float64")
     X_contig = _ensure_contiguous(X)
     Y_contig = _ensure_contiguous(Y)
@@ -263,9 +229,6 @@ def glm_gradient_xyyhat_float64(X: NDArray[np.float64], Y: NDArray[np.float64], 
 
 def glm_gradient_xyyhat_int32(X: NDArray[np.int32], Y: NDArray[np.int32], M: NDArray[np.int32]) -> NDArray[np.int32]:
     """GLM gradient computation using XYYhat algorithm for int32 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_gradient_inputs(X, Y, M, "glm_gradient_xyyhat_int32")
     X_contig = _ensure_contiguous(X)
     Y_contig = _ensure_contiguous(Y)
@@ -275,9 +238,6 @@ def glm_gradient_xyyhat_int32(X: NDArray[np.int32], Y: NDArray[np.int32], M: NDA
 
 def glm_gradient_xyyhat_int64(X: NDArray[np.int64], Y: NDArray[np.int64], M: NDArray[np.int64]) -> NDArray[np.int64]:
     """GLM gradient computation using XYYhat algorithm for int64 arrays."""
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_gradient_inputs(X, Y, M, "glm_gradient_xyyhat_int64")
     X_contig = _ensure_contiguous(X)
     Y_contig = _ensure_contiguous(Y)
@@ -318,9 +278,6 @@ def glm_predict_naive(X: Union[NDArray[T], np.ndarray], M: Union[NDArray[T], np.
         >>> print(Yhat.shape)
         (3, 5, 100)  # 3 targets, 5 tasks, 100 obs
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_predict_inputs(X, M, "glm_predict_naive")
     X_contig = _ensure_contiguous(X)
     M_contig = _ensure_contiguous(M)
@@ -347,9 +304,6 @@ def glm_gradient_naive(X: Union[NDArray[T], np.ndarray], Y: Union[NDArray[T], np
     Note:
         This function supports a reduced set of types: float32, float64, int32, int64
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_gradient_inputs(X, Y, M, "glm_gradient_naive")
     X_contig = _ensure_contiguous(X)
     Y_contig = _ensure_contiguous(Y)
@@ -377,9 +331,6 @@ def glm_gradient_xyyhat(X: Union[NDArray[T], np.ndarray], Y: Union[NDArray[T], n
     Note:
         This function supports a reduced set of types: float32, float64, int32, int64
     """
-    if not _CUDA_AVAILABLE:
-        raise RuntimeError("CUDA backend not available")
-
     _validate_glm_gradient_inputs(X, Y, M, "glm_gradient_xyyhat")
     X_contig = _ensure_contiguous(X)
     Y_contig = _ensure_contiguous(Y)

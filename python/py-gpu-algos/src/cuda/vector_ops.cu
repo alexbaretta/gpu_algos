@@ -296,27 +296,7 @@ pybind11::array_t<T> vector_scan_parallel_cuda_impl(const pybind11::array_t<T>& 
     const T* a_ptr = static_cast<const T*>(a_buf.ptr);
     T* result_ptr = static_cast<T*>(result_buf.ptr);
 
-
-
-    // Create kernel specification - operation string will be determined by Op type
-    std::string operation;
-    if constexpr (std::is_same_v<Op, cuda_max_op<T>>) {
-        operation = "max";
-    } else if constexpr (std::is_same_v<Op, cuda_min_op<T>>) {
-        operation = "min";
-    } else if constexpr (std::is_same_v<Op, cuda_sum_op<T>>) {
-        operation = "sum";
-    } else if constexpr (std::is_same_v<Op, cuda_prod_op<T>>) {
-        operation = "prod";
-    } else {
-        operation = "unknown";
-    }
-
-    Vector_scan_parallel_spec spec(
-        "float",   // Type string (will be overridden by template parameter)
-        operation, // Operation
-        n, 1024    // n, block_dim
-    );
+    const auto spec = Vector_scan_parallel_spec::make<T, Op>(n, 1024);
 
     // Create kernel instance
     Vector_scan_parallel_kernel<T, Op> kernel(spec);
