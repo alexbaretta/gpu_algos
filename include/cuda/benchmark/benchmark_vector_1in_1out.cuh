@@ -353,21 +353,21 @@ class Benchmark_Vector_1In_1Out {
 
         if (verbose) {
             const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
-            std::cout << "A    :\n";
-            std::cout << A.template cast<Printable_Number<NumberA>>().format(eigen_format) << std::endl;
-            std::cout << "C_gpu:\n";
-            std::cout << C_gpu.template cast<Printable_Number<NumberC>>().format(eigen_format) << std::endl;
-            std::cout << "C_cpu:\n";
-            std::cout << C_cpu.template cast<Printable_Number<NumberC>>().format(eigen_format) << std::endl;
+            std::cout << "A    : ";
+            std::cout << A.template cast<Printable_Number<NumberA>>().transpose().format(eigen_format) << std::endl;
+            std::cout << "C_gpu: ";
+            std::cout << C_gpu.template cast<Printable_Number<NumberC>>().transpose().format(eigen_format) << std::endl;
+            std::cout << "C_cpu: ";
+            std::cout << C_cpu.template cast<Printable_Number<NumberC>>().transpose().format(eigen_format) << std::endl;
             if (spec.n_temp_ > 0) {
                 const Eigen::Map<Eigen::Vector<NumberTemp, Eigen::Dynamic>> tmp_gpu{vec_temp.data(), spec.n_temp_};
-                std::cout << "tmp  :\n";
-                std::cout << tmp_gpu.template cast<Printable_Number<NumberTemp>>().format(eigen_format) << std::endl;
+                std::cout << "tmp  : ";
+                std::cout << tmp_gpu.template cast<Printable_Number<NumberTemp>>().transpose().format(eigen_format) << std::endl;
             }
-            std::cout << "E    :\n";
-            std::cout << E.template cast<Printable_Number<NumberE>>().format(eigen_format) << std::endl;
-            std::cout << "E_rel:\n";
-            std::cout << E_rel.format(eigen_format) << std::endl;
+            std::cout << "E    : ";
+            std::cout << E.template cast<Printable_Number<NumberE>>().transpose().format(eigen_format) << std::endl;
+            std::cout << "E_rel: ";
+            std::cout << E_rel.transpose().format(eigen_format) << std::endl;
         }
 
         const auto tp_done = std::chrono::high_resolution_clock::now();
