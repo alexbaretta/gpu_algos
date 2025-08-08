@@ -168,7 +168,7 @@ class Benchmark_Tensor3D_2In_1Out {
             std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = NumberA(i);
             for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector_[i] = NumberB(i);
-        } else if (is_increasing) {
+        } else if (is_decreasing) {
             std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = NumberA(size_A - i);
             for (size_t i = 0; i < size_B; ++i) tensor3d_B.vector_[i] = NumberB(size_B - i);

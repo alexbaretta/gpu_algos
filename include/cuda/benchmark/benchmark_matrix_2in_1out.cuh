@@ -172,7 +172,7 @@ class Benchmark_Matrix_2In_1Out {
             std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(i);
             for (size_t i = 0; i < size_B; ++i) vec_B[i] = NumberB(i);
-        } else if (is_increasing) {
+        } else if (is_decreasing) {
             std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(size_A - i);
             for (size_t i = 0; i < size_B; ++i) vec_B[i] = NumberB(size_B - i);

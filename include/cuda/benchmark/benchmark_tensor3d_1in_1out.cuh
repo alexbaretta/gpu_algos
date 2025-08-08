@@ -161,7 +161,7 @@ class Benchmark_Tensor3D_1In_1Out {
         } else if (is_increasing) {
             std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = NumberA(i);
-        } else if (is_increasing) {
+        } else if (is_decreasing) {
             std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) tensor3d_A.vector_[i] = NumberA(size_A - i);
         } else {

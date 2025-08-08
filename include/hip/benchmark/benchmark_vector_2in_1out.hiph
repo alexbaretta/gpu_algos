@@ -163,14 +163,14 @@ class Benchmark_Vector_2In_1Out {
 
         std::cout << "  - Initializing vectors: ";
         if (is_random) {
-            std::cout << "  - Randomizing vectors: ";
+            std::cout << "  (random) ";
             randomize_container(vec_A, seed);
             randomize_container(vec_B, seed+1);
         } else if (is_increasing) {
             std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(i);
             for (size_t i = 0; i < size_B; ++i) vec_B[i] = NumberB(i);
-        } else if (is_increasing) {
+        } else if (is_decreasing) {
             std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(size_A - i);
             for (size_t i = 0; i < size_B; ++i) vec_B[i] = NumberB(size_B - i);
