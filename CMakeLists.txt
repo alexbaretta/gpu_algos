@@ -167,7 +167,7 @@ include_directories(
 # endif()
 
 # Function to create a GPU executable with common settings
-function(add_gpu_executable target_name source_file)
+function(add_cuda_executable target_name source_file)
     add_executable(${target_name}
         ${source_file}
         ${CMAKE_SOURCE_DIR}/src/cuda/cuda_utils.cu

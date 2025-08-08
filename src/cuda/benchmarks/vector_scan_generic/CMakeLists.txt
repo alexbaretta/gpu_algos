@@ -3,4 +3,4 @@
 # source path: src/cuda/benchmarks/vector_scan_generic/CMakeLists.txt
 
 # Matrix product executables
-add_gpu_executable(vector_scan_parallel vector_scan_parallel.cu)
+add_cuda_executable(vector_scan_parallel vector_scan_parallel.cu)

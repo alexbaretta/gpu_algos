@@ -3,11 +3,11 @@
 # source path: src/cuda/benchmarks/matrix_product/CMakeLists.txt
 
 # Matrix product executables
-add_gpu_executable(matrix_product_naive matrix_product_naive.cu)
-add_gpu_executable(matrix_product_tiled matrix_product_tiled.cu)
-add_gpu_executable(matrix_product_warp matrix_product_warp.cu)
-add_gpu_executable(matrix_product_tensor matrix_product_tensor.cu)
-add_gpu_executable(matrix_product_cublas matrix_product_cublas.cu)
+add_cuda_executable(matrix_product_naive matrix_product_naive.cu)
+add_cuda_executable(matrix_product_tiled matrix_product_tiled.cu)
+add_cuda_executable(matrix_product_warp matrix_product_warp.cu)
+add_cuda_executable(matrix_product_tensor matrix_product_tensor.cu)
+add_cuda_executable(matrix_product_cublas matrix_product_cublas.cu)
 
 # Additional cuBLAS linking
 target_link_libraries(matrix_product_cublas PRIVATE
@@ -19,7 +19,7 @@ target_link_libraries(matrix_product_cublas PRIVATE
 # CUTLASS causes errors due to initializer order mismatch
 set(DEFAULT_CUDA_FLAGS_ORIGINAL "${DEFAULT_CUDA_FLAGS}")
 string(REPLACE ",reorder" "" DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS}")
-add_gpu_executable(matrix_product_cutlass matrix_product_cutlass.cu)
+add_cuda_executable(matrix_product_cutlass matrix_product_cutlass.cu)
 set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS_ORIGINAL}")
 
 
