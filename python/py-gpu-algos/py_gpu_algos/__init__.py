@@ -11,7 +11,8 @@ exposing them as functions operating on NumPy arrays.
 """
 
 from .vector_ops import *
-from .matrix_ops import *
+from .matrix_product_ops import *
+from .matrix_transpose_ops import *
 from .glm_ops import *
 from .sort_ops import *
 
