@@ -9,7 +9,54 @@ import time
 import sys
 from typing import Callable, Dict, Any, Tuple
 
-def assert_array_close(actual, expected, dtype, tol_bits=6):
+class Tolerance_exceeded(Exception):
+    """Exception raised when a tolerance is exceeded."""
+    pass
+class NaN_result(Exception):
+    """Exception raised when a result contains nans."""
+    pass
+
+def tolerance_exceeded_failure(message):
+    """Unit test failed: Tolerance exceeded"""
+    # import pdb; pdb.set_trace()
+    raise Tolerance_exceeded(message)
+
+def nan_result_failure(message):
+    """Unit test failed: NaN result"""
+    raise NaN_result(message)
+
+def rtol_of_dtype(dtype, tol_bits):
+    """Get the relative tolerance for a dtype."""
+    if dtype == np.float16:
+        assert False, "float16 not supported by pybind11"
+        significand_bits = 11
+    elif dtype == np.float32:
+        significand_bits = 24
+    elif dtype == np.float64:
+        significand_bits = 53
+    else:
+        assert False, f"This should not be possible: {dtype}"
+    rtol = 0.5**(significand_bits - tol_bits)
+    return rtol
+
+def compute_max_error_abs(actual, expected):
+    """Get the maximum relative error between two arrays."""
+    error = np.abs(actual - expected, dtype=np.float64)
+    imax = np.argmax(error)
+    return imax, error, error[imax]
+
+def compute_max_error_rel(actual, expected):
+    """Get the maximum relative error between two arrays."""
+    error = np.abs(actual - expected, dtype=np.float64)
+    tiny = np.finfo(actual.dtype).tiny
+    both_are_denormalized = (np.isclose(actual, 0, atol=tiny) & np.isclose(expected, 0, atol=tiny))
+    abs_expected = np.abs(expected, dtype=np.float64)
+    error_rel = np.divide(error, abs_expected, dtype=np.float64, where=abs_expected!=0)
+    error_rel[(error==0) | both_are_denormalized] = 0
+    imax = np.argmax(error_rel)
+    return imax, error_rel, error_rel[imax]
+
+def assert_array_close(actual, expected, dtype, tol_bits=12):
     """
     Assert that two arrays are close with appropriate tolerances for the dtype.
     """
@@ -17,26 +64,25 @@ def assert_array_close(actual, expected, dtype, tol_bits=6):
     assert actual.dtype == expected.dtype, f"Dtypes do not match: {actual.dtype} != {expected.dtype}"
     if np.issubdtype(dtype, np.integer):
         # For integers, check exact equality
-        success = np.array_equal(actual, expected)
+        imax, error, max_error_abs = compute_max_error_abs(actual, expected)
+        success = max_error_abs == 0
         if not success:
-            assert False, f"Integer arrays not exactly equal for dtype {dtype}"
-    else:
-        if dtype == np.float16:
-            significand_bits = 11
-        elif dtype == np.float32:
-            significand_bits = 24
-        elif dtype == np.float64:
-            significand_bits = 53
+            tolerance_exceeded_failure(f"dtype {dtype} at index {imax}/{actual.size}, max error = {max_error_abs} > 0")
         else:
-            assert False, f"This should not be possible: {dtype}"
+            return imax, error, max_error_abs
+    else:
+        assert not np.isnan(expected).any(), "expected contains nans"
+        nans = np.isnan(actual)
+        if nans.any():
+            nan_result_failure(f"dtype {dtype} contains {nans.sum()} nans at indices {np.where(nans)[0:10]}...")
             pass
-        # For floats, check within tolerance
-        rtol = 0.5**(significand_bits - tol_bits)
-        success = np.allclose(actual, expected, rtol=rtol)
+        rtol = rtol_of_dtype(dtype, tol_bits)
+        imax, error_rel, max_error_rel = compute_max_error_rel(actual, expected)
+        success = max_error_rel < rtol
         if not success:
-            assert False, f"Float arrays not close for dtype {dtype}"
-            # np.testing.assert_allclose(actual, expected, rtol=rtol,
-            #                          err_msg=f"Float arrays not close for dtype {dtype}")
+            tolerance_exceeded_failure(f"dtype {dtype} at index {imax}/{actual.size}, max error = {max_error_rel:.2e} > {rtol:.2e}")
+        else:
+            return imax, error_rel, max_error_rel
 
 def validate_basic_properties(result, expected_shape, expected_dtype):
     """
@@ -93,8 +139,7 @@ def benchmark_function(func: Callable, args: tuple, kwargs: dict = None, warmup_
         'result': result
     }
 
-def compare_with_numpy_reference(gpu_func: Callable, numpy_func: Callable,
-                                args: tuple, dtype, **comparison_kwargs) -> Dict[str, Any]:
+def compare_with_numpy_reference(gpu_func: Callable, numpy_func: Callable, args: tuple, dtype) -> Dict[str, Any]:
     """
     Compare GPU function result with NumPy reference implementation.
 
@@ -110,20 +155,16 @@ def compare_with_numpy_reference(gpu_func: Callable, numpy_func: Callable,
     numpy_result = numpy_stats['result']
 
     # Compare results
-    try:
-        assert_array_close(gpu_result, numpy_result, dtype, **comparison_kwargs)
-        accuracy_pass = True
-        max_error = np.max(np.abs(gpu_result.astype(np.float64) - numpy_result.astype(np.float64)))
-    except AssertionError as e:
-        accuracy_pass = False
-        max_error = np.max(np.abs(gpu_result.astype(np.float64) - numpy_result.astype(np.float64)))
+    imax, error, max_error = assert_array_close(gpu_result, numpy_result, dtype)
 
     # Calculate speedup
     speedup = numpy_stats['mean_time'] / gpu_stats['mean_time'] if gpu_stats['mean_time'] > 0 else float('inf')
 
     return {
-        'accuracy_pass': accuracy_pass,
+        'dtype': dtype.name,
+        'size': numpy_result.size,
         'max_error': max_error,
+        'imax': imax,
         'gpu_time': gpu_stats['mean_time'],
         'numpy_time': numpy_stats['mean_time'],
         'speedup': speedup,
@@ -131,20 +172,16 @@ def compare_with_numpy_reference(gpu_func: Callable, numpy_func: Callable,
         'numpy_result': numpy_result
     }
 
-def get_numpy_reference_cumsum_serial(vec):
-    """NumPy reference for serial cumulative sum."""
+def get_numpy_reference_cumsum(vec):
+    """NumPy reference for cumulative sum."""
     return np.cumsum(vec, dtype=vec.dtype)
 
-def get_numpy_reference_cumsum_parallel(vec):
-    """NumPy reference for parallel cumulative sum."""
-    return np.cumsum(vec, dtype=vec.dtype)
-
-def get_numpy_reference_cummax_parallel(vec):
-    """NumPy reference for parallel cumulative maximum."""
+def get_numpy_reference_cummax(vec):
+    """NumPy reference for cumulative maximum."""
     return np.maximum.accumulate(vec, dtype=vec.dtype)
 
-def get_numpy_reference_scan_parallel(vec, operation):
-    """NumPy reference for parallel scan operations."""
+def get_numpy_reference_scan(vec, operation):
+    """NumPy reference for scan operations."""
     if operation == "sum":
         return np.cumsum(vec, dtype=vec.dtype)
     elif operation == "max":
@@ -155,6 +192,17 @@ def get_numpy_reference_scan_parallel(vec, operation):
         return np.cumprod(vec, dtype=vec.dtype)
     else:
         raise ValueError(f"Unknown scan operation: {operation}")
+
+def get_numpy_reference(func_name, vec, operation=None):
+    """Get the NumPy reference for a named function."""
+    if func_name.startswith("vector_cumsum"):
+        return np.cumsum(vec, dtype=vec.dtype)
+    elif func_name.startswith("vector_cummax"):
+        return np.maximum.accumulate(vec, dtype=vec.dtype)
+    elif func_name.startswith("vector_scan"):
+        return get_numpy_reference_scan(vec, operation)
+    else:
+        raise ValueError(f"Unknown function: {func_name}")
 
 def get_numpy_reference_matrix_product(a, b):
     """NumPy reference for matrix multiplication."""

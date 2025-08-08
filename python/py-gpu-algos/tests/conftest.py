@@ -83,129 +83,97 @@ def sort_axis(request):
     """Fixture providing sort axis options."""
     return request.param
 
-@pytest.fixture
-def small_matrices():
-    """Generate small matrices for basic testing."""
-    def _generate(dtype, m=16, n=12, k=20):
-        np.random.seed(42)  # Reproducible results
-        a = np.random.randn(m, n).astype(dtype)
-        b = np.random.randn(n, k).astype(dtype)
-
-        # Scale for integer types to avoid overflow
-        if np.issubdtype(dtype, np.integer):
-            if dtype in [np.int8, np.uint8]:
-                scale = 5
-            elif dtype in [np.int16, np.uint16]:
-                scale = 50
-            else:
-                scale = 100
-            a = (a * scale).astype(dtype)
-            b = (b * scale).astype(dtype)
-
-        return a, b
-    return _generate
 
 @pytest.fixture
-def small_vectors():
-    """Generate small vectors for basic testing."""
-    def _generate(dtype, n=1000):
+def test_input_vector_incremental():
+    """Generate incremental vector"""
+    def _generate(dtype, n):
         vec = np.arange(n, dtype=dtype)
-        # np.random.seed(42)
-        # vec = np.random.randn(n).astype(dtype)
-
-        # # Scale for integer types
-        # if np.issubdtype(dtype, np.integer):
-        #     if dtype in [np.int8, np.uint8]:
-        #         scale = 5
-        #     elif dtype in [np.int16, np.uint16]:
-        #         scale = 50
-        #     else:
-        #         scale = 100
-        #     vec = (vec * scale).astype(dtype)
 
         return vec
     return _generate
 
 @pytest.fixture
-def small_tensors_3d():
-    """Generate small 3D tensors for GLM and sort testing."""
-    def _generate(dtype, shape=(8, 4, 16)):
-        np.random.seed(42)
-        tensor = np.random.randn(*shape).astype(dtype)
-
-        # Scale for integer types
+def test_input_vector_random():
+    """Generate random vector"""
+    def _generate(dtype, n):
+        generator = np.random.default_rng(42)
         if np.issubdtype(dtype, np.integer):
-            if dtype in [np.int8, np.uint8]:
-                scale = 5
-            elif dtype in [np.int16, np.uint16]:
-                scale = 50
-            else:
-                scale = 100
-            tensor = (tensor * scale).astype(dtype)
+            vec = generator.integers(1, 100, n).astype(dtype)
+        else:
+            vec = generator.normal(1, 1, n).astype(dtype)
+            pass
 
-        return tensor
+        return vec
     return _generate
 
 @pytest.fixture
-def power_of_2_tensors():
-    """Generate 3D tensors with power-of-2 dimensions for bitonic sort."""
-    def _generate(dtype, shape=(8, 4, 16)):  # All dimensions are powers of 2
-        np.random.seed(42)
-        # For sort testing, use integers in a reasonable range
-        if np.issubdtype(dtype, np.integer):
-            if dtype in [np.int8, np.uint8]:
-                tensor = np.random.randint(-10, 10, shape, dtype=dtype)
-            elif dtype in [np.int16, np.uint16]:
-                tensor = np.random.randint(-100, 100, shape, dtype=dtype)
-            else:
-                tensor = np.random.randint(-1000, 1000, shape, dtype=dtype)
-        else:
-            tensor = (np.random.randn(*shape) * 100).astype(dtype)
+def test_input_matrix_incremental():
+    """Generate incremental matrix"""
+    def _generate(dtype, m, n):
+        mat = np.arange(m * n, dtype=dtype).reshape(m, n)
 
-        return tensor
+        return mat
     return _generate
 
 @pytest.fixture
-def tolerance():
-    """Get appropriate tolerance for floating point comparisons."""
-    def _get_tolerance(dtype):
-        if dtype == np.float16:
-            return {"rtol": 1e-3, "atol": 1e-4}
-        elif dtype == np.float32:
-            return {"rtol": 1e-5, "atol": 1e-6}
-        elif dtype == np.float64:
-            return {"rtol": 1e-12, "atol": 1e-14}
+def test_input_matrix_random():
+    """Generate random matrix"""
+    def _generate(dtype, m, n):
+        generator = np.random.default_rng(42)
+        if np.issubdtype(dtype, np.integer):
+            vec = generator.integers(1, 100, n).astype(dtype)
         else:
-            # Integer types should be exact
-            return {"rtol": 0, "atol": 0}
-    return _get_tolerance
+            vec = generator.normal(1, 1, n).astype(dtype)
+            pass
+
+        return vec
+    return _generate
+
+@pytest.fixture
+def test_input_tensor_3d_incremental():
+    """Generate incremental tensor_3d"""
+    def _generate(dtype, m=100, k=100, n=100):
+        mat = np.arange(m * k * n, dtype=dtype).reshape(m, k, n)
+
+        return mat
+    return _generate
+
+@pytest.fixture
+def test_input_tensor_3d_random():
+    """Generate random tensor_3d"""
+    def _generate(dtype, m=100, k=100, n=100):
+        generator = np.random.default_rng(42)
+        if np.issubdtype(dtype, np.integer):
+            vec = generator.integers(1, 100, m * k * n).astype(dtype).reshape(m, k, n)
+        else:
+            vec = generator.normal(1, 1, m * k * n).astype(dtype).reshape(m, k, n)
+            pass
+
+        return vec
+    return _generate
+
 
 @pytest.fixture
 def performance_sizes():
     """Generate different sizes for performance testing."""
-    return [
-        (64, 64, 64),
-        (128, 128, 128),
-        (256, 256, 256),
-        (512, 512, 512)
-    ]
+    return [ 2**(3*i) for i in range(2, 7) ]
 
 @pytest.fixture
 def glm_test_data():
     """Generate test data for GLM operations."""
     def _generate(dtype, nfeatures=10, ntargets=3, ntasks=4, nobs=100):
-        np.random.seed(42)
+        generator = np.random.default_rng(42)
 
-        X = np.random.randn(nfeatures, ntasks, nobs).astype(dtype)
-        Y = np.random.randn(ntargets, ntasks, nobs).astype(dtype)
-        M = np.random.randn(nfeatures, ntargets, ntasks).astype(dtype)
-
-        # Scale for integer types
-        if np.issubdtype(dtype, np.integer):
-            scale = 10
-            X = (X * scale).astype(dtype)
-            Y = (Y * scale).astype(dtype)
-            M = (M * scale).astype(dtype)
+        if np.issubdtype(dtype, np.floating):
+            X = generator.normal(1, 1, (nfeatures, ntasks, nobs)).astype(dtype)
+            Y = generator.normal(1, 1, (ntargets, ntasks, nobs)).astype(dtype)
+            M = generator.normal(1, 1, (nfeatures, ntargets, ntasks)).astype(dtype)
+        else:
+            X = generator.integers(-100, 100, (nfeatures, ntasks, nobs)).astype(dtype)
+            Y = generator.integers(-100, 100, (ntargets, ntasks, nobs)).astype(dtype)
+            M = generator.integers(-100, 100, (nfeatures, ntargets, ntasks)).astype(dtype)
+            pass
 
         return X, Y, M
     return _generate

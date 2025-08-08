@@ -39,10 +39,10 @@ def _find_build_directory() -> Optional[Path]:
     release_dir = builds_dir / "release" / "python" / "py-gpu-algos"
     debug_dir = builds_dir / "debug" / "python" / "py-gpu-algos"
 
-    if release_dir.exists():
-        return release_dir
-    elif debug_dir.exists():
+    if 'DEBUG' in os.environ:
         return debug_dir
+    elif release_dir.exists():
+        return release_dir
 
     return None
 
