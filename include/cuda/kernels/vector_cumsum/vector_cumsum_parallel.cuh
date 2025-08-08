@@ -39,7 +39,7 @@ __global__ void vector_cumsum_write_back_parallel(
     const long curr_n_elems,  // size of vector
     const long stride_A
 ) {
-    __shared__ Number shm[1]; // for writing, index this using `wid_block` (warp id)
+    __shared__ Number shm[1]; // This will contain the last value of the previous block
 
     // We have to update our block of prev_result with the final value from the previous block
 
@@ -377,7 +377,7 @@ class Vector_cumsum_parallel_kernel {
         std::cout << "[INFO] block_dim_: " << spec_.block_dim_.x << ", " << spec_.block_dim_.y << ", " << spec_.block_dim_.z << std::endl;
         std::cout << "[INFO] shared_mem_size_: " << shared_mem_size_ << std::endl;
 
-        // In our downard iteration we start by processing A block-wise.
+        // In our downward iteration we start by processing A block-wise.
         // The produces in C an array of block-wise cumsums that we can further process with a stride = block_size.
         // This downward iteration ends when the number of blocks is 1, which means that the result is the
         // global cumsum.
