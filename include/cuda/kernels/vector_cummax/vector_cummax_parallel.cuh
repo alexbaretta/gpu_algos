@@ -88,7 +88,7 @@ __global__ void vector_cummax_by_blocks_parallel(
 
     Number value;
     if constexpr (std::is_floating_point_v<Number>) {
-        value = device_nan<Number>();
+        value = DEVICE_NAN;
     } else {
         value = Number(0);
     }

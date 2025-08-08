@@ -136,47 +136,59 @@ void* get_dynamic_shared_memory(const std::size_t alignment) {
 
 
 template <CUDA_scalar Number>
-__host__ __device__ Number cuda_max(Number a, Number b) {
-    return max(a, b);
+__host__ __device__ Number cuda_max(const Number accumulator, const Number next_value) {
+    return max(accumulator, next_value);
 }
 
-// Template specialization declarations (defined in cuda_utils.cu)
 template <>
-__host__ __device__ __half cuda_max<__half>(__half a, __half b);
-
-template <CUDA_scalar Number>
-__host__ __device__ Number cuda_min(Number a, Number b) {
-    return min(a, b);
+__forceinline__ __host__ __device__ __half cuda_max<__half>(const __half accumulator, const __half next_value) {
+    return __hmax(accumulator, next_value);
 }
 
-// Template specialization declarations (defined in cuda_utils.cu)
+
+template <CUDA_scalar Number>
+__host__ __device__ Number cuda_min(const Number accumulator, const Number next_value) {
+    return min(accumulator, next_value);
+}
+
 template <>
-__host__ __device__ __half cuda_min<__half>(__half a, __half b);
+__forceinline__ __host__ __device__ __half cuda_min<__half>(const __half accumulator, const __half next_value) {
+    return __hmin(accumulator, next_value);
+}
+
 
 template <CUDA_scalar Number>
-__host__ __device__ Number cuda_sum(Number a, Number b) {
-    return a + b;
+__host__ __device__ Number cuda_sum(const Number accumulator, const Number next_value) {
+    return accumulator + next_value;
 }
 
 template <CUDA_scalar Number>
-__host__ __device__ Number cuda_prod(Number a, Number b) {
-    return a * b;
+__host__ __device__ Number cuda_prod(const Number accumulator, const Number next_value) {
+    if (accumulator == Number(0)) {
+        return Number(0);
+    } else {
+        return accumulator * next_value;
+    }
 }
 
 template <CUDA_scalar Number>
 __host__ __device__ Number device_nan() {
+    // Use the DEVICE_NAN macro to get the line number in the NaN payload
     static_assert(std::is_floating_point_v<Number>, "device_nan only supports floating point types");
-    if constexpr (std::is_same_v<Number, float>) {
-        return nanf(nullptr);
-    } else if constexpr (std::is_same_v<Number, double>) {
-        return nan(nullptr);
-    }
-    // __half specialization is defined in cuda_utils.cu
+    return std::numeric_limits<Number>::quiet_NaN();
 }
 
-// Template specialization declaration (defined in cuda_utils.cu)
 template <>
-__host__ __device__ __half device_nan<__half>();
+__forceinline__ __host__ __device__ __half device_nan<__half>() {
+    return CUDART_NAN_FP16;
+}
+
+#define DEVICE_NAN (device_nan<Number>())
+
+// Extend std::isnan to __half
+namespace std {
+    __host__ __device__ __inline__ bool isnan(const __half& a) { return __hisnan(a); }
+}
 
 void report_completion_time_callback(cudaStream_t stream, cudaError_t status, void* userData);
 
@@ -184,8 +196,8 @@ void report_completion_time_callback(cudaStream_t stream, cudaError_t status, vo
 template <typename Number_>
 struct cuda_max_op {
     using Number = Number_;
-    __host__ __device__ static Number apply(Number a, Number b) {
-        return max(a, b);
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        return max(accumulator, next_value);
     }
 
     __host__ __device__ static Number identity() {
@@ -202,8 +214,8 @@ struct cuda_max_op {
 template <>
 struct cuda_max_op<__half> {
     using Number = __half;
-    __host__ __device__ static Number apply(Number a, Number b) {
-        return __hmax(a, b);
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        return __hmax(accumulator, next_value);
     }
 
     __host__ __device__ static Number identity() {
@@ -214,8 +226,8 @@ struct cuda_max_op<__half> {
 template <typename Number_>
 struct cuda_min_op {
     using Number = Number_;
-    __host__ __device__ static Number apply(Number a, Number b) {
-        return min(a, b);
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        return min(accumulator, next_value);
     }
 
     __host__ __device__ static Number identity() {
@@ -232,8 +244,8 @@ struct cuda_min_op {
 template <>
 struct cuda_min_op<__half> {
     using Number = __half;
-    __host__ __device__ static Number apply(Number a, Number b) {
-        return __hmin(a, b);
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        return __hmin(accumulator, next_value);
     }
 
     __host__ __device__ static Number identity() {
@@ -244,8 +256,8 @@ struct cuda_min_op<__half> {
 template <typename Number_>
 struct cuda_sum_op {
     using Number = Number_;
-    __host__ __device__ static Number apply(Number a, Number b) {
-        return a + b;
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        return accumulator + next_value;
     }
 
     __host__ __device__ static Number identity() {
@@ -256,8 +268,12 @@ struct cuda_sum_op {
 template <typename Number_>
 struct cuda_prod_op {
     using Number = Number_;
-    __host__ __device__ static Number apply(Number a, Number b) {
-        return a * b;
+    __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
+        if (accumulator == Number(0) && !std::isnan(next_value)) {
+            return Number(0);
+        } else {
+            return accumulator * next_value;
+        }
     }
 
     __host__ __device__ static Number identity() {
