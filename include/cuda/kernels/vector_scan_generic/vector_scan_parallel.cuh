@@ -355,7 +355,7 @@ struct Vector_scan_parallel_spec {
     ) {
         const auto scalar_size = sizeof(Number_);
         const auto cuda_occupancy_kernel = vector_scan_by_blocks_parallel<Number_, Operation_>;
-        return make(type_name<Number_>, Operation_::name, scalar_size, (void*)cuda_occupancy_kernel, size, block_size);
+        return make(type_name(type_t<Number_>{}), Operation_::name, scalar_size, (void*)cuda_occupancy_kernel, size, block_size);
     }
 
     protected:

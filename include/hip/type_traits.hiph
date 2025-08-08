@@ -26,6 +26,8 @@
 #include <hip/hip_fp16.h>
 #include <type_traits>
 
+#include "common/type_traits.hpp"
+
 template <typename T>
 using is_HIP_integer = std::bool_constant<
     std::is_integral<T>::value &&
@@ -86,15 +88,4 @@ template <HIP_scalar T>
 using Printable_Number = std::conditional_t<std::is_same_v<T, __half>, float, T>;
 
 
-template <HIP_scalar T> constexpr static std::string_view type_name = "unknown";
-template <> constexpr std::string_view type_name<__half> = "half";
-template <> constexpr std::string_view type_name<float> = "float";
-template <> constexpr std::string_view type_name<double> = "double";
-template <> constexpr std::string_view type_name<int8_t> = "int8";
-template <> constexpr std::string_view type_name<int16_t> = "int16";
-template <> constexpr std::string_view type_name<int32_t> = "int32";
-template <> constexpr std::string_view type_name<int64_t> = "int64";
-template <> constexpr std::string_view type_name<uint8_t> = "uint8";
-template <> constexpr std::string_view type_name<uint16_t> = "uint16";
-template <> constexpr std::string_view type_name<uint32_t> = "uint32";
-template <> constexpr std::string_view type_name<uint64_t> = "uint64";
+consteval std::string_view type_name(type_t<__half>) { return {"half"}; }
