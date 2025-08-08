@@ -136,8 +136,8 @@ struct Matrix_product_tensor_spec {
         const long m,
         const long n,
         const long k,
-        const long block_dim_tiles_x,
-        const long block_dim_tiles_y
+        const long block_dim_tiles_x = DEFAULT_BLOCK_DIM_WARPS_X,
+        const long block_dim_tiles_y = DEFAULT_BLOCK_DIM_WARPS_Y
     ) : type_(type),
         m_(m),
         k_(k),
