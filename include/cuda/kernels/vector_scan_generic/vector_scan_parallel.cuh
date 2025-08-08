@@ -19,6 +19,7 @@
 // source path: include/cuda/kernels/vector_scan_generic/vector_scan_parallel.cuh
 
 #pragma once
+#include <cmath>
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
@@ -101,7 +102,7 @@ __global__ void vector_scan_by_blocks_parallel(
 
     Number value;
     if constexpr (std::is_floating_point_v<Number>) {
-        value = device_nan<Number>();
+        value = DEVICE_NAN;
     } else {
         value = Number(0);
     }
@@ -139,7 +140,17 @@ __global__ void vector_scan_by_blocks_parallel(
         const int from_lane = max(0, subtree_id * subtree_size - 1);
         const Number received_value = __shfl_sync(__activemask(), value, from_lane);
         if (subtree_id % 2 == 1) {
-            value = Operation::apply(value, received_value);
+            const auto computed_value = Operation::apply(received_value, value);
+            if constexpr (DEBUG && std::is_floating_point_v<Number>) {
+                if (std::isnan(computed_value)
+                    && !std::isnan(value)
+                    && !std::isnan(received_value)
+                ) {
+                    printf("warp-level operation result %f is nan when operands %f and %f\n",
+                        float(computed_value), float(value), float(received_value));
+                }
+            }
+            value = computed_value;
         }
     }
 
@@ -167,7 +178,13 @@ __global__ void vector_scan_by_blocks_parallel(
         assert(get_n_warps_per_block() <= warpSize);
         if (wid_block == 0) {
             // We pick warp 0 to perform the warp-shuffle scan on shared memory.
-            Number shm_value = 0;
+            Number shm_value;
+            if constexpr (std::is_floating_point_v<Number>) {
+                shm_value = DEVICE_NAN;
+            } else {
+                shm_value = Number(0);
+            }
+
             if (tid_warp < n_warps_per_block) {
                 shm_value = shm[tid_warp]; // Read the final value from the previous warp
             }
@@ -177,7 +194,17 @@ __global__ void vector_scan_by_blocks_parallel(
                 const int from_lane = max(0, subtree_id * subtree_size - 1);
                 const Number received_value = __shfl_sync(__activemask(), shm_value, from_lane);
                 if (subtree_id % 2 == 1) {
-                    shm_value = Operation::apply(shm_value, received_value);
+                    const auto computed_value = Operation::apply(received_value, shm_value);
+                    if constexpr (DEBUG && std::is_floating_point_v<Number>) {
+                        if (std::isnan(computed_value)
+                            && !std::isnan(shm_value)
+                            && !std::isnan(received_value)
+                        ) {
+                            printf("block-level operation result %f is nan when operands %f and %f\n",
+                                float(computed_value), float(shm_value), float(received_value));
+                        }
+                    }
+                    shm_value = computed_value;
                 }
             }
             shm[tid_warp] = shm_value;
@@ -190,7 +217,17 @@ __global__ void vector_scan_by_blocks_parallel(
         // shared memory location: shm[wid_block-1]
         if (wid_block > 0) {
             Number wid_minus_1_value = shm[wid_block-1];
-            value = Operation::apply(value, wid_minus_1_value);
+            const auto computed_value = Operation::apply(wid_minus_1_value, value);
+            if constexpr (DEBUG && std::is_floating_point_v<Number>) {
+                if (std::isnan(computed_value)
+                    && !std::isnan(value)
+                    && !std::isnan(wid_minus_1_value)
+                ) {
+                    printf("propagate result %f is nan when operands %f and %f\n",
+                        float(computed_value), float(value), float(wid_minus_1_value));
+                }
+            }
+            value = computed_value;
         }
         // For wid_block == 0 (first warp), value is already correct - no combination needed
 
@@ -411,7 +448,7 @@ class Vector_scan_parallel_kernel {
         Number accu = A(0);
         result(0) = accu;
         for (int i = 1; i < A.size(); ++i) {
-            accu = Operation::apply(accu, A(i));
+            accu = Operation::apply(A(i),accu);
             result(i) = accu;
         }
         return result;

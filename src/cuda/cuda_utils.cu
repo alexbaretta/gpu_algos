@@ -19,7 +19,7 @@
 // source path: src/cuda/cuda_utils.cu
 
 #include <chrono>
-
+#include "cuda/check_errors.cuh"
 #include "cuda/cuda_utils.cuh"
 
 void report_completion_time_callback(cudaStream_t stream, cudaError_t status, void* userData) {
@@ -31,27 +31,11 @@ void report_completion_time_callback(cudaStream_t stream, cudaError_t status, vo
 
 cudaDeviceProp get_device_prop(const int device_id) {
     cudaDeviceProp prop;
-    cudaGetDeviceProperties(&prop, device_id);
+    cuda_check_error(cudaGetDeviceProperties(&prop, device_id), "cudaGetDeviceProperties");
     return prop;
 }
 cudaDeviceProp get_default_device_prop() {
     int device_id;
-    cudaGetDevice(&device_id);
+    cuda_check_error(cudaGetDevice(&device_id), "cudaGetDevice");
     return get_device_prop(device_id);
-}
-
-// Template specializations for __half type
-template <>
-__host__ __device__ __half cuda_max<__half>(__half a, __half b) {
-    return __hmax(a, b);
-}
-
-template <>
-__host__ __device__ __half cuda_min<__half>(__half a, __half b) {
-    return __hmin(a, b);
-}
-
-template <>
-__host__ __device__ __half device_nan<__half>() {
-    return __ushort_as_half(0x7e00);
 }
