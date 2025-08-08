@@ -111,8 +111,8 @@ struct Matrix_transpose_naive_spec {
         const std::string& type,
         const long m,
         const long n,
-        const long block_dim_x,
-        const long block_dim_y
+        const long block_dim_x = DEFAULT_BLOCK_DIM_X,
+        const long block_dim_y = DEFAULT_BLOCK_DIM_Y
     ) : type_(type),
         m_(m),
         n_(n),

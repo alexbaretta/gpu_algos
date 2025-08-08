@@ -192,7 +192,7 @@ struct Matrix_transpose_tiled_spec {
         const std::string& type,
         const long m,
         const long n,
-        const long block_dim
+        const long block_dim = DEFAULT_BLOCK_DIM
     ) : type_(type),
         m_(m),
         n_(n),
