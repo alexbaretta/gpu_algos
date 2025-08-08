@@ -5,6 +5,7 @@ This module provides common fixtures, test data, and configuration
 for testing all GPU kernel bindings.
 """
 
+import itertools
 import pytest
 import numpy as np
 import sys
@@ -31,7 +32,8 @@ ALL_DTYPES = [
 ]
 
 # Common floating point dtypes
-FLOAT_DTYPES = [np.float32, np.float64]
+FLOAT_DTYPES = [np.float32, np.float64] # Eventually will include np.float16
+GEMM_DTYPES = [np.float32, np.float64]
 
 # Common integer dtypes
 INT_DTYPES = [np.int8, np.int16, np.int32, np.int64]
@@ -99,32 +101,59 @@ def test_input_vector_random():
     def _generate(dtype, n):
         generator = np.random.default_rng(42)
         if np.issubdtype(dtype, np.integer):
-            vec = generator.integers(1, 100, n).astype(dtype)
+            vec = generator.integers(0, 100, n).astype(dtype)
         else:
-            vec = generator.normal(1, 1, n).astype(dtype)
+            vec = generator.uniform(low=0, high=1, size=n).astype(dtype)
             pass
 
         return vec
     return _generate
 
+
+
+
+TEST_PROBLEM_SIZES = [
+    10, 33, 100, 256,
+    # 1000, 10000
+]
+
+def pick_problem_sizes(i_start:int, stride:int) -> tuple[int, int, int]:
+    """Pick problem sizes from TEST_SIZES"""
+    l = len(TEST_PROBLEM_SIZES)
+    i_m = i_start % l
+    i_k = (i_m + stride) % l
+    i_n = (i_k + stride) % l
+    return (TEST_PROBLEM_SIZES[i_m], TEST_PROBLEM_SIZES[i_k], TEST_PROBLEM_SIZES[i_n])
+
+TEST_M_K_N = list(itertools.chain(
+    [pick_problem_sizes(i, 1) for i in range(len(TEST_PROBLEM_SIZES))],
+    [pick_problem_sizes(i, 2) for i in range(len(TEST_PROBLEM_SIZES))],
+    [pick_problem_sizes(i, 3) for i in range(len(TEST_PROBLEM_SIZES))],
+))
+
+@pytest.fixture(params=TEST_M_K_N)
+def test_shape_triplet(request):
+    """Fixture that provides each triplet of test shapes from TEST_SHAPES."""
+    return request.param
+
 @pytest.fixture
 def test_input_matrix_incremental():
     """Generate incremental matrix"""
-    def _generate(dtype, m, n):
-        mat = np.arange(m * n, dtype=dtype).reshape(m, n)
-
-        return mat
+    def _generate(dtype, nrows, ncols, start=0):
+        mat = np.arange(start, start + nrows * ncols)
+        result = mat.astype(dtype).reshape(nrows, ncols)
+        return result
     return _generate
 
 @pytest.fixture
 def test_input_matrix_random():
     """Generate random matrix"""
-    def _generate(dtype, m, n):
+    def _generate(dtype, nrows, ncols):
         generator = np.random.default_rng(42)
         if np.issubdtype(dtype, np.integer):
-            vec = generator.integers(1, 100, n).astype(dtype)
+            vec = generator.integers(0, 100, (nrows, ncols), dtype=dtype)
         else:
-            vec = generator.normal(1, 1, n).astype(dtype)
+            vec = generator.uniform(low=0, high=1, size=(nrows, ncols)).astype(dtype)
             pass
 
         return vec
@@ -145,9 +174,9 @@ def test_input_tensor_3d_random():
     def _generate(dtype, m=100, k=100, n=100):
         generator = np.random.default_rng(42)
         if np.issubdtype(dtype, np.integer):
-            vec = generator.integers(1, 100, m * k * n).astype(dtype).reshape(m, k, n)
+            vec = generator.integers(0, 100, m * k * n).astype(dtype).reshape(m, k, n)
         else:
-            vec = generator.normal(1, 1, m * k * n).astype(dtype).reshape(m, k, n)
+            vec = generator.uniform(low=0, high=1, size=m * k * n).astype(dtype).reshape(m, k, n)
             pass
 
         return vec

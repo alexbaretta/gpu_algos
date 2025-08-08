@@ -25,13 +25,13 @@ def nan_result_failure(message):
     """Unit test failed: NaN result"""
     raise NaN_result(message)
 
-def rtol_of_dtype(dtype, tol_bits):
+def rtol_of_dtype(dtype, tol_bits, is_tensor_core=False):
     """Get the relative tolerance for a dtype."""
     if dtype == np.float16:
         assert False, "float16 not supported by pybind11"
         significand_bits = 11
     elif dtype == np.float32:
-        significand_bits = 24
+        significand_bits = 11 if is_tensor_core else 24
     elif dtype == np.float64:
         significand_bits = 53
     else:
@@ -41,22 +41,22 @@ def rtol_of_dtype(dtype, tol_bits):
 
 def compute_max_error_abs(actual, expected):
     """Get the maximum relative error between two arrays."""
-    error = np.abs(actual - expected, dtype=np.float64)
+    error = np.abs(actual - expected, dtype=np.float64).reshape(-1)
     imax = np.argmax(error)
     return imax, error, error[imax]
 
 def compute_max_error_rel(actual, expected):
     """Get the maximum relative error between two arrays."""
-    error = np.abs(actual - expected, dtype=np.float64)
+    error = np.abs(actual - expected, dtype=np.float64).reshape(-1)
     tiny = np.finfo(actual.dtype).tiny
-    both_are_denormalized = (np.isclose(actual, 0, atol=tiny) & np.isclose(expected, 0, atol=tiny))
-    abs_expected = np.abs(expected, dtype=np.float64)
+    both_are_denormalized = (np.isclose(actual, 0, atol=tiny) & np.isclose(expected, 0, atol=tiny)).reshape(-1)
+    abs_expected = np.abs(expected, dtype=np.float64).reshape(-1)
     error_rel = np.divide(error, abs_expected, dtype=np.float64, where=abs_expected!=0)
     error_rel[(error==0) | both_are_denormalized] = 0
     imax = np.argmax(error_rel)
     return imax, error_rel, error_rel[imax]
 
-def assert_array_close(actual, expected, dtype, tol_bits=12):
+def assert_array_close(actual, expected, dtype, tol_bits=6, is_tensor_core=False):
     """
     Assert that two arrays are close with appropriate tolerances for the dtype.
     """
@@ -76,7 +76,7 @@ def assert_array_close(actual, expected, dtype, tol_bits=12):
         if nans.any():
             nan_result_failure(f"dtype {dtype} contains {nans.sum()} nans at indices {np.where(nans)[0:10]}...")
             pass
-        rtol = rtol_of_dtype(dtype, tol_bits)
+        rtol = rtol_of_dtype(dtype, tol_bits, is_tensor_core)
         imax, error_rel, max_error_rel = compute_max_error_rel(actual, expected)
         success = max_error_rel < rtol
         if not success:

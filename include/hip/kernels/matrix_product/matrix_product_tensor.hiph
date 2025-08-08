@@ -124,8 +124,8 @@ struct Matrix_product_tensor_spec {
         return Matrix_product_tensor_spec(
             type,
             (unsigned)m,
-            (unsigned)n,
             (unsigned)k,
+            (unsigned)n,
             options_parsed["block-dim-tiles-x"].as<unsigned>(),
             options_parsed["block-dim-tiles-y"].as<unsigned>()
         );
@@ -134,10 +134,10 @@ struct Matrix_product_tensor_spec {
     inline Matrix_product_tensor_spec(
         const std::string& type,
         const long m,
-        const long n,
         const long k,
-        const long block_dim_tiles_x,
-        const long block_dim_tiles_y
+        const long n,
+        const long block_dim_tiles_x = DEFAULT_BLOCK_DIM_WARPS_X,
+        const long block_dim_tiles_y = DEFAULT_BLOCK_DIM_WARPS_Y
     ) : type_(type),
         m_(m),
         k_(k),

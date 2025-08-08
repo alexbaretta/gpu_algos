@@ -6,14 +6,14 @@
 
 # All CUDA flags and include directories inherited from toplevel project
 
-# Matrix operations CUDA module
-pybind11_add_module(_matrix_ops_cuda
-    src/cuda/matrix_ops.cu
+# Matrix product operations CUDA module
+pybind11_add_module(_matrix_product_ops_cuda
+    src/cuda/matrix_product_ops.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/cuda/cuda_utils.cu
 )
 
 # Set module properties
-target_compile_definitions(_matrix_ops_cuda PRIVATE
+target_compile_definitions(_matrix_product_ops_cuda PRIVATE
     VERSION_INFO=${CMAKE_PROJECT_VERSION}
     WITH_CUDA
 )
@@ -21,7 +21,7 @@ target_compile_definitions(_matrix_ops_cuda PRIVATE
 # Include directories are inherited from toplevel project via include_directories()
 
 # CUDA-specific settings (inherit CUDA_ARCHITECTURES from toplevel project)
-set_target_properties(_matrix_ops_cuda PROPERTIES
+set_target_properties(_matrix_product_ops_cuda PROPERTIES
     CUDA_RESOLVE_DEVICE_SYMBOLS ON
     CUDA_RUNTIME_LIBRARY Shared
     CUDA_SEPARABLE_COMPILATION ON
@@ -34,7 +34,7 @@ string(REPLACE ",reorder" "" DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS}")
 separate_arguments(LOCAL_CUDA_FLAGS UNIX_COMMAND ${DEFAULT_CUDA_FLAGS})
 separate_arguments(LOCAL_LINK_FLAGS UNIX_COMMAND ${DEFAULT_LINK_FLAGS})
 set_source_files_properties(
-    src/cuda/matrix_ops.cu
+    src/cuda/matrix_product_ops.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/cuda/cuda_utils.cu
     PROPERTIES
     LANGUAGE CUDA
@@ -44,10 +44,10 @@ set_source_files_properties(
 set(DEFAULT_CUDA_FLAGS "${DEFAULT_CUDA_FLAGS_ORIGINAL}")
 
 # Apply link options from toplevel project
-target_link_options(_matrix_ops_cuda PRIVATE "${LOCAL_LINK_FLAGS}")
+target_link_options(_matrix_product_ops_cuda PRIVATE "${LOCAL_LINK_FLAGS}")
 
 # Link libraries (matching toplevel project)
-target_link_libraries(_matrix_ops_cuda PRIVATE
+target_link_libraries(_matrix_product_ops_cuda PRIVATE
     CUDA::cudart
     CUDA::cuda_driver
     CUDA::cublas
@@ -57,13 +57,65 @@ target_link_libraries(_matrix_ops_cuda PRIVATE
 )
 
 # Compiler-specific options for C++ only (CUDA flags already set via set_source_files_properties)
-target_compile_options(_matrix_ops_cuda PRIVATE
+target_compile_options(_matrix_product_ops_cuda PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra>
 )
 
 # Python module properties (pybind11 handles suffix automatically)
-set_target_properties(_matrix_ops_cuda PROPERTIES
-    OUTPUT_NAME "_matrix_ops_cuda"
+set_target_properties(_matrix_product_ops_cuda PROPERTIES
+    OUTPUT_NAME "_matrix_product_ops_cuda"
+    PREFIX ""
+)
+
+# Matrix transpose operations CUDA module
+pybind11_add_module(_matrix_transpose_ops_cuda
+    src/cuda/matrix_transpose_ops.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/cuda/cuda_utils.cu
+)
+
+# Set module properties
+target_compile_definitions(_matrix_transpose_ops_cuda PRIVATE
+    VERSION_INFO=${CMAKE_PROJECT_VERSION}
+    WITH_CUDA
+)
+
+# CUDA-specific settings (inherit CUDA_ARCHITECTURES from toplevel project)
+set_target_properties(_matrix_transpose_ops_cuda PROPERTIES
+    CUDA_RESOLVE_DEVICE_SYMBOLS ON
+    CUDA_RUNTIME_LIBRARY Shared
+    CUDA_SEPARABLE_COMPILATION ON
+)
+
+# Set CUDA source properties (using flags from toplevel project)
+set_source_files_properties(
+    src/cuda/matrix_transpose_ops.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/cuda/cuda_utils.cu
+    PROPERTIES
+    LANGUAGE CUDA
+    COMPILE_OPTIONS "${LOCAL_CUDA_FLAGS}"
+)
+
+# Apply link options from toplevel project
+target_link_options(_matrix_transpose_ops_cuda PRIVATE "${LOCAL_LINK_FLAGS}")
+
+# Link libraries (matching toplevel project)
+target_link_libraries(_matrix_transpose_ops_cuda PRIVATE
+    CUDA::cudart
+    CUDA::cuda_driver
+    CUDA::cublas
+    CUDA::cublasLt
+    Eigen3::Eigen
+    OpenMP::OpenMP_CXX
+)
+
+# Compiler-specific options for C++ only (CUDA flags already set via set_source_files_properties)
+target_compile_options(_matrix_transpose_ops_cuda PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra>
+)
+
+# Python module properties (pybind11 handles suffix automatically)
+set_target_properties(_matrix_transpose_ops_cuda PROPERTIES
+    OUTPUT_NAME "_matrix_transpose_ops_cuda"
     PREFIX ""
 )
 
@@ -225,7 +277,7 @@ set_target_properties(_sort_ops_cuda PROPERTIES
 
 # Optional: Add to a meta-target for easy building
 add_custom_target(py-gpu-algos-modules
-    DEPENDS _matrix_ops_cuda _vector_ops_cuda _glm_ops_cuda _sort_ops_cuda
+    DEPENDS _matrix_product_ops_cuda _matrix_transpose_ops_cuda _vector_ops_cuda _glm_ops_cuda _sort_ops_cuda
     COMMENT "Building py-gpu-algos Python modules"
 )
 
