@@ -196,6 +196,9 @@ void report_completion_time_callback(cudaStream_t stream, cudaError_t status, vo
 template <typename Number_>
 struct cuda_max_op {
     using Number = Number_;
+
+    constexpr static std::string_view name = "max";
+
     __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
         return max(accumulator, next_value);
     }
@@ -214,6 +217,9 @@ struct cuda_max_op {
 template <>
 struct cuda_max_op<__half> {
     using Number = __half;
+
+    constexpr static std::string_view name = "max";
+
     __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
         return __hmax(accumulator, next_value);
     }
@@ -226,6 +232,9 @@ struct cuda_max_op<__half> {
 template <typename Number_>
 struct cuda_min_op {
     using Number = Number_;
+
+    constexpr static std::string_view name = "min";
+
     __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
         return min(accumulator, next_value);
     }
@@ -244,6 +253,9 @@ struct cuda_min_op {
 template <>
 struct cuda_min_op<__half> {
     using Number = __half;
+
+    constexpr static std::string_view name = "min";
+
     __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
         return __hmin(accumulator, next_value);
     }
@@ -256,6 +268,9 @@ struct cuda_min_op<__half> {
 template <typename Number_>
 struct cuda_sum_op {
     using Number = Number_;
+
+    constexpr static std::string_view name = "sum";
+
     __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
         return accumulator + next_value;
     }
@@ -268,6 +283,9 @@ struct cuda_sum_op {
 template <typename Number_>
 struct cuda_prod_op {
     using Number = Number_;
+
+    constexpr static std::string_view name = "prod";
+
     __host__ __device__ static Number apply(const Number accumulator, const Number next_value) {
         if (accumulator == Number(0) && !std::isnan(next_value)) {
             return Number(0);
