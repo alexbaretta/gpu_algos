@@ -150,12 +150,12 @@ class Benchmark_Vector_1Inout {
 
         std::cout << "  - Initializing vectors: ";
         if (is_random) {
-            std::cout << "  - Randomizing vectors: ";
+            std::cout << "  (random) ";
             randomize_container(vec_A, seed);
         } else if (is_increasing) {
             std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(i);
-        } else if (is_increasing) {
+        } else if (is_decreasing) {
             std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberTemp(size_A - i);
         } else {

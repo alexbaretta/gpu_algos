@@ -177,7 +177,7 @@ class Benchmark_Matrix_3In_1Out {
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(i);
             for (size_t i = 0; i < size_B; ++i) vec_B[i] = NumberB(i);
             for (size_t i = 0; i < size_C; ++i) vec_C[i] = NumberC(i);
-        } else if (is_increasing) {
+        } else if (is_decreasing) {
             std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(size_A - i);
             for (size_t i = 0; i < size_B; ++i) vec_B[i] = NumberB(size_B - i);

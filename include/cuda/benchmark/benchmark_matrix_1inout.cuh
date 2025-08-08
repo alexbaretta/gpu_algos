@@ -155,7 +155,7 @@ class Benchmark_Matrix_1Inout {
         } else if (is_increasing) {
             std::cout << "  (increasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(i);
-        } else if (is_increasing) {
+        } else if (is_decreasing) {
             std::cout << "  (decreasing) ";
             for (size_t i = 0; i < size_A; ++i) vec_A[i] = NumberA(size_A - i);
         } else {
