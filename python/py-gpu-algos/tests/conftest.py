@@ -48,7 +48,7 @@ GLM_DTYPES = [np.float32, np.float64, np.int32, np.int64]
 SCAN_OPERATIONS = ["sum", "max", "min", "prod"]
 
 # Sort axis options for 3D tensors
-SORT_AXES = ["rows", "cols", "depth"]
+SORT_AXES = ["rows", "cols", "sheets"]
 
 @pytest.fixture(scope="session")
 def cuda_available():
@@ -125,16 +125,17 @@ def pick_problem_sizes(i_start:int, stride:int) -> tuple[int, int, int]:
     i_n = (i_k + stride) % l
     return (TEST_PROBLEM_SIZES[i_m], TEST_PROBLEM_SIZES[i_k], TEST_PROBLEM_SIZES[i_n])
 
-TEST_M_K_N = list(itertools.chain(
+TEST_M_K_N = sorted(list(set(itertools.chain(
     [pick_problem_sizes(i, 1) for i in range(len(TEST_PROBLEM_SIZES))],
     [pick_problem_sizes(i, 2) for i in range(len(TEST_PROBLEM_SIZES))],
     [pick_problem_sizes(i, 3) for i in range(len(TEST_PROBLEM_SIZES))],
-))
+))))
 
 @pytest.fixture(params=TEST_M_K_N)
 def test_shape_triplet(request):
     """Fixture that provides each triplet of test shapes from TEST_SHAPES."""
     return request.param
+
 
 @pytest.fixture
 def test_input_matrix_incremental():
@@ -162,8 +163,8 @@ def test_input_matrix_random():
 @pytest.fixture
 def test_input_tensor_3d_incremental():
     """Generate incremental tensor_3d"""
-    def _generate(dtype, m=100, k=100, n=100):
-        mat = np.arange(m * k * n, dtype=dtype).reshape(m, k, n)
+    def _generate(dtype, ncols, nrows, nsheets):
+        mat = np.arange(ncols * nrows * nsheets, dtype=dtype).reshape(ncols, nrows, nsheets)
 
         return mat
     return _generate
@@ -171,15 +172,35 @@ def test_input_tensor_3d_incremental():
 @pytest.fixture
 def test_input_tensor_3d_random():
     """Generate random tensor_3d"""
-    def _generate(dtype, m=100, k=100, n=100):
+    def _generate(dtype, ncols, nrows, nsheets):
         generator = np.random.default_rng(42)
         if np.issubdtype(dtype, np.integer):
-            vec = generator.integers(0, 100, m * k * n).astype(dtype).reshape(m, k, n)
+            vec = generator.integers(0, 100, ncols * nrows * nsheets).astype(dtype).reshape(ncols, nrows, nsheets)
         else:
-            vec = generator.uniform(low=0, high=1, size=m * k * n).astype(dtype).reshape(m, k, n)
-            pass
+            vec = generator.uniform(low=0, high=1, size=ncols * nrows * nsheets).astype(dtype).reshape(ncols, nrows, nsheets)
 
         return vec
+    return _generate
+
+@pytest.fixture
+def power_of_2_tensors():
+    """Generate 3D tensors with power-of-2 dimensions for bitonic sort."""
+    def _generate(dtype):
+        # Use power-of-2 dimensions for bitonic sort
+        shape = (8, 4, 16)  # 8=2^3, 4=2^2, 16=2^4
+
+        generator = np.random.default_rng(42)
+        if np.issubdtype(dtype, np.integer):
+            if dtype in [np.int8, np.uint8]:
+                tensor = generator.integers(-10, 10, shape, dtype=dtype)
+            elif dtype in [np.int16, np.uint16]:
+                tensor = generator.integers(-50, 50, shape, dtype=dtype)
+            else:
+                tensor = generator.integers(-100, 100, shape, dtype=dtype)
+        else:
+            tensor = (generator.uniform(low=-10, high=10, size=shape)).astype(dtype)
+
+        return tensor
     return _generate
 
 

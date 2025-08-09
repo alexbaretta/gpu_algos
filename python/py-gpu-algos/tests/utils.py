@@ -274,7 +274,7 @@ def get_numpy_reference_tensor_sort(tensor, axis_name):
 
     Args:
         tensor: 3D array to sort
-        axis_name: "rows", "cols", or "depth"
+        axis_name: "rows", "cols", or "sheets"
 
     Returns:
         Sorted tensor (in-place operation simulated)
@@ -285,7 +285,7 @@ def get_numpy_reference_tensor_sort(tensor, axis_name):
         axis = 0
     elif axis_name == "cols":
         axis = 1
-    elif axis_name == "depth":
+    elif axis_name == "sheets":
         axis = 2
     else:
         raise ValueError(f"Unknown axis: {axis_name}")
@@ -306,11 +306,6 @@ def create_non_contiguous_array(base_array, axis=0):
 def is_power_of_2(n):
     """Check if a number is a power of 2."""
     return n > 0 and (n & (n - 1)) == 0
-
-def generate_power_of_2_shape(max_dim=64):
-    """Generate a 3D shape where all dimensions are powers of 2."""
-    powers = [2**i for i in range(1, 7) if 2**i <= max_dim]  # [2, 4, 8, 16, 32, 64]
-    return tuple(np.random.choice(powers, size=3))
 
 def print_performance_summary(results: Dict[str, Any], test_name: str):
     """Print a formatted performance summary."""

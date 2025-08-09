@@ -262,7 +262,7 @@ class TestSortOperationsErrorHandling:
         invalid_axes = [
             "x", "y", "z", "width", "height", "length",
             0, 1, 2,  # Numeric axes should fail
-            "ROWS", "COLS", "DEPTH",  # Case sensitive
+            "ROWS", "COLS", "SHEETS",  # Case sensitive
             "", None, "axis_0"
         ]
 

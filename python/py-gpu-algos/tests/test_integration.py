@@ -245,7 +245,7 @@ class TestSortIntegrationWorkflows:
 
         py_gpu_algos.tensor_sort_bitonic(tensor_rows, "rows")
         py_gpu_algos.tensor_sort_bitonic(tensor_cols, "cols")
-        py_gpu_algos.tensor_sort_bitonic(tensor_depth, "depth")
+        py_gpu_algos.tensor_sort_bitonic(tensor_depth, "sheets")
 
         # Extract vectors and apply vector operations
         # Take a slice and flatten for vector operations
@@ -276,19 +276,19 @@ class TestSortIntegrationWorkflows:
         else:
             tensor = (np.random.randn(*shape) * 30).astype(dtype_all)
 
-        # Apply sorting sequence: rows -> cols -> depth
+        # Apply sorting sequence: rows -> cols -> sheets
         tensor_multi = tensor.copy()
 
         py_gpu_algos.tensor_sort_bitonic(tensor_multi, "rows")
         py_gpu_algos.tensor_sort_bitonic(tensor_multi, "cols")
-        py_gpu_algos.tensor_sort_bitonic(tensor_multi, "depth")
+        py_gpu_algos.tensor_sort_bitonic(tensor_multi, "sheets")
 
-        # Final result should be sorted along depth (last operation)
+        # Final result should be sorted along sheets (last operation)
         for i in range(shape[0]):
             for j in range(shape[1]):
-                depth_slice = tensor_multi[i, j, :]
-                sorted_slice = np.sort(depth_slice)
-                assert_array_close(depth_slice, sorted_slice, dtype_all)
+                sheets_slice = tensor_multi[i, j, :]
+                sorted_slice = np.sort(sheets_slice)
+                assert_array_close(sheets_slice, sorted_slice, dtype_all)
 
         # All original values should still be present
         original_flat = np.sort(tensor.flatten())
@@ -508,7 +508,7 @@ class TestRealWorldUsagePatterns:
 
         # Sort data along measurement axis for statistical analysis
         sorted_dataset = dataset.copy()
-        py_gpu_algos.tensor_sort_bitonic(sorted_dataset, "depth")
+        py_gpu_algos.tensor_sort_bitonic(sorted_dataset, "sheets")
 
         # Extract statistics using vector operations
         # Take median values (middle elements after sorting)

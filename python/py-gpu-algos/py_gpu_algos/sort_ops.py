@@ -15,31 +15,28 @@ Currently supports bitonic sort which requires the sort dimension to be a power 
 
 import numpy as np
 from numpy.typing import NDArray
-from typing import TypeVar, Union, Literal
+from typing import TypeVar, Union, Literal, TypeAlias
 import warnings
 
-try:
-    from ._module_loader import get_cuda_module
+from ._module_loader import get_cuda_module
 
-    # Load the CUDA module from build directory
-    _sort_ops_cuda = get_cuda_module('_sort_ops_cuda')
+# Load the CUDA module from build directory
+_sort_ops_cuda = get_cuda_module('_sort_ops_cuda')
 
-    # Import functions from the CUDA module
-    _tensor_sort_bitonic_cuda = _sort_ops_cuda.tensor_sort_bitonic
+# Import functions from the CUDA module
+_tensor_sort_bitonic_cuda = _sort_ops_cuda.tensor_sort_bitonic
 
-    # Import low-level type-specific functions
-    _tensor_sort_bitonic_float32_cuda = _sort_ops_cuda.tensor_sort_bitonic_float32
-    _tensor_sort_bitonic_float64_cuda = _sort_ops_cuda.tensor_sort_bitonic_float64
-    _tensor_sort_bitonic_int8_cuda = _sort_ops_cuda.tensor_sort_bitonic_int8
-    _tensor_sort_bitonic_int16_cuda = _sort_ops_cuda.tensor_sort_bitonic_int16
-    _tensor_sort_bitonic_int32_cuda = _sort_ops_cuda.tensor_sort_bitonic_int32
-    _tensor_sort_bitonic_int64_cuda = _sort_ops_cuda.tensor_sort_bitonic_int64
-    _tensor_sort_bitonic_uint8_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint8
-    _tensor_sort_bitonic_uint16_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint16
-    _tensor_sort_bitonic_uint32_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint32
-    _tensor_sort_bitonic_uint64_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint64
-except Exception as e:
-    raise e
+# Import low-level type-specific functions
+_tensor_sort_bitonic_float32_cuda = _sort_ops_cuda.tensor_sort_bitonic_float32
+_tensor_sort_bitonic_float64_cuda = _sort_ops_cuda.tensor_sort_bitonic_float64
+_tensor_sort_bitonic_int8_cuda = _sort_ops_cuda.tensor_sort_bitonic_int8
+_tensor_sort_bitonic_int16_cuda = _sort_ops_cuda.tensor_sort_bitonic_int16
+_tensor_sort_bitonic_int32_cuda = _sort_ops_cuda.tensor_sort_bitonic_int32
+_tensor_sort_bitonic_int64_cuda = _sort_ops_cuda.tensor_sort_bitonic_int64
+_tensor_sort_bitonic_uint8_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint8
+_tensor_sort_bitonic_uint16_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint16
+_tensor_sort_bitonic_uint32_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint32
+_tensor_sort_bitonic_uint64_cuda = _sort_ops_cuda.tensor_sort_bitonic_uint64
 
 T = TypeVar('T', bound=np.generic)
 
@@ -57,27 +54,34 @@ _SORT_TYPE_DISPATCH_MAP = {
     np.dtype(np.uint64): 'uint64',
 }
 
-def _validate_tensor_sort_inputs(tensor: np.ndarray, sort_dim: str, operation_name: str) -> None:
+AXIS: TypeAlias = Literal["cols", "rows", "sheets"]
+
+def is_power_of_2(n: int) -> bool:
+    """Check if a number is a power of 2."""
+    return (n & (n - 1)) == 0
+
+def _validate_tensor_p2_sort_inputs(tensor: np.ndarray, sort_axis: AXIS) -> None:
     """Validate inputs for tensor sort operations."""
     if tensor.ndim != 3:
-        raise ValueError(f"{operation_name}: Input array must be 3-dimensional")
+        raise ValueError(f"Input array must be 3-dimensional")
 
     if tensor.dtype not in _SORT_TYPE_DISPATCH_MAP:
-        raise ValueError(f"{operation_name}: Unsupported dtype {tensor.dtype}")
+        raise ValueError(f"Unsupported dtype {tensor.dtype}")
 
-    if sort_dim not in ("rows", "cols", "sheets"):
-        raise ValueError(f"{operation_name}: sort_dim must be one of: 'rows', 'cols', 'sheets'")
+    if sort_axis not in ("cols", "rows", "sheets"):
+        raise ValueError(f"sort_axis must be one of: 'cols', 'rows', 'sheets'")
 
     # Validate that sort dimension is power of 2 for bitonic sort
-    if sort_dim == "rows":
+    if sort_axis == "cols":
         target_size = tensor.shape[0]
-    elif sort_dim == "cols":
+    elif sort_axis == "rows":
         target_size = tensor.shape[1]
-    else:  # sort_dim == "sheets"
+    else:
         target_size = tensor.shape[2]
 
-    if (target_size & (target_size - 1)) != 0:
-        raise ValueError(f"{operation_name}: Sort dimension size ({target_size}) must be a power of 2 for bitonic sort")
+    if not is_power_of_2(target_size):
+        raise ValueError(f"Sort dimension size ({target_size}) must be a power of 2")
+    return
 
 def _ensure_contiguous(arr: np.ndarray) -> np.ndarray:
     """Ensure array is C-contiguous."""
@@ -87,88 +91,88 @@ def _ensure_contiguous(arr: np.ndarray) -> np.ndarray:
 
 # Low-level type-specific functions for tensor_sort_bitonic
 
-def tensor_sort_bitonic_float32(tensor: NDArray[np.float32], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic_float32(tensor: NDArray[np.float32], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort for float32 arrays (in-place operation).
 
     Args:
         tensor: 3D tensor to sort in-place
-        sort_dim: Dimension to sort along ("rows", "cols", or "sheets")
+        sort_axis: Dimension to sort along ("rows", "cols", or "sheets")
 
     Note:
         This operation modifies the input tensor in-place.
         The size of the sort dimension must be a power of 2.
     """
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_float32")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_float32_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_float32_cuda(tensor_contig, sort_axis)
 
-def tensor_sort_bitonic_float64(tensor: NDArray[np.float64], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic_float64(tensor: NDArray[np.float64], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort for float64 arrays (in-place operation)."""
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_float64")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_float64_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_float64_cuda(tensor_contig, sort_axis)
 
-def tensor_sort_bitonic_int8(tensor: NDArray[np.int8], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic_int8(tensor: NDArray[np.int8], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort for int8 arrays (in-place operation)."""
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_int8")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_int8_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_int8_cuda(tensor_contig, sort_axis)
 
-def tensor_sort_bitonic_int16(tensor: NDArray[np.int16], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic_int16(tensor: NDArray[np.int16], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort for int16 arrays (in-place operation)."""
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_int16")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_int16_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_int16_cuda(tensor_contig, sort_axis)
 
-def tensor_sort_bitonic_int32(tensor: NDArray[np.int32], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic_int32(tensor: NDArray[np.int32], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort for int32 arrays (in-place operation)."""
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_int32")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_int32_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_int32_cuda(tensor_contig, sort_axis)
 
-def tensor_sort_bitonic_int64(tensor: NDArray[np.int64], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic_int64(tensor: NDArray[np.int64], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort for int64 arrays (in-place operation)."""
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_int64")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_int64_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_int64_cuda(tensor_contig, sort_axis)
 
-def tensor_sort_bitonic_uint8(tensor: NDArray[np.uint8], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic_uint8(tensor: NDArray[np.uint8], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort for uint8 arrays (in-place operation)."""
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_uint8")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_uint8_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_uint8_cuda(tensor_contig, sort_axis)
 
-def tensor_sort_bitonic_uint16(tensor: NDArray[np.uint16], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic_uint16(tensor: NDArray[np.uint16], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort for uint16 arrays (in-place operation)."""
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_uint16")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_uint16_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_uint16_cuda(tensor_contig, sort_axis)
 
-def tensor_sort_bitonic_uint32(tensor: NDArray[np.uint32], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic_uint32(tensor: NDArray[np.uint32], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort for uint32 arrays (in-place operation)."""
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_uint32")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_uint32_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_uint32_cuda(tensor_contig, sort_axis)
 
-def tensor_sort_bitonic_uint64(tensor: NDArray[np.uint64], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic_uint64(tensor: NDArray[np.uint64], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort for uint64 arrays (in-place operation)."""
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic_uint64")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_uint64_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_uint64_cuda(tensor_contig, sort_axis)
 
 # High-level dispatch function
 
-def tensor_sort_bitonic(tensor: Union[NDArray[T], np.ndarray], sort_dim: Literal["rows", "cols", "sheets"]) -> None:
+def tensor_sort_bitonic(tensor: Union[NDArray[T], np.ndarray], sort_axis: AXIS) -> None:
     """3D tensor bitonic sort with automatic type dispatch (in-place operation).
 
     This function performs an in-place bitonic sort on a 3D tensor along the specified dimension.
@@ -176,9 +180,9 @@ def tensor_sort_bitonic(tensor: Union[NDArray[T], np.ndarray], sort_dim: Literal
 
     Args:
         tensor: 3D tensor to sort in-place
-        sort_dim: Dimension to sort along:
-            - "rows": Sort along dimension 0 (first dimension)
-            - "cols": Sort along dimension 1 (second dimension)
+        sort_axis: Dimension to sort along:
+            - "cols": Sort along dimension 0 (first dimension)
+            - "rows": Sort along dimension 1 (second dimension)
             - "sheets": Sort along dimension 2 (third dimension)
 
     Raises:
@@ -194,16 +198,16 @@ def tensor_sort_bitonic(tensor: Union[NDArray[T], np.ndarray], sort_dim: Literal
         >>> import numpy as np
         >>> tensor = np.random.randint(0, 100, (8, 4, 16), dtype=np.int32)  # 8x4x16 tensor
         >>> print("Original shape:", tensor.shape)
-        >>> tensor_sort_bitonic(tensor, "rows")  # Sort along first dimension (size 8 = 2^3)
-        >>> print("Sorted along rows in-place")
+        >>> tensor_sort_bitonic(tensor, "cols")  # Sort along first dimension (size 8 = 2^3)
+        >>> print("Sorted along cols in-place")
         >>>
         >>> # Sort along sheets dimension
         >>> tensor_sort_bitonic(tensor, "sheets")  # Sort along third dimension (size 16 = 2^4)
     """
-    _validate_tensor_sort_inputs(tensor, sort_dim, "tensor_sort_bitonic")
+    _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
 
-    _tensor_sort_bitonic_cuda(tensor_contig, sort_dim)
+    _tensor_sort_bitonic_cuda(tensor_contig, sort_axis)
 
 # Export all functions
 __all__ = [

@@ -23,7 +23,7 @@ namespace py = pybind11;
 template<typename T>
 void tensor_sort_bitonic_cuda_impl(
     py::array_t<T>& tensor,      // Modified in-place
-    const std::string& sort_dim  // "rows", "cols", or "sheets"
+    const std::string& sort_dim  // "cols", "rows", or "sheets"
 ) {
     // Validate input array
     auto tensor_buf = tensor.request();
@@ -32,51 +32,35 @@ void tensor_sort_bitonic_cuda_impl(
         throw std::invalid_argument("Input array must be 3-dimensional");
     }
 
-    if (!tensor.flags() & py::array::c_style) {
+    if (!(tensor.flags() & py::array::c_style)) {
         throw std::invalid_argument("Array must be C-contiguous");
     }
 
     // Get tensor dimensions
-    long m = tensor_buf.shape[0];  // rows (cols in our convention)
-    long n = tensor_buf.shape[1];  // cols (rows in our convention)
-    long k = tensor_buf.shape[2];  // sheets
+    const long cols = tensor_buf.shape[0];
+    const long rows = tensor_buf.shape[1];
+    const long sheets = tensor_buf.shape[2];
 
     // Validate sort dimension size is power of 2
-    long target_dim_size;
-    if (sort_dim == "rows") {
-        target_dim_size = m;
-    } else if (sort_dim == "cols") {
-        target_dim_size = n;
-    } else if (sort_dim == "sheets") {
-        target_dim_size = k;
-    } else {
-        throw std::invalid_argument("sort_dim must be one of: 'rows', 'cols', 'sheets'");
-    }
-
-    // Check if target dimension is power of 2
-    if ((target_dim_size & (target_dim_size - 1)) != 0) {
-        throw std::invalid_argument("Sort dimension size (" + std::to_string(target_dim_size) +
-                                   ") must be a power of 2 for bitonic sort");
-    }
+    const long target_dim_size = sort_dim == "cols" ? cols : sort_dim == "rows" ? rows : sheets;
 
     // Get data pointer
-    T* tensor_ptr = static_cast<T*>(tensor_buf.ptr);
+    T* const tensor_ptr = static_cast<T*>(tensor_buf.ptr);
 
     // Create kernel specification
-    tensor3d_sort_bitonic_spec spec(
-        "float",    // Type string (will be overridden by template parameter)
-        sort_dim,   // Sort dimension
-        m, n, k,    // Tensor dimensions
-        8, 8, 8     // Default block dimensions
+    Tensor3d_sort_bitonic_spec spec(
+        "float",  // Type string (will be overridden by template parameter)
+        sort_dim,  // Sort dimension
+        cols, rows, sheets  // Tensor dimensions
     );
 
     // Create kernel instance
-    tensor3d_sort_bitonic_kernel<T> kernel(spec);
+    Tensor3d_sort_bitonic_kernel<T> kernel(spec);
 
     // Allocate GPU memory
     T* d_tensor = nullptr;
 
-    size_t size_tensor = m * n * k * sizeof(T);
+    const size_t size_tensor = cols * rows * sheets * sizeof(T);
 
     cuda_check_error(cudaMalloc(&d_tensor, size_tensor), "cudaMalloc for tensor");
 

@@ -25,11 +25,13 @@
 #include <iostream>
 #include <algorithm>
 #include <vector>
+#include <tuple>
 
 #include <cxxopts.hpp>
 #include <Eigen/Dense>
 #include <cuda_runtime.h>
 
+#include "cuda/kernel_api/tensor3d_1inout.cuh"
 #include "common/types/tensor3d.hpp"
 #include "cuda/type_traits.cuh"
 
@@ -37,8 +39,8 @@
 template <CUDA_scalar CUDA_Number>
 __global__ void bitonic_compare_and_swap_3d(
     CUDA_Number* data,
-    const long n_rows,
     const long n_cols,
+    const long n_rows,
     const long n_sheets,
     const int sort_dim,  // 0=rows, 1=cols, 2=sheets
     const long step,
@@ -49,17 +51,17 @@ __global__ void bitonic_compare_and_swap_3d(
     long n_elements, n_problems, stride;
 
     if (sort_dim == 0) {
-        // Sort along rows: each (sheet, col) pair is an independent problem
+        // Sort along cols: each (row, sheet) pair is an independent problem
         n_elements = n_rows;
         n_problems = n_sheets * n_cols;
-        stride = n_cols;  // distance between consecutive row elements
+        stride = 1;  // distance between consecutive row elements
     } else if (sort_dim == 1) {
-        // Sort along columns: each (sheet, row) pair is an independent problem
+        // Sort along rows: each (col, sheet) pair is an independent problem
         n_elements = n_cols;
         n_problems = n_sheets * n_rows;
-        stride = 1;  // consecutive elements in memory
+        stride = n_cols;  // consecutive elements in memory
     } else {
-        // Sort along sheets: each (row, col) pair is an independent problem
+        // Sort along sheets: each (col, row) pair is an independent problem
         n_elements = n_sheets;
         n_problems = n_rows * n_cols;
         stride = n_rows * n_cols;  // distance between consecutive sheet elements
@@ -86,30 +88,19 @@ __global__ void bitonic_compare_and_swap_3d(
     const long pair_id = global_tid % pairs_per_problem;
 
     // Calculate the coordinates for this sort problem
-    long col, row, sheet;
-    if (sort_dim == 0) {
-        sheet = problem_id / n_cols;
-        col = problem_id % n_cols;
-        row = 0;  // Will be calculated based on pair_id
-    } else if (sort_dim == 1) {
-        sheet = problem_id / n_rows;
-        row = problem_id % n_rows;
-        col = 0;  // Will be calculated based on pair_id
-    } else {
-        row = problem_id / n_sheets;
-        col = problem_id % n_sheets;
-        sheet = 0;  // Will be calculated based on pair_id
-    }
+    const auto [col, row, sheet] = (
+        (sort_dim == 0) ? std::make_tuple(0l, problem_id / n_rows, problem_id % n_rows) :
+        (sort_dim == 1) ? std::make_tuple(problem_id % n_cols, 0l, problem_id / n_cols) :
+        std::make_tuple(problem_id % n_sheets, problem_id / n_sheets, 0l)
+    );
+
 
     // Calculate base address for this sort problem
-    long base_addr;
-    if (sort_dim == 0) {
-        base_addr = sheet * n_rows * n_cols + col;
-    } else if (sort_dim == 1) {
-        base_addr = sheet * n_rows * n_cols + row * n_cols;
-    } else {
-        base_addr = row * n_cols + col;
-    }
+    const long base_addr = (
+        (sort_dim == 0) ? sheet * n_rows * n_cols + col :
+        (sort_dim == 1) ? sheet * n_rows * n_cols + row * n_cols :
+        row * n_cols + col
+    );
 
     // Calculate the two indices to compare based on pair_id and bitonic algorithm
     const long block_id = pair_id / distance;
@@ -131,14 +122,14 @@ __global__ void bitonic_compare_and_swap_3d(
     CUDA_Number val2 = data[addr2];
 
     // Swap if needed
-    bool should_swap = ascending ? (val1 > val2) : (val1 < val2);
+    const bool should_swap = ascending ? (val1 > val2) : (val1 < val2);
     if (should_swap) {
         data[addr1] = val2;
         data[addr2] = val1;
     }
 }
 
-struct tensor3d_sort_bitonic_spec {
+struct Tensor3d_sort_bitonic_spec {
     const std::string type_;
     const std::string sort_dimension_;
 
@@ -169,18 +160,18 @@ struct tensor3d_sort_bitonic_spec {
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
-            ("M", "Number of rows", cxxopts::value<unsigned long>()->default_value(std::to_string(DEFAULT_M)))
-            ("N", "Number of columns", cxxopts::value<unsigned long>()->default_value(std::to_string(DEFAULT_N)))
+            ("M", "Number of columns", cxxopts::value<unsigned long>()->default_value(std::to_string(DEFAULT_M)))
+            ("N", "Number of rows", cxxopts::value<unsigned long>()->default_value(std::to_string(DEFAULT_N)))
             ("K", "Number of sheets", cxxopts::value<unsigned long>()->default_value(std::to_string(DEFAULT_K)))
             ("block-dim-x,x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
             ("block-dim-y,y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
             ("block-dim-z,z", "Number of threads in the z dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Z)))
-            ("sortdim,d", "Sort dimension: rows, cols, sheets", cxxopts::value<std::string>()->default_value("rows"))
+            ("sortdim,d", "Sort dimension: cols, rows, sheets", cxxopts::value<std::string>()->default_value("cols"))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
         ;
     }
 
-    inline static tensor3d_sort_bitonic_spec make(
+    inline static Tensor3d_sort_bitonic_spec make(
         const cxxopts::ParseResult& options_parsed
     ) {
         // Validate the type option
@@ -217,7 +208,7 @@ struct tensor3d_sort_bitonic_spec {
             std::cout << target_dim << std::endl;
         }
 
-        return tensor3d_sort_bitonic_spec(
+        return Tensor3d_sort_bitonic_spec(
             type,
             sort_dim,
             m, n, k,
@@ -227,47 +218,41 @@ struct tensor3d_sort_bitonic_spec {
         );
     }
 
-    inline tensor3d_sort_bitonic_spec(
+    inline Tensor3d_sort_bitonic_spec(
         const std::string& type,
         const std::string& sort_dimension,
         const long m,
         const long n,
         const long k,
-        const long block_dim_x,
-        const long block_dim_y,
-        const long block_dim_z
+        const long block_dim_x = DEFAULT_BLOCK_DIM_X,
+        const long block_dim_y = DEFAULT_BLOCK_DIM_Y,
+        const long block_dim_z = DEFAULT_BLOCK_DIM_Z
     ) : type_(type),
         sort_dimension_(sort_dimension),
-        n_rows_C_(m),
-        n_cols_C_(n),
+        n_cols_C_(m),
+        n_rows_C_(n),
         n_sheets_C_(k),
-        n_rows_A_(m),
-        n_cols_A_(n),
+        n_cols_A_(m),
+        n_rows_A_(n),
         n_sheets_A_(k),
         n_rows_temp_(0),
         n_cols_temp_(0),
         n_sheets_temp_(0),
         block_dim_(block_dim_x, block_dim_y, block_dim_z),
-        grid_dim_(
-            // Calculate total number of comparison pairs across all sort problems
-            sort_dimension == "rows" ? (((k * n * m / 2) + block_dim_x - 1) / block_dim_x) :
-            sort_dimension == "cols" ? (((k * m * n / 2) + block_dim_x - 1) / block_dim_x) :
-                                      (((m * n * k / 2) + block_dim_x - 1) / block_dim_x),
-            1, 1
-        ),
+        grid_dim_(((k * m * n) / 2 + block_dim_x - 1) / block_dim_x),
         dynamic_shared_mem_words_(0)
     {}
 };
 
 template <CUDA_scalar Number_>
-class tensor3d_sort_bitonic_kernel {
+class Tensor3d_sort_bitonic_kernel {
     public:
     using Number = Number_;
-    using Kernel_spec = tensor3d_sort_bitonic_spec;
+    using Kernel_spec = Tensor3d_sort_bitonic_spec;
 
     const Kernel_spec spec_;
 
-    tensor3d_sort_bitonic_kernel(
+    Tensor3d_sort_bitonic_kernel(
         const Kernel_spec spec
     ) : spec_(spec) {}
 
@@ -279,12 +264,12 @@ class tensor3d_sort_bitonic_kernel {
         // Determine sort dimension and parameters
         int sort_dim;
         long n_elements;
-        if (spec_.sort_dimension_ == "rows") {
+        if (spec_.sort_dimension_ == "cols") {
             sort_dim = 0;
-            n_elements = spec_.n_rows_C_;
-        } else if (spec_.sort_dimension_ == "cols") {
-            sort_dim = 1;
             n_elements = spec_.n_cols_C_;
+        } else if (spec_.sort_dimension_ == "rows") {
+            sort_dim = 1;
+            n_elements = spec_.n_rows_C_;
         } else {
             sort_dim = 2;
             n_elements = spec_.n_sheets_C_;
@@ -327,7 +312,15 @@ class tensor3d_sort_bitonic_kernel {
         Tensor3D<Number>& tensor3d
     ) {
         // Sort along the specified dimension using std::sort
-        if (spec_.sort_dimension_ == "rows") {
+        if (spec_.sort_dimension_ == "cols") {
+            // For each (sheet, row), sort all columns
+            for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
+                for (long row = 0; row < tensor3d.rows(); ++row) {
+                    Number* const row_start = &tensor3d(row, 0, sheet);
+                    std::sort(row_start, row_start + tensor3d.cols());
+                }
+            }
+        } else if (spec_.sort_dimension_ == "rows") {
             // For each (sheet, col), sort all rows
             for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
                 for (long col = 0; col < tensor3d.cols(); ++col) {
@@ -341,14 +334,6 @@ class tensor3d_sort_bitonic_kernel {
                     for (long row = 0; row < tensor3d.rows(); ++row) {
                         tensor3d(col, row, sheet) = column_data[row];
                     }
-                }
-            }
-        } else if (spec_.sort_dimension_ == "cols") {
-            // For each (sheet, row), sort all columns
-            for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
-                for (long row = 0; row < tensor3d.rows(); ++row) {
-                    Number* const row_start = &tensor3d(row, 0, sheet);
-                    std::sort(row_start, row_start + tensor3d.cols());
                 }
             }
         } else {
@@ -369,3 +354,4 @@ class tensor3d_sort_bitonic_kernel {
         }
     }
 };
+static_assert(Check_tensor3d_kernel_1Inout_template<Tensor3d_sort_bitonic_kernel>::check_passed, "Tensor3d_sort_bitonic_kernel is not a valid kernel template");
