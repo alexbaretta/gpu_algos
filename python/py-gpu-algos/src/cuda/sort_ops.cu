@@ -36,10 +36,11 @@ void tensor_sort_bitonic_cuda_impl(
         throw std::invalid_argument("Array must be C-contiguous");
     }
 
-    // Get tensor dimensions
-    const long cols = tensor_buf.shape[0];
-    const long rows = tensor_buf.shape[1];
-    const long sheets = tensor_buf.shape[2];
+    // Get tensor dimensions - numpy C-contiguous arrays have shape (sheet, row, col)
+    // but Tensor3D expects (col, row, sheet) order
+    const long sheets = tensor_buf.shape[0];  // First dimension is sheets
+    const long rows = tensor_buf.shape[1];    // Second dimension is rows
+    const long cols = tensor_buf.shape[2];    // Third dimension is cols
 
     // Validate sort dimension size is power of 2
     const long target_dim_size = sort_dim == "cols" ? cols : sort_dim == "rows" ? rows : sheets;
@@ -47,11 +48,11 @@ void tensor_sort_bitonic_cuda_impl(
     // Get data pointer
     T* const tensor_ptr = static_cast<T*>(tensor_buf.ptr);
 
-    // Create kernel specification
+    // Create kernel specification - Tensor3d_sort_bitonic_spec expects (cols, rows, sheets) order
     Tensor3d_sort_bitonic_spec spec(
         "float",  // Type string (will be overridden by template parameter)
         sort_dim,  // Sort dimension
-        cols, rows, sheets  // Tensor dimensions
+        cols, rows, sheets  // Tensor dimensions in col, row, sheet order
     );
 
     // Create kernel instance

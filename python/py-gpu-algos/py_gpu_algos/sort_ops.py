@@ -72,12 +72,14 @@ def _validate_tensor_p2_sort_inputs(tensor: np.ndarray, sort_axis: AXIS) -> None
         raise ValueError(f"sort_axis must be one of: 'cols', 'rows', 'sheets'")
 
     # Validate that sort dimension is power of 2 for bitonic sort
+    # Numpy C-contiguous arrays have shape (sheet, row, col)
+    # Tensor3D convention: (col, row, sheet) - we need to map the dimensions correctly
     if sort_axis == "cols":
-        target_size = tensor.shape[0]
+        target_size = tensor.shape[2]  # Third dimension is cols
     elif sort_axis == "rows":
-        target_size = tensor.shape[1]
-    else:
-        target_size = tensor.shape[2]
+        target_size = tensor.shape[1]  # Second dimension is rows
+    else:  # sheets
+        target_size = tensor.shape[0]  # First dimension is sheets
 
     if not is_power_of_2(target_size):
         raise ValueError(f"Sort dimension size ({target_size}) must be a power of 2")
@@ -95,12 +97,14 @@ def tensor_sort_bitonic_float32(tensor: NDArray[np.float32], sort_axis: AXIS) ->
     """3D tensor bitonic sort for float32 arrays (in-place operation).
 
     Args:
-        tensor: 3D tensor to sort in-place
-        sort_axis: Dimension to sort along ("rows", "cols", or "sheets")
+        tensor: 3D tensor to sort in-place (shape: (sheet, row, col) for numpy C-contiguous arrays)
+        sort_axis: Dimension to sort along ("cols", "rows", or "sheets")
 
     Note:
         This operation modifies the input tensor in-place.
         The size of the sort dimension must be a power of 2.
+        Numpy C-contiguous arrays have shape (sheet, row, col).
+        Tensor3D convention: dimensions are ordered as (col, row, sheet).
     """
     _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)
@@ -179,11 +183,11 @@ def tensor_sort_bitonic(tensor: Union[NDArray[T], np.ndarray], sort_axis: AXIS) 
     Bitonic sort is a comparison-based sorting algorithm that works efficiently on GPU hardware.
 
     Args:
-        tensor: 3D tensor to sort in-place
+        tensor: 3D tensor to sort in-place (shape: (sheet, row, col) for numpy C-contiguous arrays)
         sort_axis: Dimension to sort along:
-            - "cols": Sort along dimension 0 (first dimension)
-            - "rows": Sort along dimension 1 (second dimension)
-            - "sheets": Sort along dimension 2 (third dimension)
+            - "cols": Sort along dimension 2 (third dimension - columns)
+            - "rows": Sort along dimension 1 (second dimension - rows)
+            - "sheets": Sort along dimension 0 (first dimension - sheets)
 
     Raises:
         RuntimeError: If CUDA backend is not available
@@ -193,16 +197,18 @@ def tensor_sort_bitonic(tensor: Union[NDArray[T], np.ndarray], sort_axis: AXIS) 
         - This operation modifies the input tensor in-place
         - The size of the sort dimension must be a power of 2 (e.g., 1, 2, 4, 8, 16, 32, ...)
         - All numeric types are supported: float32, float64, int8-64, uint8-64
+        - Numpy C-contiguous arrays have shape (sheet, row, col)
+        - Tensor3D convention: dimensions are ordered as (col, row, sheet)
 
     Examples:
         >>> import numpy as np
-        >>> tensor = np.random.randint(0, 100, (8, 4, 16), dtype=np.int32)  # 8x4x16 tensor
+        >>> tensor = np.random.randint(0, 100, (4, 8, 16), dtype=np.int32)  # 4x8x16 tensor (sheet, row, col)
         >>> print("Original shape:", tensor.shape)
-        >>> tensor_sort_bitonic(tensor, "cols")  # Sort along first dimension (size 8 = 2^3)
+        >>> tensor_sort_bitonic(tensor, "cols")  # Sort along third dimension (size 16 = 2^4)
         >>> print("Sorted along cols in-place")
         >>>
         >>> # Sort along sheets dimension
-        >>> tensor_sort_bitonic(tensor, "sheets")  # Sort along third dimension (size 16 = 2^4)
+        >>> tensor_sort_bitonic(tensor, "sheets")  # Sort along first dimension (size 4 = 2^2)
     """
     _validate_tensor_p2_sort_inputs(tensor, sort_axis)
     tensor_contig = _ensure_contiguous(tensor)

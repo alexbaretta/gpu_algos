@@ -111,7 +111,7 @@ EXECUTABLE_TYPE_SUPPORT = {
     "*gradient*optimizer*": {"half", "float", "double"},
 
     # Tensor core implementations support a specific subset of types
-    "*tensor*": {"int8", "uint8", "half", "float", "double"},
+    "*tensor": {"int8", "uint8", "half", "float", "double"},
 
     # Default: all implementations support all types unless specified otherwise
     # Note: This catch-all pattern must be last

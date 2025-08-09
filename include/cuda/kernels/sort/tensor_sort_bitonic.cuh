@@ -42,7 +42,7 @@ __global__ void bitonic_compare_and_swap_3d(
     const long n_cols,
     const long n_rows,
     const long n_sheets,
-    const int sort_dim,  // 0=rows, 1=cols, 2=sheets
+    const int sort_dim,  // 0=cols, 1=rows, 2=sheets
     const long step,
     const long stage
 ) {
@@ -52,14 +52,14 @@ __global__ void bitonic_compare_and_swap_3d(
 
     if (sort_dim == 0) {
         // Sort along cols: each (row, sheet) pair is an independent problem
-        n_elements = n_rows;
-        n_problems = n_sheets * n_cols;
-        stride = 1;  // distance between consecutive row elements
-    } else if (sort_dim == 1) {
-        // Sort along rows: each (col, sheet) pair is an independent problem
         n_elements = n_cols;
         n_problems = n_sheets * n_rows;
-        stride = n_cols;  // consecutive elements in memory
+        stride = 1;  // distance between consecutive col elements
+    } else if (sort_dim == 1) {
+        // Sort along rows: each (col, sheet) pair is an independent problem
+        n_elements = n_rows;
+        n_problems = n_sheets * n_cols;
+        stride = n_cols;  // distance between consecutive row elements
     } else {
         // Sort along sheets: each (col, row) pair is an independent problem
         n_elements = n_sheets;
@@ -89,16 +89,15 @@ __global__ void bitonic_compare_and_swap_3d(
 
     // Calculate the coordinates for this sort problem
     const auto [col, row, sheet] = (
-        (sort_dim == 0) ? std::make_tuple(0l, problem_id / n_rows, problem_id % n_rows) :
+        (sort_dim == 0) ? std::make_tuple(0l, problem_id % n_rows, problem_id / n_rows) :
         (sort_dim == 1) ? std::make_tuple(problem_id % n_cols, 0l, problem_id / n_cols) :
-        std::make_tuple(problem_id % n_sheets, problem_id / n_sheets, 0l)
+        std::make_tuple(problem_id % n_cols, problem_id / n_cols, 0l)
     );
-
 
     // Calculate base address for this sort problem
     const long base_addr = (
-        (sort_dim == 0) ? sheet * n_rows * n_cols + col :
-        (sort_dim == 1) ? sheet * n_rows * n_cols + row * n_cols :
+        (sort_dim == 0) ? sheet * n_rows * n_cols + row * n_cols + col :
+        (sort_dim == 1) ? sheet * n_rows * n_cols + row * n_cols + col :
         row * n_cols + col
     );
 
@@ -183,7 +182,7 @@ struct Tensor3d_sort_bitonic_spec {
 
         // Validate sort dimension
         const auto& sort_dim = options_parsed["sortdim"].as<std::string>();
-        if (sort_dim != "rows" && sort_dim != "cols" && sort_dim != "sheets") {
+        if (sort_dim != "cols" && sort_dim != "rows" && sort_dim != "sheets") {
             std::cerr << "[ERROR] --sortdim must be one of: rows, cols, sheets" << std::endl;
             throw cxxopts::exceptions::exception("Invalid --sortdim: " + sort_dim);
         }
@@ -195,8 +194,8 @@ struct Tensor3d_sort_bitonic_spec {
 
         // Construct reference to the dimension along which we are sorting
         unsigned long& target_dim = (
-           (sort_dim == "rows") ? m
-            : (sort_dim == "cols") ? n
+           (sort_dim == "cols") ? m
+            : (sort_dim == "rows") ? n
             : k
         );
 
@@ -294,7 +293,7 @@ class Tensor3d_sort_bitonic_kernel {
             for (long stage = 0; stage <= step; ++stage) {
                 bitonic_compare_and_swap_3d<<<spec_.grid_dim_, spec_.block_dim_, 0, stream>>>(
                     gpu_data_A,
-                    spec_.n_rows_C_, spec_.n_cols_C_, spec_.n_sheets_C_,
+                    spec_.n_cols_C_, spec_.n_rows_C_, spec_.n_sheets_C_,
                     sort_dim, step, stage
                 );
 
@@ -316,7 +315,7 @@ class Tensor3d_sort_bitonic_kernel {
             // For each (sheet, row), sort all columns
             for (long sheet = 0; sheet < tensor3d.sheets(); ++sheet) {
                 for (long row = 0; row < tensor3d.rows(); ++row) {
-                    Number* const row_start = &tensor3d(row, 0, sheet);
+                    Number* const row_start = &tensor3d(0, row, sheet);
                     std::sort(row_start, row_start + tensor3d.cols());
                 }
             }
