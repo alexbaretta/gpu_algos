@@ -311,7 +311,9 @@ template<typename T>
 py::array_t<T> glm_gradient_xyyhat_cuda_impl(
     const py::array_t<T>& X,  // (nfeatures, ntasks, nobs)
     const py::array_t<T>& Y,  // (ntargets, ntasks, nobs)
-    const py::array_t<T>& M   // (nfeatures, ntargets, ntasks)
+    const py::array_t<T>& M,  // (nfeatures, ntargets, ntasks)
+    const double lambda,
+    const double alpha
 ) {
     // Validate input arrays
     auto X_buf = X.request();
@@ -371,6 +373,7 @@ py::array_t<T> glm_gradient_xyyhat_cuda_impl(
         "fixed-grid", // GPU algorithm
         "nested-loop", // CPU algorithm
         nfeatures, ntargets, ntasks, nobs,
+        lambda, alpha,
         8            // Block dimension
     );
 
@@ -475,19 +478,19 @@ py::object glm_gradient_naive_dispatch(py::array X, py::array Y, py::array M) {
     }
 }
 
-py::object glm_gradient_xyyhat_dispatch(py::array X, py::array Y, py::array M) {
+py::object glm_gradient_xyyhat_dispatch(py::array X, py::array Y, py::array M, const double lambda, const double alpha) {
     if (!X.dtype().is(Y.dtype()) || !X.dtype().is(M.dtype())) {
         throw std::invalid_argument("Input arrays must have the same dtype");
     }
 
     if (X.dtype().is(py::dtype::of<float>())) {
-        return glm_gradient_xyyhat_cuda_impl<float>(X.cast<py::array_t<float>>(), Y.cast<py::array_t<float>>(), M.cast<py::array_t<float>>());
+        return glm_gradient_xyyhat_cuda_impl<float>(X.cast<py::array_t<float>>(), Y.cast<py::array_t<float>>(), M.cast<py::array_t<float>>(), lambda, alpha);
     } else if (X.dtype().is(py::dtype::of<double>())) {
-        return glm_gradient_xyyhat_cuda_impl<double>(X.cast<py::array_t<double>>(), Y.cast<py::array_t<double>>(), M.cast<py::array_t<double>>());
+        return glm_gradient_xyyhat_cuda_impl<double>(X.cast<py::array_t<double>>(), Y.cast<py::array_t<double>>(), M.cast<py::array_t<double>>(), lambda, alpha);
     } else if (X.dtype().is(py::dtype::of<std::int32_t>())) {
-        return glm_gradient_xyyhat_cuda_impl<std::int32_t>(X.cast<py::array_t<std::int32_t>>(), Y.cast<py::array_t<std::int32_t>>(), M.cast<py::array_t<std::int32_t>>());
+        return glm_gradient_xyyhat_cuda_impl<std::int32_t>(X.cast<py::array_t<std::int32_t>>(), Y.cast<py::array_t<std::int32_t>>(), M.cast<py::array_t<std::int32_t>>(), lambda, alpha);
     } else if (X.dtype().is(py::dtype::of<std::int64_t>())) {
-        return glm_gradient_xyyhat_cuda_impl<std::int64_t>(X.cast<py::array_t<std::int64_t>>(), Y.cast<py::array_t<std::int64_t>>(), M.cast<py::array_t<std::int64_t>>());
+        return glm_gradient_xyyhat_cuda_impl<std::int64_t>(X.cast<py::array_t<std::int64_t>>(), Y.cast<py::array_t<std::int64_t>>(), M.cast<py::array_t<std::int64_t>>(), lambda, alpha);
     } else {
         throw std::invalid_argument("Unsupported dtype for GLM gradient XYYhat: " + py::str(X.dtype()).cast<std::string>());
     }
@@ -519,13 +522,13 @@ PYBIND11_MODULE(_glm_ops_cuda, m) {
 
     // Low-level type-specific functions for glm_gradient_xyyhat
     m.def("glm_gradient_xyyhat_float32", &glm_gradient_xyyhat_cuda_impl<float>,
-          "GLM gradient (XYYhat algorithm) for float32", py::arg("X"), py::arg("Y"), py::arg("M"));
+          "GLM gradient (XYYhat algorithm) for float32", py::arg("X"), py::arg("Y"), py::arg("M"), py::arg("lambda"), py::arg("alpha"));
     m.def("glm_gradient_xyyhat_float64", &glm_gradient_xyyhat_cuda_impl<double>,
-          "GLM gradient (XYYhat algorithm) for float64", py::arg("X"), py::arg("Y"), py::arg("M"));
+          "GLM gradient (XYYhat algorithm) for float64", py::arg("X"), py::arg("Y"), py::arg("M"), py::arg("lambda"), py::arg("alpha"));
     m.def("glm_gradient_xyyhat_int32", &glm_gradient_xyyhat_cuda_impl<std::int32_t>,
-          "GLM gradient (XYYhat algorithm) for int32", py::arg("X"), py::arg("Y"), py::arg("M"));
+          "GLM gradient (XYYhat algorithm) for int32", py::arg("X"), py::arg("Y"), py::arg("M"), py::arg("lambda"), py::arg("alpha"));
     m.def("glm_gradient_xyyhat_int64", &glm_gradient_xyyhat_cuda_impl<std::int64_t>,
-          "GLM gradient (XYYhat algorithm) for int64", py::arg("X"), py::arg("Y"), py::arg("M"));
+          "GLM gradient (XYYhat algorithm) for int64", py::arg("X"), py::arg("Y"), py::arg("M"), py::arg("lambda"), py::arg("alpha"));
 
     // High-level dispatch functions
     m.def("glm_predict_naive", &glm_predict_naive_dispatch,
@@ -536,5 +539,5 @@ PYBIND11_MODULE(_glm_ops_cuda, m) {
           py::arg("X"), py::arg("Y"), py::arg("M"));
     m.def("glm_gradient_xyyhat", &glm_gradient_xyyhat_dispatch,
           "GLM gradient (XYYhat algorithm) with automatic type dispatch",
-          py::arg("X"), py::arg("Y"), py::arg("M"));
+          py::arg("X"), py::arg("Y"), py::arg("M"), py::arg("lambda"), py::arg("alpha"));
 }

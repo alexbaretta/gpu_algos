@@ -21,6 +21,7 @@
 #pragma once
 
 #include <cassert>
+#include <concepts>
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 #include <type_traits>
@@ -470,3 +471,15 @@ struct CUDA_vector<double, 4> {
     using scalar_type = double;
     using vector_type = double4;
 };
+
+template <CUDA_scalar Number>
+__inline__ constexpr static bool is_positive(const Number value) { return value > Number(0); }
+
+template <CUDA_floating_point Number>
+__inline__ constexpr static bool is_negative(const Number value) { return value < Number(0); }
+
+template <std::signed_integral Number>
+__inline__ constexpr static bool is_negative(const Number value) { return value < Number(0); }
+
+template <std::unsigned_integral Number>
+__inline__ constexpr static bool is_negative(const Number value) { return false; }

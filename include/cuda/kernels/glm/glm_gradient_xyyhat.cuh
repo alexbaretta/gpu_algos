@@ -91,7 +91,7 @@ We propose a multitask generalization of ElasticNet that exploits the assumed in
 to allow each task to borrow predictiveness from the other task.
 
 The regularized loss function is:
-`L_r(M|alpha,lambda) = SUM_target,task,obs (Ŷ[target,task,obs] - Y[target,task,obs])^2 + lambda * (alpha * SUM_task,obs,k |M[feature,target,task]| + (1-alpha) * SUM_task,obs,k M[feature,target,task]^2)`
+`L_r(M|alpha,lambda) = SUM_target,task,obs (Ŷ[target,task,obs] - Y[target,task,obs])^2 + lambda * (alpha * SUM_feature,target,task |M[feature,target,task]| + (1-alpha) * SUM_feature,target,task M[feature,target,task]^2)`
 
 We want to compute the gradient L_r with respect to the elements of M.
 
@@ -105,6 +105,16 @@ dL/dM[feature',target',task'] =
     = SUM_target,task,obs 2 * ( (SUM_feature M[feature,target,task] * X[feature,task,obs]) - Y[target,task,obs]) * delta[target=target',task=task'] * X[feature',task,obs]
     = 2 * SUM_obs ( (SUM_feature M[feature,target',task'] * X[feature,task',obs]) - Y[target',task',obs]) * X[feature',task',obs]
     = 2 * SUM_obs ( Ŷ[target',task',obs] - Y[target',task',obs]) * X[feature',task',obs]
+
+The gradient of the regularized loss function L_r(M) is:
+dL_r/dM[feature',target',task'] = dL/dM[feature',target',task'] + lambda * (alpha * dL1/dM[feature',target',task'] + (1-alpha) * dL2/dM[feature',target',task'])
+
+where:
+- dL1/dM[feature',target',task'] = d/dM[feature',target',task'] SUM_feature,target,task |M[feature,target,task]| = sign(M[feature',target',task'])
+- dL2/dM[feature',target',task'] = d/dM[feature',target',task'] SUM_feature,target,task M[feature,target,task]^2 = 2 * M[feature',target',task']
+
+Therefore:
+dL_r/dM[feature,target,task] = 2 * SUM_obs (Ŷ[target,task,obs] - Y[target,task,obs]) * X[feature,task,obs] + lambda * (alpha * sign(M[feature,target,task]) + (1-alpha) * 2 * M[feature,target,task])
 */
 
 namespace glm {
@@ -117,11 +127,14 @@ namespace glm {
         const Number* const X,     // (nfeatures, ntasks, nobs)
         const Number* const Y,     // (ntargets, ntasks, nobs)
         const Number* const Yhat,  // (ntargets, ntasks, nobs)
+        const Number* const M,     // (nfeatures, ntargets, ntasks)
         Number* const grad_M,      // (nfeatures, ntargets, ntasks)
         const long nfeatures,
         const long ntargets,
         const long ntasks,
-        const long nobs
+        const long nobs,
+        const Number lambda,
+        const Number alpha
     ) {
         // We need one word of dynamic shm per warp per block
         Number* shm  = get_dynamic_shared_memory<Number>();
@@ -180,7 +193,21 @@ namespace glm {
                     sum_obs += __shfl_down_sync(__activemask(), sum_obs, reduced_lanes);
                 }
                 if (tid_warp == 0) {
-                    grad_M[grad_M_idx] = Number(2) * sum_obs;
+                    // Compute the unregularized gradient
+                    const Number unregularized_grad_value = Number(2) * sum_obs;
+
+                    // Add regularization terms
+                    // Get the current value of M[feature,target,task] for regularization
+                    const Number m_value = M[grad_M_idx];
+
+                    // L1 regularization: sign(M) - use multiplication by 0 to avoid branching
+                    const Number l1_grad = alpha * (is_positive(m_value) ? Number(1) : (is_negative(m_value) ? Number(-1) : Number(0)));
+
+                    // L2 regularization: 2*M - use multiplication by 0 to avoid branching
+                    const Number l2_grad = (Number(1) - alpha) * Number(2) * m_value;
+
+                    // Single write to global memory
+                    grad_M[grad_M_idx] = unregularized_grad_value + lambda * (l1_grad + l2_grad);
                 }
             }
         }
@@ -191,11 +218,14 @@ namespace glm {
         const Number* const X,     // (nfeatures, ntasks, nobs)
         const Number* const Y,     // (ntargets, ntasks, nobs)
         const Number* const Yhat,  // (ntargets, ntasks, nobs)
+        const Number* const M,     // (nfeatures, ntargets, ntasks)
         Number* const grad_M,      // (nfeatures, ntargets, ntasks)
         const long nfeatures,
         const long ntargets,
         const long ntasks,
-        const long nobs
+        const long nobs,
+        const Number lambda,
+        const Number alpha
     ) {
         assert(blockDim.y == 1);
         assert(blockDim.z == 1);
@@ -232,7 +262,21 @@ namespace glm {
                     X[dst_feature + dst_task * nfeatures + obs * X_sheet_size]
                 );
             }
-            grad_M[grad_M_idx] = Number(2) * sum_obs;
+            // Compute the unregularized gradient
+            const Number unregularized_grad_value = Number(2) * sum_obs;
+
+            // Add regularization terms
+            // Get the current value of M[feature,target,task] for regularization
+            const Number m_value = M[grad_M_idx];
+
+            // L1 regularization: sign(M) - use multiplication by 0 to avoid branching
+            const Number l1_grad = alpha * (is_positive(m_value) ? Number(1) : (is_negative(m_value) ? Number(-1) : Number(0)));
+
+            // L2 regularization: 2*M - use multiplication by 0 to avoid branching
+            const Number l2_grad = (Number(1) - alpha) * Number(2) * m_value;
+
+            // Single write to global memory
+            grad_M[grad_M_idx] = unregularized_grad_value + lambda * (l1_grad + l2_grad);
         }
     }
 
@@ -241,11 +285,14 @@ namespace glm {
         const Number* const X,     // (nfeatures, ntasks, nobs)
         const Number* const Y,     // (ntargets, ntasks, nobs)
         const Number* const Yhat,  // (ntargets, ntasks, nobs)
+        const Number* const M,     // (nfeatures, ntargets, ntasks)
         Number* const grad_M,      // (nfeatures, ntargets, ntasks)
         const long nfeatures,
         const long ntargets,
         const long ntasks,
-        const long nobs
+        const long nobs,
+        const Number lambda,
+        const Number alpha
     ) {
         const auto dst_feature = blockIdx.x * blockDim.x + threadIdx.x;
         const auto dst_target = blockIdx.y * blockDim.y + threadIdx.y;
@@ -271,7 +318,21 @@ namespace glm {
                     X[X_idx]
                 );
             }
-            grad_M[grad_M_idx] = Number(2) * sum_obs;
+            // Compute the unregularized gradient
+            const Number unregularized_grad_value = Number(2) * sum_obs;
+
+            // Add regularization terms
+            // Get the current value of M[feature,target,task] for regularization
+            const Number m_value = M[grad_M_idx];
+
+            // L1 regularization: sign(M) - use multiplication by 0 to avoid branching
+            const Number l1_grad = alpha * (is_positive(m_value) ? Number(1) : (is_negative(m_value) ? Number(-1) : Number(0)));
+
+            // L2 regularization: 2*M - use multiplication by 0 to avoid branching
+            const Number l2_grad = (Number(1) - alpha) * Number(2) * m_value;
+
+            // Single write to global memory
+            grad_M[grad_M_idx] = unregularized_grad_value + lambda * (l1_grad + l2_grad);
         }
     } // glm_gradient_XYYhat_fixed_grid
 
@@ -280,11 +341,14 @@ namespace glm {
         const Number* const X,     // (nfeatures, ntasks, nobs)
         const Number* const Y,     // (ntargets, ntasks, nobs)
         const Number* const Yhat,  // (ntargets, ntasks, nobs)
+        const Number* const M,     // (nfeatures, ntargets, ntasks)
         Number* const grad_M,      // (nfeatures, ntargets, ntasks)
         const long nfeatures,
         const long ntargets,
         const long ntasks,
-        const long nobs
+        const long nobs,
+        const Number lambda,
+        const Number alpha
     ) {
         // We need one word of dynamic shm per warp per block
         Number* shm  = get_dynamic_shared_memory<Number>();
@@ -344,7 +408,21 @@ namespace glm {
             if (tid_warp == 0) {
                 // printf("[DEBUG] reduced: grad_M_idx=%ud, grad_m=%f\n", grad_M_idx, float(Number(2)*sum_obs));
                 assert(grad_M[grad_M_idx] == Number(0));
-                grad_M[grad_M_idx] = Number(2) * sum_obs;
+                // Compute the unregularized gradient
+                const Number unregularized_grad_value = Number(2) * sum_obs;
+
+                // Add regularization terms
+                // Get the current value of M[feature,target,task] for regularization
+                const Number m_value = M[grad_M_idx];
+
+                // L1 regularization: sign(M) - use multiplication by 0 to avoid branching
+                const Number l1_grad = alpha * (is_positive(m_value) ? Number(1) : (is_negative(m_value) ? Number(-1) : Number(0)));
+
+                // L2 regularization: 2*M - use multiplication by 0 to avoid branching
+                const Number l2_grad = (Number(1) - alpha) * Number(2) * m_value;
+
+                // Single write to global memory
+                grad_M[grad_M_idx] = unregularized_grad_value + lambda * (l1_grad + l2_grad);
             }
         }
     } // glm_gradient_XYYhat_warp
@@ -356,7 +434,8 @@ struct Glm_gradient_xyyhat_spec {
     const std::string type_;
     const std::string gpu_algo_;
     const std::string cpu_algo_;
-
+    const double lambda_;
+    const double alpha_;
     const long nfeatures_;
     const long ntargets_;
     const long ntasks_;
@@ -399,6 +478,8 @@ struct Glm_gradient_xyyhat_spec {
     constexpr static long DEFAULT_NTARGETS = 25;
     constexpr static long DEFAULT_NFEATURES = 25;
     constexpr static long DEFAULT_BLOCK_DIM = 8;
+    constexpr static double DEFAULT_LAMBDA = 0.0;
+    constexpr static double DEFAULT_ALPHA = 0.0; // We default to pure L2 regularization
     constexpr static std::string DEFAULT_GPU_ALGO = "naive";
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
@@ -407,6 +488,8 @@ struct Glm_gradient_xyyhat_spec {
             ("ntargets,Y", "Number of targets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTARGETS)))
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
+            ("lambda", "Regularization parameter", cxxopts::value<double>()->default_value(std::to_string(DEFAULT_LAMBDA)))
+            ("alpha", "L1 mixing parameter (default to 0.o for pure L2 regularization)", cxxopts::value<double>()->default_value(std::to_string(DEFAULT_ALPHA)))
             ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("block-dim-z", "Number of threads in the z dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
@@ -452,6 +535,8 @@ struct Glm_gradient_xyyhat_spec {
             options_parsed["ntargets"].as<long>(),
             options_parsed["ntasks"].as<long>(),
             options_parsed["nobs"].as<long>(),
+            options_parsed["lambda"].as<double>(),
+            options_parsed["alpha"].as<double>(),
             fixed_grid_block_dim,
             // options_parsed.count("optimize-launch") > 0
         };
@@ -465,11 +550,15 @@ struct Glm_gradient_xyyhat_spec {
         const long ntargets,
         const long ntasks,
         const long nobs,
+        const double lambda,
+        const double alpha,
         const dim3 fixed_grid_block_dim
         // const bool optimize_launch
     ) : type_(type),
         gpu_algo_(gpu_algo),
         cpu_algo_(cpu_algo),
+        lambda_(lambda),
+        alpha_(alpha),
         nfeatures_(nfeatures),
         ntargets_(ntargets),
         ntasks_(ntasks),
@@ -517,6 +606,9 @@ struct Glm_gradient_xyyhat_spec {
         assert(grid_dim_.x > 0);
         assert(grid_dim_.y > 0);
         assert(grid_dim_.z > 0);
+        assert(lambda_ >= 0);
+        assert(alpha_ >= 0);
+        assert(alpha_ <= 1);
     }
 };
 
@@ -530,10 +622,14 @@ class Glm_gradient_xyyhat_kernel {
     using Kernel_spec = Glm_gradient_xyyhat_spec;
 
     const Kernel_spec spec_;
+    const Number lambda_;
+    const Number alpha_;
 
     Glm_gradient_xyyhat_kernel(
         const Kernel_spec spec
-    ) : spec_(spec) {}
+    ) : spec_(spec),
+        lambda_(spec.lambda_),
+        alpha_(spec.alpha_) {}
 
     void run_device_kernel(
         const Number* const gpu_data_X,
@@ -600,8 +696,10 @@ class Glm_gradient_xyyhat_kernel {
                 gpu_data_X,
                 gpu_data_Y,
                 gpu_data_Yhat,
+                gpu_data_M,
                 gpu_data_grad_M,
-                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_
+                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
+                lambda_, alpha_
             );
         } else if (spec_.gpu_algo_ == "naive") {
             const int dynamic_shared_mem_words = 0;
@@ -620,8 +718,10 @@ class Glm_gradient_xyyhat_kernel {
                 gpu_data_X,
                 gpu_data_Y,
                 gpu_data_Yhat,
+                gpu_data_M,
                 gpu_data_grad_M,
-                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_
+                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
+                lambda_, alpha_
             );
         } else if (spec_.gpu_algo_ == "warp") {
             const int dynamic_shared_mem_words = spec_.dynamic_shared_mem_words_;
@@ -640,8 +740,10 @@ class Glm_gradient_xyyhat_kernel {
                 gpu_data_X,
                 gpu_data_Y,
                 gpu_data_Yhat,
+                gpu_data_M,
                 gpu_data_grad_M,
-                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_
+                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
+                lambda_, alpha_
             );
         }  else if (spec_.gpu_algo_ == "block") {
             const int dynamic_shared_mem_words = spec_.dynamic_shared_mem_words_;
@@ -660,8 +762,10 @@ class Glm_gradient_xyyhat_kernel {
                 gpu_data_X,
                 gpu_data_Y,
                 gpu_data_Yhat,
+                gpu_data_M,
                 gpu_data_grad_M,
-                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_
+                spec_.nfeatures_, spec_.ntargets_, spec_.ntasks_, spec_.nobs_,
+                lambda_, alpha_
             );
         } else {
             std::cerr << "[ERROR] --gpu-algo must be one of: fixed-grid, naive, warp, block" << std::endl;
@@ -704,6 +808,10 @@ class Glm_gradient_xyyhat_kernel {
             // Y: (ntargets, ntasks, nobs)
             // M: (nfeatures, ntargets, ntasks)
             // const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
+            const auto _2_lambda = Number(2) * lambda_;
+            const auto _1_minus_alpha = Number(1) - alpha_;
+            const auto _2_lambda_1_minus_alpha = _2_lambda * _1_minus_alpha;
+            const auto lambda_alpha = lambda_ * alpha_;
             for (int i_task = 0; i_task < spec_.ntasks_; ++i_task) {
                 // Matrix dimensions: [nrows (outer), ncols (inner)]
                 auto X_task_matrix = X.chip_at_dim1(i_task);  // tensor:(nfeatures, nobs) -> matrix:[nobs, nfeatures]
@@ -721,6 +829,19 @@ class Glm_gradient_xyyhat_kernel {
                 // for each slice: grad_M = (M*X^T - Y^T)*X
                 // grad_M_task_matrix.noalias() = X_task_matrix.transpose() * (X_task_matrix * M_task_matrix - Y_task_matrix);
                 grad_M_task_matrix.noalias() = 2*(M_task_matrix * X_task_matrix.transpose() - Y_task_matrix.transpose()) * X_task_matrix;
+
+                if (lambda_ > Number(0)) {
+                    if (alpha_ > Number(0)) {
+                        // L1 regularization: sign(M)
+                        grad_M_task_matrix.noalias() += lambda_alpha * M_task_matrix.unaryExpr([](const Number& x) -> Number {
+                            return (is_positive(x)) ? Number(1) : ((is_negative(x)) ? Number(-1) : Number(0));
+                        });
+                    }
+                    if (alpha_ < Number(1)) {
+                        // L2 regularization: 2*M
+                        grad_M_task_matrix.noalias() += _2_lambda_1_minus_alpha *  M_task_matrix;
+                    }
+                }
             }
         }
         return grad_M;
