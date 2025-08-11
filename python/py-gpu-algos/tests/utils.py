@@ -92,6 +92,24 @@ def validate_basic_properties(result, expected_shape, expected_dtype):
     assert result.shape == expected_shape, f"Wrong shape: expected {expected_shape}, got {result.shape}"
     assert result.dtype == expected_dtype, f"Wrong dtype: expected {expected_dtype}, got {result.dtype}"
 
+def validate_function_error_case(func: Callable, test_case: tuple):
+    """
+    Test that a function properly raise an error for invalid inputs.
+
+    Args:
+        func: The function to test
+        test_case: tuple (args, kwargs, expected_exception_type, description)
+    """
+    args, kwargs, expected_exception, description = test_case
+    try:
+        result = func(*args, **kwargs)
+        raise AssertionError(f"Expected {expected_exception.__name__} for {description}, but function succeeded")
+    except expected_exception:
+        pass  # Expected behavior
+    except Exception as e:
+        raise AssertionError(f"Expected {expected_exception.__name__} for {description}, got {type(e).__name__}: {e}")
+
+
 def validate_function_error_cases(func: Callable, test_cases: list):
     """
     Test that a function properly raises errors for invalid inputs.
@@ -100,14 +118,14 @@ def validate_function_error_cases(func: Callable, test_cases: list):
         func: The function to test
         test_cases: List of (args, kwargs, expected_exception_type, description)
     """
-    for args, kwargs, expected_exception, description in test_cases:
+    for i, (args, kwargs, expected_exception, description) in enumerate(test_cases):
         try:
             result = func(*args, **kwargs)
-            raise AssertionError(f"Expected {expected_exception.__name__} for {description}, but function succeeded")
+            raise AssertionError(f"{i} Expected {expected_exception.__name__} for {description}, but function succeeded")
         except expected_exception:
             pass  # Expected behavior
         except Exception as e:
-            raise AssertionError(f"Expected {expected_exception.__name__} for {description}, got {type(e).__name__}: {e}")
+            raise AssertionError(f"{i} Expected {expected_exception.__name__} for {description}, got {type(e).__name__}: {e}")
 
 def benchmark_function(func: Callable, args: tuple, kwargs: dict = None, warmup_runs: int = 3, timing_runs: int = 10) -> Dict[str, float]:
     """

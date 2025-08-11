@@ -170,6 +170,15 @@ def test_input_tensor_3d_incremental():
     return _generate
 
 @pytest.fixture
+def test_input_tensor_3d_constant():
+    """Generate constant tensor_3d"""
+    def _generate(dtype, ncols, nrows, nsheets, value=1):
+        mat = np.full((ncols, nrows, nsheets), value, dtype=dtype)
+
+        return mat
+    return _generate
+
+@pytest.fixture
 def test_input_tensor_3d_random():
     """Generate random tensor_3d"""
     def _generate(dtype, ncols, nrows, nsheets):

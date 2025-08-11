@@ -14,8 +14,8 @@ import pytest
 import numpy as np
 import py_gpu_algos
 from .utils import (
-    assert_array_close, validate_basic_properties, validate_function_error_cases,
-    compare_with_numpy_reference, get_numpy_reference_tensor_sort,
+    assert_array_close, validate_basic_properties, validate_function_error_case,
+    validate_function_error_cases, compare_with_numpy_reference, get_numpy_reference_tensor_sort,
     ErrorCaseBuilder, print_performance_summary, is_power_of_2,
 )
 from .conftest import TEST_PROBLEM_SIZES
@@ -99,6 +99,83 @@ def make_test_p2_tensor_sort(
 
         @pytest.mark.parametrize("func_name", P2_SORT_FUNCTIONS)
         @pytest.mark.parametrize("p2_shape", p2_shapes)
+        def test_presorted(self, func_name, p2_shape, dtype_all, test_input_tensor_3d_random):
+            """Test bitonic sort with random input."""
+            func = getattr(py_gpu_algos, func_name)
+
+            # Generate power-of-2 shape for bitonic sort
+            random_tensor = test_input_tensor_3d_random(dtype_all, *p2_shape)
+            tensor = get_numpy_reference_tensor_sort(random_tensor, sort_axis)
+
+            # Make a copy since sort is in-place
+            tensor_copy = tensor.copy()
+
+            # Compute result (in-place operation)
+            func(tensor_copy, sort_axis)
+
+            # Validate basic properties
+            validate_basic_properties(tensor_copy, tensor.shape, dtype_all)
+
+            # Compare with NumPy reference
+            numpy_result = get_numpy_reference_tensor_sort(tensor, sort_axis)
+            assert_array_close(tensor_copy, numpy_result, dtype_all)
+            return
+
+        @pytest.mark.parametrize("func_name", P2_SORT_FUNCTIONS)
+        @pytest.mark.parametrize("p2_shape", p2_shapes)
+        def test_revsorted(self, func_name, p2_shape, dtype_all, test_input_tensor_3d_random):
+            """Test bitonic sort with random input."""
+            func = getattr(py_gpu_algos, func_name)
+
+            # Generate power-of-2 shape for bitonic sort
+            random_tensor = test_input_tensor_3d_random(dtype_all, *p2_shape)
+            if sort_axis == "cols":
+                tensor = get_numpy_reference_tensor_sort(random_tensor, sort_axis)[:,:,::-1]
+            elif sort_axis == "rows":
+                tensor = get_numpy_reference_tensor_sort(random_tensor, sort_axis)[:,::-1,:]
+            else:  # sheets
+                tensor = get_numpy_reference_tensor_sort(random_tensor, sort_axis)[::-1,:,:]
+                pass
+
+            # Make a copy since sort is in-place
+            tensor_copy = tensor.copy()
+
+            # Compute result (in-place operation)
+            func(tensor_copy, sort_axis)
+
+            # Validate basic properties
+            validate_basic_properties(tensor_copy, tensor.shape, dtype_all)
+
+            # Compare with NumPy reference
+            numpy_result = get_numpy_reference_tensor_sort(tensor, sort_axis)
+            assert_array_close(tensor_copy, numpy_result, dtype_all)
+            return
+
+        @pytest.mark.parametrize("func_name", P2_SORT_FUNCTIONS)
+        @pytest.mark.parametrize("p2_shape", p2_shapes)
+        def test_constant(self, func_name, p2_shape, dtype_all, test_input_tensor_3d_constant):
+            """Test bitonic sort with random input."""
+            func = getattr(py_gpu_algos, func_name)
+
+            # Generate power-of-2 shape for bitonic sort
+            tensor = test_input_tensor_3d_constant(dtype_all, *p2_shape, value=42)
+
+            # Make a copy since sort is in-place
+            tensor_copy = tensor.copy()
+
+            # Compute result (in-place operation)
+            func(tensor_copy, sort_axis)
+
+            # Validate basic properties
+            validate_basic_properties(tensor_copy, tensor.shape, dtype_all)
+
+            # Compare with NumPy reference
+            numpy_result = get_numpy_reference_tensor_sort(tensor, sort_axis)
+            assert_array_close(tensor_copy, numpy_result, dtype_all)
+            return
+
+        @pytest.mark.parametrize("func_name", P2_SORT_FUNCTIONS)
+        @pytest.mark.parametrize("p2_shape", p2_shapes)
         def test_low_level_functions(self, func_name, p2_shape, dtype_all, test_input_tensor_3d_incremental):
             """Test low-level type-specific functions."""
             dtype_name = dtype_all.__name__
@@ -124,74 +201,35 @@ def make_test_p2_tensor_sort(
             assert_array_close(tensor_low, tensor_high, dtype_all)
             return
 
+        @pytest.mark.parametrize("func_name", P2_SORT_FUNCTIONS)
+        @pytest.mark.parametrize("wrong_axis", [axis for axis in SORT_AXES if axis != sort_axis])
+        def test_error_handling_wrong_axis(self, func_name, dtype_all, wrong_axis, test_input_tensor_3d_random):
+            """Test error handling for invalid inputs: wrong sort axis"""
+            func = getattr(py_gpu_algos, func_name)
+            shape = pick_problem_p2shapes(wrong_axis, 0, 1)
+            error_case = ((test_input_tensor_3d_random(dtype_all, *shape), sort_axis), {}, ValueError, "power of 2|bitonic")
+            validate_function_error_case(func, error_case)
 
         @pytest.mark.parametrize("func_name", P2_SORT_FUNCTIONS)
-        @pytest.mark.parametrize("p2_shape", p2_shapes)
-        def test_edge_cases(self, func_name, p2_shape, dtype_all, test_input_tensor_3d_random):
-            """Test edge cases for bitonic sort."""
+        @pytest.mark.parametrize("invalid_axis", ["x", "y", "z", "width", "height", "invalid", 0, 1, 2])
+        def test_error_handling_invalid_axis(self, func_name, dtype_all, invalid_axis, test_input_tensor_3d_random):
+            """Test error handling for invalid inputs: invalid axis"""
             func = getattr(py_gpu_algos, func_name)
+            shape = pick_problem_p2shapes(invalid_axis, 0, 1)
+            error_case = ((test_input_tensor_3d_random(dtype_all, *shape), sort_axis), {}, ValueError, f"invalid sort_axis {invalid_axis}")
+            validate_function_error_case(func, error_case)
 
-            # Test already sorted arrays
-            shape = (8, 4, 16)
-            input_tensor = test_input_tensor_3d_random(dtype_all, *shape)
-
-            # Sort with NumPy first to get a properly sorted tensor
-            un = np.sort(tensor, sort_axis=0)
-
-            # Test our sort function
-            tensor_copy = tensor.copy()
-            func(tensor_copy, sort_axis)
-            assert_array_close(tensor_copy, tensor, dtype_all)
-
-            # Test reverse sorted arrays
-            tensor_reverse = test_input_tensor_3d_random(dtype_all, *shape)
-            if sort_axis == "rows":
-                tensor_reverse = -np.sort(-tensor_reverse, sort_axis=0)
-            elif sort_axis == "cols":
-                tensor_reverse = -np.sort(-tensor_reverse, sort_axis=1)
-            else:  # sheets
-                tensor_reverse = -np.sort(-tensor_reverse, sort_axis=2)
-
-            tensor_copy = tensor_reverse.copy()
-            func(tensor_copy, sort_axis)
-            numpy_result = get_numpy_reference_tensor_sort(tensor_reverse, sort_axis)
-            assert_array_close(tensor_copy, numpy_result, dtype_all)
-
-            # Test all same values
-            if np.issubdtype(dtype_all, np.integer):
-                value = 42
-            else:
-                value = 3.14159
-            tensor_same = np.full(shape, value, dtype=dtype_all)
-            tensor_copy = tensor_same.copy()
-            func(tensor_copy, sort_axis)
-            assert_array_close(tensor_copy, tensor_same, dtype_all)
-            return
 
         @pytest.mark.parametrize("func_name", P2_SORT_FUNCTIONS)
-        @pytest.mark.parametrize("p2_shape", p2_shapes)
-        def test_error_handling(self, func_name, p2_shape, dtype_all, test_input_tensor_3d_random):
-            """Test error handling for invalid inputs."""
+        @pytest.mark.parametrize("wrong_axis", [axis for axis in SORT_AXES if axis != sort_axis])
+        def test_error_handling_bad_tensor3d(self, func_name, dtype_all, wrong_axis, test_input_tensor_3d_random):
+            """Test error handling for invalid inputs: invalid tensor3d"""
             func = getattr(py_gpu_algos, func_name)
-
-            # Non-power-of-2 shapes
-            invalid_shapes = [
-                (7, 4, 8),      # 7 is not power of 2
-                (8, 6, 4),      # 6 is not power of 2
-                (4, 4, 12),     # 12 is not power of 2
-                (3, 5, 7),      # None are powers of 2
-            ]
-
-            # Valid power-of-2 tensor for other tests
-            valid_tensor = test_input_tensor_3d_random(dtype_all, 8, 4, 16)
 
             # Wrong number of dimensions
             tensor_1d = np.zeros(16, dtype=dtype_all)
             tensor_2d = np.zeros((8, 16), dtype=dtype_all)
             tensor_4d = np.zeros((4, 4, 4, 4), dtype=dtype_all)
-
-            # Invalid sort_axis names
-            invalid_axes = ["x", "y", "z", "width", "height", "invalid", 0, 1, 2]
 
             # Build error test cases
             error_cases = []
@@ -202,19 +240,6 @@ def make_test_p2_tensor_sort(
                 ((tensor_2d, "rows"), {}, ValueError, "2D tensor"),
                 ((tensor_4d, "rows"), {}, ValueError, "4D tensor"),
             ])
-
-            # Invalid sort_axis errors
-            for invalid_axis in invalid_axes:
-                error_cases.append((
-                    (valid_tensor, invalid_axis), {}, ValueError, f"invalid sort_axis {invalid_axis}"
-                ))
-
-            # Power-of-2 errors
-            for shape in invalid_shapes:
-                tensor = test_input_tensor_3d_random(dtype_all, *shape)
-                error_cases.append((
-                    (tensor, "rows"), {}, ValueError, "power of 2|bitonic"
-                ))
 
             validate_function_error_cases(func, error_cases)
             return
