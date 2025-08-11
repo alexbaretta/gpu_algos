@@ -26,8 +26,6 @@
 #include <utility>
 
 #include <type_traits>
-#include <vector>
-
 
 template <typename Container, typename T>
 concept Forward_iterable = requires (Container vector) {
@@ -40,7 +38,7 @@ using contained_type = std::remove_reference_t<decltype(*std::declval<Container>
 
 // Function to initialize container with random values of type T, converted from a random sequence of type U
 template <typename Container, typename T = contained_type<Container>, std::floating_point U = std::conditional_t<std::is_floating_point_v<T>, T, float>>
-requires Forward_iterable<Container, T>
+requires Forward_iterable<Container, T> && (!std::is_integral_v<T>)
 void randomize_container(
     Container& data,
     int seed
@@ -55,15 +53,15 @@ void randomize_container(
 }
 
 // Function to initialize container with random values of type T, converted from a random sequence of type U
-template <typename Container, typename T = contained_type<Container>, std::integral U = std::conditional_t<std::is_integral_v<T>, T, int>, U default_min = 0, U default_max = 100>
-requires Forward_iterable<Container, T>
+template <typename Container, typename T = contained_type<Container>, std::integral U = std::conditional_t<std::is_integral_v<T>, T, int>>
+requires Forward_iterable<Container, T> && std::is_integral_v<T>
 void randomize_container(
-    std::vector<T>& data,
+    Container& data,
     int seed,
-    const U min = default_min,
-    const U max = default_max
+    const U min = U(0),
+    const U max = U(100)
 ) {
-    // static_assert(std::is_floating_point_v<U>, "U must be a C++ integeral type");
+    // static_assert(std::is_integral_v<U>, "U must be a C++ integral type");
     std::mt19937 generator(seed);
     std::uniform_int_distribution<U> distribution(min, max);
 
