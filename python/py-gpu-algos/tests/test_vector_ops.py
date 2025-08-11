@@ -22,14 +22,9 @@ from .utils import (
 
 # Vector function names to test
 # CUMSUM_FUNCTIONS = ['vector_cumsum_serial', 'vector_cumsum_parallel']
-CUMSUM_FUNCTIONS = ['vector_cumsum_serial']
-CUMMAX_FUNCTIONS = ['vector_cummax_parallel']
-CUMOP_FUNCTIONS = CUMSUM_FUNCTIONS + CUMMAX_FUNCTIONS
+CUMOP_FUNCTIONS = ['vector_cumsum_serial', 'vector_cumsum_parallel', 'vector_cummax_parallel']
 SCAN_FUNCTIONS = ['vector_scan_parallel']
 SCAN_OPERATIONS = ["sum", "max", "min", "prod"]
-
-# All vector functions
-ALL_VECTOR_FUNCTIONS = CUMSUM_FUNCTIONS + CUMMAX_FUNCTIONS + SCAN_FUNCTIONS
 
 TEST_SIZES = [10, 100, 1000, 4096, 10000, 1000000]
 
