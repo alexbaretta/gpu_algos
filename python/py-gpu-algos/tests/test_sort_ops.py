@@ -31,9 +31,9 @@ def pick_problem_p2shapes(sort_axis:str,i_start:int, stride:int) -> tuple[int, i
     i_row = (i_col + stride) % l_standard if sort_axis != 'rows' else (i_col + stride) % l_p2
     i_sheet = (i_row + stride) % l_standard if sort_axis != 'sheets' else (i_row + stride) % l_p2
     return (
-        TEST_PROBLEM_SIZES[i_col] if sort_axis != 'cols' else TEST_PROBLEM_P2SIZES[i_col],
-        TEST_PROBLEM_SIZES[i_row] if sort_axis != 'rows' else TEST_PROBLEM_P2SIZES[i_row],
-        TEST_PROBLEM_SIZES[i_sheet] if sort_axis != 'sheets' else TEST_PROBLEM_P2SIZES[i_sheet]
+        TEST_PROBLEM_P2SIZES[i_sheet] if sort_axis == 'sheets' else TEST_PROBLEM_SIZES[i_sheet],
+        TEST_PROBLEM_P2SIZES[i_row] if sort_axis == 'rows' else TEST_PROBLEM_SIZES[i_row],
+        TEST_PROBLEM_P2SIZES[i_col] if sort_axis == 'cols' else TEST_PROBLEM_SIZES[i_col],
     )
 
 TEST_PROBLEM_P2SIZES = [ 2**power for power in [ 3,5,7,9 ] ]
@@ -42,11 +42,11 @@ def make_test_p2_tensor_sort(
         sort_axis:str,
     ):
 
-    p2_shapes = sorted(list(set(itertools.chain(
-        [pick_problem_p2shapes(sort_axis, i, 1) for i in range(len(TEST_PROBLEM_P2SIZES))],
-        [pick_problem_p2shapes(sort_axis, i, 2) for i in range(len(TEST_PROBLEM_P2SIZES))],
-        [pick_problem_p2shapes(sort_axis, i, 3) for i in range(len(TEST_PROBLEM_P2SIZES))],
-    ))))
+    p2_shapes = sorted(list(
+        [pick_problem_p2shapes(sort_axis, i, 1) for i in range(len(TEST_PROBLEM_P2SIZES))]
+        + [pick_problem_p2shapes(sort_axis, i, 2) for i in range(len(TEST_PROBLEM_P2SIZES))]
+        + [pick_problem_p2shapes(sort_axis, i, 3) for i in range(len(TEST_PROBLEM_P2SIZES))]
+    ))
 
     class MetaTestP2TensorSort:
         """Test 3D tensor bitonic sort operations."""

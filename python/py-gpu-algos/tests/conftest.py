@@ -182,27 +182,6 @@ def test_input_tensor_3d_random():
         return vec
     return _generate
 
-@pytest.fixture
-def power_of_2_tensors():
-    """Generate 3D tensors with power-of-2 dimensions for bitonic sort."""
-    def _generate(dtype):
-        # Use power-of-2 dimensions for bitonic sort
-        shape = (8, 4, 16)  # 8=2^3, 4=2^2, 16=2^4
-
-        generator = np.random.default_rng(42)
-        if np.issubdtype(dtype, np.integer):
-            if dtype in [np.int8, np.uint8]:
-                tensor = generator.integers(-10, 10, shape, dtype=dtype)
-            elif dtype in [np.int16, np.uint16]:
-                tensor = generator.integers(-50, 50, shape, dtype=dtype)
-            else:
-                tensor = generator.integers(-100, 100, shape, dtype=dtype)
-        else:
-            tensor = (generator.uniform(low=-10, high=10, size=shape)).astype(dtype)
-
-        return tensor
-    return _generate
-
 
 @pytest.fixture
 def performance_sizes():
