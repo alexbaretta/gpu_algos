@@ -395,8 +395,10 @@ struct Glm_predict_naive_spec {
     constexpr static long DEFAULT_NTASKS = 10;
     constexpr static long DEFAULT_NTARGETS = 25;
     constexpr static long DEFAULT_NFEATURES = 25;
-    constexpr static long DEFAULT_BLOCK_DIM = 32;
-    constexpr static std::string DEFAULT_GPU_ALGO = "naive";
+    constexpr static long DEFAULT_BLOCK_DIM_X = 32;
+    constexpr static long DEFAULT_BLOCK_DIM_Y = 4;
+    constexpr static long DEFAULT_BLOCK_DIM_Z = 4;
+    constexpr static std::string DEFAULT_GPU_ALGO = "fixed-grid";
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
         options.add_options()
@@ -404,9 +406,9 @@ struct Glm_predict_naive_spec {
             ("ntargets,Y", "Number of targets", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTARGETS)))
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
-            ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
-            ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(1)))
-            ("block-dim-z", "Number of threads in the z dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(1)))
+            ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_X)))
+            ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Y)))
+            ("block-dim-z", "Number of threads in the z dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM_Z)))
             ("gpu-algo", "GPU algo to use (fixed-grid, naive, vector, warp, group, block)", cxxopts::value<std::string>()->default_value(DEFAULT_GPU_ALGO))
             ("type", "Numeric type (half, single/float, double, int<n>, uint<n>)", cxxopts::value<std::string>()->default_value("float"));
     }
