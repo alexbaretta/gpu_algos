@@ -42,7 +42,7 @@ def make_test_p2_tensor_sort(
         sort_axis:str,
     ):
 
-    p2_shapes = sorted(list(
+    p2_shapes = [(4,4,4)] + sorted(list(
         [pick_problem_p2shapes(sort_axis, i, 1) for i in range(len(TEST_PROBLEM_P2SIZES))]
         + [pick_problem_p2shapes(sort_axis, i, 2) for i in range(len(TEST_PROBLEM_P2SIZES))]
         + [pick_problem_p2shapes(sort_axis, i, 3) for i in range(len(TEST_PROBLEM_P2SIZES))]
@@ -133,15 +133,10 @@ def make_test_p2_tensor_sort(
 
             # Test already sorted arrays
             shape = (8, 4, 16)
-            tensor = test_input_tensor_3d_random(dtype_all, *shape)
+            input_tensor = test_input_tensor_3d_random(dtype_all, *shape)
 
             # Sort with NumPy first to get a properly sorted tensor
-            if sort_axis == "rows":
-                tensor = np.sort(tensor, sort_axis=0)
-            elif sort_axis == "cols":
-                tensor = np.sort(tensor, sort_axis=1)
-            else:  # sheets
-                tensor = np.sort(tensor, sort_axis=2)
+            un = np.sort(tensor, sort_axis=0)
 
             # Test our sort function
             tensor_copy = tensor.copy()

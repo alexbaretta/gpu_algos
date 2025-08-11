@@ -281,12 +281,12 @@ def get_numpy_reference_tensor_sort(tensor, axis_name):
     """
     result = tensor.copy()
 
-    if axis_name == "rows":
-        axis = 0
-    elif axis_name == "cols":
+    if axis_name == "cols":
+        axis = 2
+    elif axis_name == "rows":
         axis = 1
     elif axis_name == "sheets":
-        axis = 2
+        axis = 0
     else:
         raise ValueError(f"Unknown axis: {axis_name}")
 
