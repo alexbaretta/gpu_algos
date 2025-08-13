@@ -38,7 +38,7 @@ __device__ void vector_cumsum_cooperative(
     const long n_blocks
 ) {
     // for writing, index this using `wid_block` (warp id)
-    CUDA_Number* shm = static_cast<CUDA_Number*>(get_dynamic_shared_memory(alignof(CUDA_Number)));
+    CUDA_Number* shm = get_dynamic_shm<CUDA_Number>();
 
     auto grid = cooperative_groups::this_grid();
     grid.sync();

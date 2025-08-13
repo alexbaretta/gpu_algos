@@ -21,8 +21,6 @@
 #pragma once
 
 #include <cassert>
-#include <cmath>
-#include <algorithm>
 #include <cuda_runtime.h>
 #include <cxxopts.hpp>
 #include <iostream>
@@ -137,7 +135,7 @@ namespace glm {
         const Number alpha
     ) {
         // We need one word of dynamic shm per warp per block
-        Number* shm  = get_dynamic_shared_memory<Number>();
+        Number* shm  = get_dynamic_shm<Number>();
 
         assert(blockDim.x % WARP_SIZE == 0); // Number of threads is a multiple of a warp
         assert(blockDim.y == 1);
@@ -351,7 +349,7 @@ namespace glm {
         const Number alpha
     ) {
         // We need one word of dynamic shm per warp per block
-        Number* shm  = get_dynamic_shared_memory<Number>();
+        Number* shm  = get_dynamic_shm<Number>();
 
         assert(blockDim.x % WARP_SIZE == 0); // Number of threads is a multiple of a warp
         assert(blockDim.y == 1);
@@ -470,7 +468,7 @@ struct Glm_gradient_xyyhat_spec {
     const dim3 fixed_grid_block_dim_;
     const long block_dim_;
     const dim3 grid_dim_;
-    const size_t dynamic_shared_mem_words_;
+    const size_t dynamic_shm_words_;
     // const bool optimize_launch_;
 
     constexpr static long DEFAULT_NOBS = 1000;
@@ -489,7 +487,7 @@ struct Glm_gradient_xyyhat_spec {
             ("ntasks,T", "Number of tasks", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NTASKS)))
             ("nobs,N", "Number of observations", cxxopts::value<long>()->default_value(std::to_string(DEFAULT_NOBS)))
             ("lambda", "Regularization parameter", cxxopts::value<double>()->default_value(std::to_string(DEFAULT_LAMBDA)))
-            ("alpha", "L1 mixing parameter (default to 0.o for pure L2 regularization)", cxxopts::value<double>()->default_value(std::to_string(DEFAULT_ALPHA)))
+            ("alpha", "L1 mixing parameter (default to 0.0 for pure L2 regularization)", cxxopts::value<double>()->default_value(std::to_string(DEFAULT_ALPHA)))
             ("block-dim-x", "Number of threads in the x dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("block-dim-y", "Number of threads in the y dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
             ("block-dim-z", "Number of threads in the z dimension per block", cxxopts::value<unsigned>()->default_value(std::to_string(DEFAULT_BLOCK_DIM)))
@@ -592,14 +590,16 @@ struct Glm_gradient_xyyhat_spec {
 
         fixed_grid_block_dim_(fixed_grid_block_dim),
         block_dim_((long)fixed_grid_block_dim.x * fixed_grid_block_dim.y * fixed_grid_block_dim.z),
-        grid_dim_((gpu_algo == "fixed-grid") ? dim3(
-            (nfeatures + fixed_grid_block_dim.x - 1)/fixed_grid_block_dim.x,
-            (ntargets + fixed_grid_block_dim.y - 1)/fixed_grid_block_dim.y,
-            (ntasks + fixed_grid_block_dim.z - 1)/fixed_grid_block_dim.z
-        )
-        : (gpu_algo == "naive") ? dim3(niterations_)
-        : dim3(niterations_ * 32)),
-        dynamic_shared_mem_words_(0)
+        grid_dim_(
+            (gpu_algo == "fixed-grid")
+            ? dim3((nfeatures + fixed_grid_block_dim.x - 1)/fixed_grid_block_dim.x,
+                   (ntargets + fixed_grid_block_dim.y - 1)/fixed_grid_block_dim.y,
+                   (ntasks + fixed_grid_block_dim.z - 1)/fixed_grid_block_dim.z
+                )
+            : (gpu_algo == "naive") ? dim3(niterations_)
+            : dim3(niterations_ * 32)
+        ),
+        dynamic_shm_words_(0)
         // optimize_launch_(optimize_launch)
     {
         assert(block_dim_ > 0);
@@ -645,8 +645,8 @@ class Glm_gradient_xyyhat_kernel {
         // We initialize block_dim and grid_dim after declaring them because we might want to add support --optimize-launch
         block_dim = spec_.block_dim_;
         grid_dim = spec_.grid_dim_;
-        const auto dynamic_shared_mem_words = compute_n_warps_per_block(block_dim);
-        const auto predict_shm_size = dynamic_shared_mem_words * sizeof(Number);
+        const auto predict_dynamic_shm_words = compute_n_warps_per_block(block_dim);
+        const auto predict_shm_size = predict_dynamic_shm_words * sizeof(Number);
 
         const Glm_predict_naive_spec glm_predict_naive_spec{
             spec_.type_,
@@ -678,19 +678,19 @@ class Glm_gradient_xyyhat_kernel {
 
         // Compute grad_M
         if (spec_.gpu_algo_ == "fixed-grid") {
-            const int dynamic_shared_mem_words = 0;
-            const int shm_size = dynamic_shared_mem_words * sizeof(Number);
+            const int gradient_dynamic_shm_words = 0;
+            const int gradient_shm_size = gradient_dynamic_shm_words * sizeof(Number);
 
             std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
             std::cout << "[INFO] block_dim_: " << spec_.fixed_grid_block_dim_.x << ", " << spec_.fixed_grid_block_dim_.y << ", " << spec_.fixed_grid_block_dim_.z << std::endl;
             std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_fixed_grid<<<(" << spec_.grid_dim_.x << ", " << spec_.grid_dim_.y << ", " << spec_.grid_dim_.z << "), ("
-                    << spec_.fixed_grid_block_dim_.x << ", " << spec_.fixed_grid_block_dim_.y << ", " << spec_.fixed_grid_block_dim_.z << "), " << dynamic_shared_mem_words
+                    << spec_.fixed_grid_block_dim_.x << ", " << spec_.fixed_grid_block_dim_.y << ", " << spec_.fixed_grid_block_dim_.z << "), " << gradient_shm_size
                     << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
             std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
             glm::glm_gradient_XYYhat_fixed_grid<<<
                 grid_dim,
                 spec_.fixed_grid_block_dim_,
-                shm_size,
+                gradient_shm_size,
                 stream
             >>>(
                 gpu_data_X,
@@ -702,17 +702,17 @@ class Glm_gradient_xyyhat_kernel {
                 lambda_, alpha_
             );
         } else if (spec_.gpu_algo_ == "naive") {
-            const int dynamic_shared_mem_words = 0;
-            const int shm_size = dynamic_shared_mem_words * sizeof(Number);
+            const int gradient_dynamic_shm_words = 0;
+            const int gradient_shm_size = gradient_dynamic_shm_words * sizeof(Number);
             std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
             std::cout << "[INFO] block_dim_: " << block_dim << std::endl;
-            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_naive<<<" << grid_dim.x << ", " << block_dim << ", " << shm_size
+            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_naive<<<" << grid_dim.x << ", " << block_dim << ", " << gradient_shm_size
                 << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
             std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
             glm::glm_gradient_XYYhat_naive<<<
                 grid_dim,
                 block_dim,
-                shm_size,
+                gradient_shm_size,
                 stream
             >>>(
                 gpu_data_X,
@@ -724,17 +724,17 @@ class Glm_gradient_xyyhat_kernel {
                 lambda_, alpha_
             );
         } else if (spec_.gpu_algo_ == "warp") {
-            const int dynamic_shared_mem_words = spec_.dynamic_shared_mem_words_;
-            const int shm_size = dynamic_shared_mem_words * sizeof(Number);
+            const int gradient_dynamic_shm_words = spec_.dynamic_shm_words_;
+            const int gradient_shm_size = gradient_dynamic_shm_words * sizeof(Number);
             std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
             std::cout << "[INFO] block_dim_: " << block_dim << std::endl;
-            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_warp<<<" << grid_dim.x << ", " << block_dim << ", " << shm_size
+            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_warp<<<" << grid_dim.x << ", " << block_dim << ", " << gradient_shm_size
                 << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
             std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
             glm::glm_gradient_XYYhat_warp<<<
                 grid_dim,
                 block_dim,
-                shm_size,
+                gradient_shm_size,
                 stream
             >>>(
                 gpu_data_X,
@@ -746,17 +746,17 @@ class Glm_gradient_xyyhat_kernel {
                 lambda_, alpha_
             );
         }  else if (spec_.gpu_algo_ == "block") {
-            const int dynamic_shared_mem_words = spec_.dynamic_shared_mem_words_;
-            const int shm_size = dynamic_shared_mem_words * sizeof(Number);
+            const int gradient_dynamic_shm_words = spec_.dynamic_shm_words_;
+            const int gradient_shm_size = gradient_dynamic_shm_words * sizeof(Number);
             std::cout << "[INFO] grid_dim_: " << grid_dim.x << ", " << grid_dim.y << ", " << grid_dim.z << std::endl;
             std::cout << "[INFO] block_dim_: " << block_dim << std::endl;
-            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_block<<<" << grid_dim.x << ", " << block_dim << ", " << shm_size
+            std::cout << "[INFO] kernel launch: glm::glm_gradient_XYYhat_block<<<" << grid_dim.x << ", " << block_dim << ", " << gradient_shm_size
                 << ">>>(..., " << spec_.nfeatures_ << ", " << spec_.ntargets_ << ", " << spec_.ntasks_ << ", " << spec_.nobs_ << ")" << std::endl;
             std::cout << "[INFO] niterations = " << spec_.nobs_ * spec_.ntasks_ * spec_.ntargets_ << std::endl;
             glm::glm_gradient_XYYhat_block<<<
                 grid_dim,
                 block_dim,
-                shm_size,
+                gradient_shm_size,
                 stream
             >>>(
                 gpu_data_X,

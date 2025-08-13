@@ -76,7 +76,7 @@ __global__ void vector_cummax_by_blocks_parallel(
     const int source_array_size = -1  // size of source array for bounds checking
 ) {
     // for writing, index this using `wid_block` (warp id)
-    Number* shm = static_cast<Number*>(get_dynamic_shared_memory(alignof(Number)));
+    Number* shm = get_dynamic_shm<Number>();
 
     // const long n_blocks = gridDim.x;
 

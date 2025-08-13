@@ -94,7 +94,7 @@ namespace glm {
         const transform_ptr<Number> transform
     ) {
         // We need one word of dynamic shm per warp per block
-        Number* shm  = get_dynamic_shared_memory<Number>();
+        Number* shm  = get_dynamic_shm<Number>();
 
         assert(blockDim.x % WARP_SIZE == 0); // Number of threads is a multiple of a warp
         assert(blockDim.y == 1);

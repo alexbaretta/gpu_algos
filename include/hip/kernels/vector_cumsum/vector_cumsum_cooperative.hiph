@@ -38,7 +38,7 @@ __device__ void vector_cumsum_cooperative(
     const long n_blocks
 ) {
     // for writing, index this using `wid_block` (warp id)
-    HIP_Number* shm = static_cast<HIP_Number*>(get_dynamic_shared_memory(alignof(HIP_Number)));
+    HIP_Number* shm = get_dynamic_shm<HIP_Number>();
 
     auto grid = cooperative_groups::this_grid();
     grid.sync();

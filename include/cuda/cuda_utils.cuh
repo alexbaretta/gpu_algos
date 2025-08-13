@@ -120,7 +120,7 @@ __device__ __forceinline__ unsigned total_shared_mem_size() {
 }
 template <typename T>
 __device__ __inline__
-T* get_dynamic_shared_memory() {
+T* get_dynamic_shm() {
     assert(dynamic_shared_mem_size() > sizeof(T));
     extern __shared__ void* dynamic_shm[];
     const std::size_t alignment = alignof(T);
@@ -128,7 +128,7 @@ T* get_dynamic_shared_memory() {
     return reinterpret_cast<T*>(aligned_shm);
 }
 __device__ __inline__
-void* get_dynamic_shared_memory(const std::size_t alignment) {
+void* get_dynamic_shm(const std::size_t alignment) {
     assert(dynamic_shared_mem_size() > alignment);
     extern __shared__ void* dynamic_shm[];
     void* aligned_shm = align_pointer(dynamic_shm, alignment);
