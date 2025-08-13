@@ -4,3 +4,4 @@
 
 # Matrix product executables
 add_hip_executable(hip_vector_reduction_recursive vector_reduction_recursive.hip)
+add_hip_executable(hip_vector_sum_atomic vector_sum_atomic.hip)
