@@ -37,10 +37,10 @@ struct Compute_error_absolute {
                 // infinities of the same sign, hence once could argue that there is no error
                 return 0;
             }
-            else { return std::abs(inf_delta); }
+            else { return abs(inf_delta); }
         } else {
             // lhs and rhs and normal numbers. We just compute the absolute difference.
-            return std::abs(lhs - rhs);
+            return abs(lhs - rhs);
         }
     }
     __half operator()(const __half& lhs, const __half& rhs) const {
@@ -62,10 +62,10 @@ struct Compute_error_absolute {
     }
     template <CUDA_integer Scalar>
     std::int64_t operator() (const Scalar& lhs, const Scalar& rhs) const {
-        // There is no std::abs for unsigned integers, for obvious reasons, and subtraction
+        // There is no abs for unsigned integers, for obvious reasons, and subtraction
         // of signed integer types is subject to overflow. To make it easy for ourselves,
         // we use the widest signed integer type: int64_t
-        return std::abs(std::int64_t(lhs) - std::int64_t(rhs));
+        return abs(std::int64_t(lhs) - std::int64_t(rhs));
     }
 };
 
@@ -78,7 +78,7 @@ struct Compute_error_relative {
         if (e == decltype(e){0}) {
             return 0;
         } else {
-            return double(e)/std::abs(double(rhs));
+            return double(e)/abs(double(rhs));
         }
     }
 };

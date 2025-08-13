@@ -483,3 +483,24 @@ __inline__ constexpr static bool is_negative(const Number value) { return value 
 
 template <std::unsigned_integral Number>
 __inline__ constexpr static bool is_negative(const Number value) { return false; }
+
+
+template <CUDA_floating_point Number>
+__inline __device__ __host__
+constexpr Number abs(const Number value) {
+    return std::abs(value);
+}
+template <std::signed_integral Number>
+__inline __device__ __host__
+constexpr Number abs(const Number value) {
+    return std::abs(value);
+}
+template <std::unsigned_integral Number>
+__inline __device__ __host__
+constexpr Number abs(const Number value) {
+    return value;
+}
+__inline __device__ __host__
+__half abs(const __half value) {
+    return __habs(value);
+}

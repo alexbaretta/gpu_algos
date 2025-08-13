@@ -470,3 +470,36 @@ struct HIP_vector<double, 4> {
     using scalar_type = double;
     using vector_type = double4;
 };
+
+template <HIP_scalar Number>
+__inline__ constexpr static bool is_positive(const Number value) { return value > Number(0); }
+
+template <HIP_floating_point Number>
+__inline__ constexpr static bool is_negative(const Number value) { return value < Number(0); }
+
+template <std::signed_integral Number>
+__inline__ constexpr static bool is_negative(const Number value) { return value < Number(0); }
+
+template <std::unsigned_integral Number>
+__inline__ constexpr static bool is_negative(const Number value) { return false; }
+
+
+template <HIP_floating_point Number>
+__inline __device__ __host__
+constexpr Number abs(const Number value) {
+    return std::abs(value);
+}
+template <std::signed_integral Number>
+__inline __device__ __host__
+constexpr Number abs(const Number value) {
+    return std::abs(value);
+}
+template <std::unsigned_integral Number>
+__inline __device__ __host__
+constexpr Number abs(const Number value) {
+    return value;
+}
+__inline __device__ __host__
+__half abs(const __half value) {
+    return __habs(value);
+}
