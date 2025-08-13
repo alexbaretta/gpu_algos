@@ -125,33 +125,27 @@ public:
 
     Sheet sheet_at(const int sheet) {
         if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
-        const auto sheet_size = ncols_ * nrows_;
-        Number* const start = &vector_.at(sheet * sheet_size);
+        Number* const start = &vector_.at(sheet * sheet_size());
         return {start, nrows_, ncols_}; // This is the constructor of Eigen::Matrix: must be nrows, ncols
     }
 
     Sheet_const sheet_at(const int sheet) const {
         if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
-        const auto sheet_size = ncols_ * nrows_;
-        const Number* const start = &vector_.at(sheet * sheet_size);
+        const Number* const start = &vector_.at(sheet * sheet_size());
         return {start, nrows_, ncols_}; // This is the constructor of Eigen::Matrix: must be nrows, ncols
     }
 
     Row row_at(const int row, const int sheet) {
         if (row > nrows_) throw std::invalid_argument("row out of bounds: row=" + std::to_string(row) + " nrows_=" + std::to_string(nrows_));
         if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
-        const auto sheet_size = ncols_ * nrows_;
-        const auto row_size = ncols_;
-        Number* const start = &vector_.at(sheet * sheet_size + row * row_size);
+        Number* const start = &vector_.at(sheet * sheet_size() + row * row_size());
         return {start, ncols_};
     }
 
     Row_const row_at(const int row, const int sheet) const {
         if (row > nrows_) throw std::invalid_argument("row out of bounds: row=" + std::to_string(row) + " nrows_=" + std::to_string(nrows_));
         if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
-        const auto sheet_size = ncols_ * nrows_;
-        const auto row_size = ncols_;
-        const Number* const start = &vector_.at(sheet * sheet_size + row * row_size);
+        const Number* const start = &vector_.at(sheet * sheet_size() + row * row_size());
         return {start, ncols_};
     }
 
@@ -177,6 +171,9 @@ public:
     void randomize(const int seed) {
         randomize_container(vector_, seed);
     }
+
+    Eigen::Map<Eigen::Vector<Number, Eigen::Dynamic>> as_eigen_vector() {return {data(), tensor_size()};}
+    Eigen::Map<const Eigen::Vector<Number, Eigen::Dynamic>> as_eigen_vector() const {return {data(), tensor_size()};}
 
     Eigen::TensorMap<Tensor> as_eigen_tensor() {return {data(), ncols_, nrows_, nsheets_};}
     Eigen::TensorMap<Tensor_const> as_eigen_tensor() const {return {data(), ncols_, nrows_, nsheets_};}
