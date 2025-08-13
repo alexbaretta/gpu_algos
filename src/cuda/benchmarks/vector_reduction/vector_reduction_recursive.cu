@@ -1,0 +1,158 @@
+/*
+    Copyright (c) 2025 Alessandro Baretta <alex@baretta.com>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+// source path: src/cuda/benchmarks/vector_scan_generic/vector_reduction_recursive.cu
+
+#include <cxxopts.hpp>
+
+#include "cuda/benchmark/benchmark_vector_1in_1out.cuh"
+#include "common/benchmark_options.hpp"
+
+#include "cuda/kernels/vector_reduction/vector_reduction_recursive.cuh"
+
+int main(int argc, char** argv) {
+    cxxopts::Options options("vector_reduction_recursive", "Vector reduction (parallel algorithm with recursive kernel calls)");
+    add_benchmark_options(options);
+    Vector_reduction_recursive_spec::add_kernel_spec_options(options);
+
+    try {
+        cxxopts::ParseResult options_parsed = options.parse(argc, argv);
+
+        Vector_reduction_recursive_spec spec = Vector_reduction_recursive_spec::make(options_parsed);
+
+        if (spec.type_ == "half") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<__half, cuda_max_op<__half>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<__half, cuda_min_op<__half>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<__half, cuda_sum_op<__half>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<__half, cuda_prod_op<__half>>>(spec, options, options_parsed).run();
+            }
+        } else if (spec.type_ == "single" || spec.type_ == "float") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<float, cuda_max_op<float>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<float, cuda_min_op<float>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<float, cuda_sum_op<float>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<float, cuda_prod_op<float>>>(spec, options, options_parsed).run();
+            }
+        } else if (spec.type_ == "double") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<double, cuda_max_op<double>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<double, cuda_min_op<double>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<double, cuda_sum_op<double>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<double, cuda_prod_op<double>>>(spec, options, options_parsed).run();
+            }
+        } else if (spec.type_ == "int8") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int8_t, cuda_max_op<std::int8_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int8_t, cuda_min_op<std::int8_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int8_t, cuda_sum_op<std::int8_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int8_t, cuda_prod_op<std::int8_t>>>(spec, options, options_parsed).run();
+            }
+        } else if (spec.type_ == "int16") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int16_t, cuda_max_op<std::int16_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int16_t, cuda_min_op<std::int16_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int16_t, cuda_sum_op<std::int16_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int16_t, cuda_prod_op<std::int16_t>>>(spec, options, options_parsed).run();
+            }
+        } else if (spec.type_ == "int32") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int32_t, cuda_max_op<std::int32_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int32_t, cuda_min_op<std::int32_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int32_t, cuda_sum_op<std::int32_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int32_t, cuda_prod_op<std::int32_t>>>(spec, options, options_parsed).run();
+            }
+        } else if (spec.type_ == "int64") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int64_t, cuda_max_op<std::int64_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int64_t, cuda_min_op<std::int64_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int64_t, cuda_sum_op<std::int64_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::int64_t, cuda_prod_op<std::int64_t>>>(spec, options, options_parsed).run();
+            }
+        } else if (spec.type_ == "uint8") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint8_t, cuda_max_op<std::uint8_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint8_t, cuda_min_op<std::uint8_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint8_t, cuda_sum_op<std::uint8_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint8_t, cuda_prod_op<std::uint8_t>>>(spec, options, options_parsed).run();
+            }
+        } else if (spec.type_ == "uint16") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint16_t, cuda_max_op<std::uint16_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint16_t, cuda_min_op<std::uint16_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint16_t, cuda_sum_op<std::uint16_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint16_t, cuda_prod_op<std::uint16_t>>>(spec, options, options_parsed).run();
+            }
+        } else if (spec.type_ == "uint32") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint32_t, cuda_max_op<std::uint32_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint32_t, cuda_min_op<std::uint32_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint32_t, cuda_sum_op<std::uint32_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint32_t, cuda_prod_op<std::uint32_t>>>(spec, options, options_parsed).run();
+            }
+        } else if (spec.type_ == "uint64") {
+            if (spec.operation_ == "max") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint64_t, cuda_max_op<std::uint64_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "min") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint64_t, cuda_min_op<std::uint64_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "sum") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint64_t, cuda_sum_op<std::uint64_t>>>(spec, options, options_parsed).run();
+            } else if (spec.operation_ == "prod") {
+                return Benchmark_Vector_1In_1Out<Vector_reduction_recursive_kernel<std::uint64_t, cuda_prod_op<std::uint64_t>>>(spec, options, options_parsed).run();
+            }
+        } else {
+            throw cxxopts::exceptions::exception("Invalid type: " + spec.type_);
+        }
+
+        throw cxxopts::exceptions::exception("Invalid operation: " + spec.operation_);
+    } catch (const cxxopts::exceptions::exception& e) {
+       std::cerr << "Error parsing options: " << e.what() << std::endl;
+       std::cout << options.help() << std::endl;
+       return 1;
+    }
+}
