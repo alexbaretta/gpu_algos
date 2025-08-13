@@ -122,7 +122,7 @@ struct Check_tensor3d_kernel_3In_1Out {
         std::declval<const NumberA*>(),
         std::declval<const NumberB*>(),
         std::declval<const NumberC*>(),
-        std::declval<NumberC*>(),
+        std::declval<NumberD*>(),
         std::declval<NumberTemp*>(),
         std::declval<hipStream_t>()
     )), void>);

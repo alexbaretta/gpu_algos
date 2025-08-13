@@ -69,7 +69,7 @@ concept TENSOR3D_KERNEL_1INOUT = requires (Kernel kernel) {
     { kernel.spec_ } -> std::same_as<const typename Kernel::Kernel_spec&>;
     { kernel.run_device_kernel(
         std::declval<typename detect::Numbers<Kernel>::A*>(),
-        std::declval<typename detect::Numbers<Kernel>::A*>(),
+        std::declval<typename detect::Numbers<Kernel>::Temp*>(),
         std::declval<cudaStream_t>()
     ) } -> std::same_as<void>;
     { kernel.run_host_kernel(
@@ -91,7 +91,7 @@ struct Check_tensor3d_kernel_1Inout {
     static_assert(std::same_as<decltype(std::declval<Kernel>().spec_), const typename Kernel::Kernel_spec>);
     static_assert(std::same_as<decltype(std::declval<Kernel>().run_device_kernel(
         std::declval<NumberA*>(),
-        std::declval<NumberA*>(),
+        std::declval<NumberTemp*>(),
         std::declval<cudaStream_t>()
     )), void>);
     static_assert(std::same_as<decltype(std::declval<Kernel>().run_host_kernel(

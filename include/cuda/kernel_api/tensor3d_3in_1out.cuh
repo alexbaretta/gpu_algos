@@ -122,14 +122,14 @@ struct Check_tensor3d_kernel_3In_1Out {
         std::declval<const NumberA*>(),
         std::declval<const NumberB*>(),
         std::declval<const NumberC*>(),
-        std::declval<NumberC*>(),
+        std::declval<NumberD*>(),
         std::declval<NumberTemp*>(),
         std::declval<cudaStream_t>()
     )), void>);
     static_assert(std::same_as<decltype(std::declval<Kernel>().run_host_kernel(
         std::declval<const Tensor3D<NumberA>&>(),
         std::declval<const Tensor3D<NumberB>&>(),
-        std::declval<Tensor3D<NumberTemp>&>()
+        std::declval<const Tensor3D<NumberC>&>()
     )), Tensor3D<NumberA>>);
 
     static_assert(TENSOR3D_KERNEL_3IN_1OUT<Kernel>, "not a valid TENSOR3D_KERNEL_3IN_1OUT");
