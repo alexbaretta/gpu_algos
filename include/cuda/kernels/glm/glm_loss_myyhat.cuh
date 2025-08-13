@@ -29,7 +29,7 @@
 #include "common/types/tensor3d.hpp"
 #include "cuda/type_traits.cuh"
 #include "cuda/cuda_utils.cuh"
-#include "cuda/kernel_api/tensor3d_3in_1out.cuh"
+#include "cuda/kernel_api_generic_temp/tensor3d_3in_1out.cuh"
 
 #include "glm_predict_naive.cuh"
 
@@ -304,7 +304,7 @@ struct Glm_loss_myyhat_spec {
     }
 };
 
-// static_assert(Check_tensor3d_kernel_spec_3In_1Out<Glm_loss_myyhat_spec>::check_passed, "Glm_loss_myyhat_spec is not a valid 3In1Out kernel spec");
+static_assert(Check_tensor3d_kernel_spec_3In_1Out<Glm_loss_myyhat_spec>::check_passed, "Glm_loss_myyhat_spec is not a valid 3In1Out kernel spec");
 
 template <CUDA_scalar Number_>
 class Glm_loss_myyhat_kernel {

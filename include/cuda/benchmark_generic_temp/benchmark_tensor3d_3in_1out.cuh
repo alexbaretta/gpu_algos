@@ -32,7 +32,7 @@
 #include "common/types/tensor3d.hpp"
 #include "cuda/check_errors.cuh"
 #include "cuda/cuda_utils.cuh"
-#include "cuda/kernel_api.cuh"
+#include "cuda/kernel_api_generic_temp.cuh"
 
 template <TENSOR3D_KERNEL_3IN_1OUT Tensor3D_Kernel_3In_1Out>
 class Benchmark_Tensor3D_3In_1Out {
