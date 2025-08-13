@@ -19,6 +19,9 @@
 # Scratch
 _scratch/
 
+# Backup files
+*.bak
+
 # Build directories
 build/
 builds/
@@ -153,3 +156,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+
+# Kernels not currently supported with HIP
+*_cu*.hiph
+*_cu*.hip
+*wmma*.hiph

@@ -69,7 +69,7 @@ concept TENSOR3D_KERNEL_1INOUT = requires (Kernel kernel) {
     { kernel.spec_ } -> std::same_as<const typename Kernel::Kernel_spec&>;
     { kernel.run_device_kernel(
         std::declval<typename detect::Numbers<Kernel>::A*>(),
-        std::declval<typename detect::Numbers<Kernel>::A*>(),
+        std::declval<typename detect::Numbers<Kernel>::Temp*>(),
         std::declval<hipStream_t>()
     ) } -> std::same_as<void>;
     { kernel.run_host_kernel(

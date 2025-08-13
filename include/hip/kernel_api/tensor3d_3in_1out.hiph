@@ -129,7 +129,7 @@ struct Check_tensor3d_kernel_3In_1Out {
     static_assert(std::same_as<decltype(std::declval<Kernel>().run_host_kernel(
         std::declval<const Tensor3D<NumberA>&>(),
         std::declval<const Tensor3D<NumberB>&>(),
-        std::declval<Tensor3D<NumberTemp>&>()
+        std::declval<const Tensor3D<NumberC>&>()
     )), Tensor3D<NumberA>>);
 
     static_assert(TENSOR3D_KERNEL_3IN_1OUT<Kernel>, "not a valid TENSOR3D_KERNEL_3IN_1OUT");
