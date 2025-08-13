@@ -21,6 +21,7 @@
 #pragma once
 
 #include <cassert>
+#include <concepts>
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
 #include <type_traits>
@@ -503,3 +504,58 @@ __inline __device__ __host__
 __half abs(const __half value) {
     return __habs(value);
 }
+
+template <std::integral Number>
+requires (sizeof(Number) < 4)
+__inline__ __device__ Number atomicAdd(Number* const ptr, const Number value) {
+    const std::uintptr_t ptr_value = reinterpret_cast<std::uintptr_t>(ptr);
+    const std::uintptr_t word_ptr_value = ptr_value & ~(sizeof(int) - 1);
+    const std::uintptr_t ptr_modulo = ptr_value % sizeof(int);
+    const std::uintptr_t mask_bit_shift = ptr_modulo * 8;
+    const std::uintptr_t mask = (sizeof(Number) - 1) << mask_bit_shift;
+    unsigned* const word_ptr = reinterpret_cast<unsigned*>(word_ptr_value);
+    unsigned curr_word = *word_ptr;
+    unsigned compare;
+
+    do {
+        compare = curr_word;
+        const unsigned new_word = (curr_word & ~mask) | (value << mask_bit_shift);
+        curr_word = atomicCAS(word_ptr, compare, new_word);
+    } while (curr_word != compare);
+
+    return static_cast<Number>((curr_word & mask) >> mask_bit_shift);
+}
+
+
+/* Notice that long long int and unsigned long long int are not the same as std::int64_t and std::uint64_t
+   because the length of long long is implementation-defined, while the length of std::int64_t and std::uint64_t
+   is guaranteed to be 8 bytes. We need to assert that in our particular implementation, long long int and
+   unsigned long long int are the same as std::int64_t and std::uint64_t.
+*/
+static_assert(sizeof(long long int) == 8);
+static_assert(sizeof(unsigned long long int) == 8);
+static_assert(std::signed_integral<long long int>);
+static_assert(std::unsigned_integral<unsigned long long int>);
+static_assert(sizeof(std::int64_t) == 8);
+static_assert(sizeof(std::uint64_t) == 8);
+static_assert(std::signed_integral<std::int64_t>);
+static_assert(std::unsigned_integral<std::uint64_t>);
+
+__inline__ __device__ long long int atomicAdd(long long int* const ptr, const long long int value) {
+    return static_cast<long long int>(
+        atomicAdd(reinterpret_cast<unsigned long long int*>(ptr), static_cast<unsigned long long int>(value))
+    );
+}
+__inline__ __device__ std::int64_t atomicAdd(std::int64_t* const ptr, const std::int64_t value) {
+    return static_cast<std::int64_t>(
+        atomicAdd(reinterpret_cast<unsigned long long int*>(ptr), static_cast<unsigned long long int>(value))
+    );
+}
+
+#ifndef __HIP__
+__inline__ __device__ std::uint64_t atomicAdd(std::uint64_t* const ptr, const std::uint64_t value) {
+    return static_cast<std::uint64_t>(
+        atomicAdd(reinterpret_cast<unsigned long long int*>(ptr), static_cast<unsigned long long int>(value))
+    );
+}
+#endif
