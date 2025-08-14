@@ -69,7 +69,7 @@ __global__ void vector_reduction_with_atomics(
     }
 
     // Warp-shuffle reduction
-    for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+    for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
         value += __shfl_down_sync(__activemask(), value, reduced_lanes);
     }
 
@@ -86,7 +86,7 @@ __global__ void vector_reduction_with_atomics(
         value = (tid_warp < shm_size) ? shm[tid_warp] : Number(0);
 
         // Warp-shuffle reduction: compute total value for this block
-        for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+        for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
             value += __shfl_down_sync(__activemask(), value, reduced_lanes);
         }
 

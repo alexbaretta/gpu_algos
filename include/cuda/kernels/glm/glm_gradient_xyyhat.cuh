@@ -180,14 +180,14 @@ namespace glm {
             }
             // Now we need to reduce/sum over the threads of the block to get the aggregate sum_feature
             // First a warp shuffle reduction down to lane 0
-            for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+            for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
                 sum_obs += __shfl_down_sync(__activemask(), sum_obs, reduced_lanes);
             }
 
             // Finally, we sum over shared memory using a single warp
             if (wid_block == 0) {
                 sum_obs = (tid_warp < n_warps_per_block) ? shm[tid_warp] : Number(0);
-                for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+                for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
                     sum_obs += __shfl_down_sync(__activemask(), sum_obs, reduced_lanes);
                 }
                 if (tid_warp == 0) {
@@ -358,7 +358,6 @@ namespace glm {
         assert(gridDim.z == 1);
 
         // We use one warp per location in grad_M to sum over obs and over feature
-        // const auto bid_grid = blockIdx.x;
         // We use a 1D grid
         const long tid_grid = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x);
         const auto wid = tid_grid/WARP_SIZE;
@@ -398,7 +397,7 @@ namespace glm {
             // Now we need to reduce/sum over the threads of the warp to get the aggregate sum_feature
             // First a warp shuffle reduction down to lane 0
             // printf("[DEBUG] lane=%d, grad_M_idx=%u, sum_obs=%f\n", tid_warp, grad_M_idx, float(sum_obs));
-            for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+            for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
                 sum_obs += __shfl_down_sync(__activemask(), sum_obs, reduced_lanes);
             }
 

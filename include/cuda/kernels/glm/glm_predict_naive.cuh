@@ -138,7 +138,7 @@ namespace glm {
             }
             // Now we need to reduce/sum over the threads of the block to get the aggregate sum_feature
             // First a warp shuffle reduction down to lane 0
-            for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+            for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
                 sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
             }
             // Next we perform a block-level reduction via shm
@@ -149,7 +149,7 @@ namespace glm {
             // Finally, we sum over shared memory using a single warp
             if (wid_block == 0) {
                 sum_feature = (tid_warp < n_warps_per_block) ? shm[tid_warp] : Number(0);
-                for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+                for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
                     sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
                 }
                 if (tid_warp == 0) {
@@ -207,7 +207,7 @@ namespace glm {
             }
             // We need to reduce/sum over the threads of the block to get the aggregate sum_feature
             // First a warp shuffle reduction down to lane 0
-            for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+            for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
                 sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
             }
             if (tid_warp == 0) {
@@ -264,7 +264,7 @@ namespace glm {
             }
             // We need to reduce/sum over the threads of the block to get the aggregate sum_feature
             // First a warp shuffle reduction down to lane 0
-            for (int reduced_lanes = 1; reduced_lanes < GROUP_SIZE; reduced_lanes <<= 1) {
+            for (unsigned short reduced_lanes = 1; reduced_lanes < GROUP_SIZE; reduced_lanes <<= 1) {
                 sum_feature += __shfl_down_sync(__activemask(), sum_feature, reduced_lanes);
             }
             if (tid_group == 0) {

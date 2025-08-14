@@ -131,7 +131,7 @@ namespace glm {
         }
 
         // Warp-shuffle reduction: compute total loss for this warp
-        for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+        for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
             thread_loss += __shfl_down_sync(__activemask(), thread_loss, reduced_lanes);
         }
 
@@ -146,7 +146,7 @@ namespace glm {
             thread_loss = warp_loss[tid_warp];
 
             // Warp-shuffle reduction: compute total loss for this block
-            for (int reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
+            for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {
                 thread_loss += __shfl_down_sync(__activemask(), thread_loss, reduced_lanes);
             }
 
