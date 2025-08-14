@@ -1,0 +1,145 @@
+/*
+    Copyright (c) 2025 Alessandro Baretta <alex@baretta.com>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+
+// source path: include/hip/kernel_api/tensor3d_3in_1out.hiph
+
+#pragma once
+
+#include <concepts>
+#include <utility>
+#include <hip/hip_runtime.h>
+#include <Eigen/Dense>
+
+#include "common/types/tensor3d.hpp"
+#include "hip/kernel_detect_types.hiph"
+#include "hip/type_traits.hiph"
+
+template <typename Kernel_spec>
+concept TENSOR3D_KERNEL_SPEC_3IN_1OUT = requires (Kernel_spec spec) {
+    { spec.n_rows_A_ } -> std::same_as<const long&>;
+    { spec.n_cols_A_ } -> std::same_as<const long&>;
+    { spec.n_sheets_A_ } -> std::same_as<const long&>;
+
+    { spec.n_rows_B_ } -> std::same_as<const long&>;
+    { spec.n_cols_B_ } -> std::same_as<const long&>;
+    { spec.n_sheets_B_ } -> std::same_as<const long&>;
+
+    { spec.n_rows_C_ } -> std::same_as<const long&>;
+    { spec.n_cols_C_ } -> std::same_as<const long&>;
+    { spec.n_sheets_C_ } -> std::same_as<const long&>;
+
+    { spec.n_rows_D_ } -> std::same_as<const long&>;
+    { spec.n_cols_D_ } -> std::same_as<const long&>;
+    { spec.n_sheets_D_ } -> std::same_as<const long&>;
+
+    { spec.size_temp_ } -> std::same_as<const long&>;
+
+    { dim3(spec.block_dim_) } -> std::same_as<dim3>;
+    { dim3(spec.grid_dim_) } -> std::same_as<dim3>;
+};
+
+template <typename Kernel_spec>
+struct Check_tensor3d_kernel_spec_3In_1Out {
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_rows_A_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_cols_A_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_sheets_A_), const long>);
+
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_rows_B_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_cols_B_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_sheets_B_), const long>);
+
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_rows_C_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_cols_C_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_sheets_C_), const long>);
+
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_rows_D_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_cols_D_), const long>);
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().n_sheets_D_), const long>);
+
+    static_assert(std::same_as<decltype(std::declval<Kernel_spec>().size_temp_), const long>);
+
+    static_assert(std::convertible_to<decltype(std::declval<Kernel_spec>().block_dim_), const dim3>);
+    static_assert(std::convertible_to<decltype(std::declval<Kernel_spec>().grid_dim_), const dim3>);
+
+    static_assert(TENSOR3D_KERNEL_SPEC_3IN_1OUT<Kernel_spec>, "not a valid TENSOR3D_KERNEL_SPEC_3IN_1OUT");
+
+    constexpr static bool check_passed = true;
+};
+
+template <typename Kernel>
+concept TENSOR3D_KERNEL_3IN_1OUT = requires (Kernel kernel) {
+    typename Kernel::Number;
+    typename Kernel::Kernel_spec;
+
+    { kernel.spec_ } -> std::same_as<const typename Kernel::Kernel_spec&>;
+    { kernel.run_device_kernel(
+        std::declval<const typename detect::Numbers<Kernel>::A*>(),
+        std::declval<const typename detect::Numbers<Kernel>::B*>(),
+        std::declval<const typename detect::Numbers<Kernel>::C*>(),
+        std::declval<typename detect::Numbers<Kernel>::D*>(),
+        std::declval<typename detect::Numbers<Kernel>::Temp*>(),
+        std::declval<hipStream_t>()
+    ) } -> std::same_as<void>;
+    { kernel.run_host_kernel(
+        std::declval<const Tensor3D<typename detect::Numbers<Kernel>::A>&>(),
+        std::declval<const Tensor3D<typename detect::Numbers<Kernel>::B>&>(),
+        std::declval<const Tensor3D<typename detect::Numbers<Kernel>::C>&>()
+    ) } -> std::same_as<Tensor3D<typename detect::Numbers<Kernel>::A>>;
+};
+
+template <typename Kernel>
+struct Check_tensor3d_kernel_3In_1Out {
+    using Kernel_spec = typename Kernel::Kernel_spec;
+    using Numbers = detect::Numbers<Kernel>;
+    using NumberA = typename Numbers::A;
+    using NumberB = typename Numbers::B;
+    using NumberC = typename Numbers::C;
+    using NumberD = typename Numbers::D;
+    using NumberE = typename Numbers::E;
+    using NumberTemp = typename Numbers::Temp;
+
+    static_assert(std::same_as<decltype(std::declval<Kernel>().spec_), const typename Kernel::Kernel_spec>);
+    static_assert(std::same_as<decltype(std::declval<Kernel>().run_device_kernel(
+        std::declval<const NumberA*>(),
+        std::declval<const NumberB*>(),
+        std::declval<const NumberC*>(),
+        std::declval<NumberD*>(),
+        std::declval<NumberTemp*>(),
+        std::declval<hipStream_t>()
+    )), void>);
+    static_assert(std::same_as<decltype(std::declval<Kernel>().run_host_kernel(
+        std::declval<const Tensor3D<NumberA>&>(),
+        std::declval<const Tensor3D<NumberB>&>(),
+        std::declval<const Tensor3D<NumberC>&>()
+    )), Tensor3D<NumberA>>);
+
+    static_assert(TENSOR3D_KERNEL_3IN_1OUT<Kernel>, "not a valid TENSOR3D_KERNEL_3IN_1OUT");
+
+    constexpr static bool check_passed = true;
+};
+
+template <template <HIP_scalar HIP_Number> class Kernel>
+struct Check_tensor3d_kernel_3In_1Out_template {
+    static_assert(Check_tensor3d_kernel_3In_1Out<Kernel<std::int8_t>>::check_passed);
+    static_assert(Check_tensor3d_kernel_3In_1Out<Kernel<std::uint8_t>>::check_passed);
+    static_assert(Check_tensor3d_kernel_3In_1Out<Kernel<__half>>::check_passed);
+    static_assert(Check_tensor3d_kernel_3In_1Out<Kernel<float>>::check_passed);
+    static_assert(Check_tensor3d_kernel_3In_1Out<Kernel<double>>::check_passed);
+
+    constexpr static bool check_passed = true;
+};
