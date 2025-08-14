@@ -25,6 +25,8 @@ _vector_cumsum_serial_cuda = _vector_ops_cuda.vector_cumsum_serial
 _vector_cumsum_parallel_cuda = _vector_ops_cuda.vector_cumsum_parallel
 _vector_cummax_parallel_cuda = _vector_ops_cuda.vector_cummax_parallel
 _vector_scan_parallel_cuda = _vector_ops_cuda.vector_scan_parallel
+_vector_reduction_recursive_cuda = _vector_ops_cuda.vector_reduction_recursive
+_vector_sum_atomic_cuda = _vector_ops_cuda.vector_sum_atomic
 
 # Import low-level type-specific functions
 _vector_cumsum_serial_float32_cuda = _vector_ops_cuda.vector_cumsum_serial_float32
@@ -104,6 +106,62 @@ _vector_scan_parallel_prod_uint8_cuda = _vector_ops_cuda.vector_scan_parallel_pr
 _vector_scan_parallel_prod_uint16_cuda = _vector_ops_cuda.vector_scan_parallel_prod_uint16
 _vector_scan_parallel_prod_uint32_cuda = _vector_ops_cuda.vector_scan_parallel_prod_uint32
 _vector_scan_parallel_prod_uint64_cuda = _vector_ops_cuda.vector_scan_parallel_prod_uint64
+
+# Vector reduction operations
+_vector_reduction_recursive_sum_float32_cuda = _vector_ops_cuda.vector_reduction_recursive_sum_float32
+_vector_reduction_recursive_sum_float64_cuda = _vector_ops_cuda.vector_reduction_recursive_sum_float64
+_vector_reduction_recursive_sum_int8_cuda = _vector_ops_cuda.vector_reduction_recursive_sum_int8
+_vector_reduction_recursive_sum_int16_cuda = _vector_ops_cuda.vector_reduction_recursive_sum_int16
+_vector_reduction_recursive_sum_int32_cuda = _vector_ops_cuda.vector_reduction_recursive_sum_int32
+_vector_reduction_recursive_sum_int64_cuda = _vector_ops_cuda.vector_reduction_recursive_sum_int64
+_vector_reduction_recursive_sum_uint8_cuda = _vector_ops_cuda.vector_reduction_recursive_sum_uint8
+_vector_reduction_recursive_sum_uint16_cuda = _vector_ops_cuda.vector_reduction_recursive_sum_uint16
+_vector_reduction_recursive_sum_uint32_cuda = _vector_ops_cuda.vector_reduction_recursive_sum_uint32
+_vector_reduction_recursive_sum_uint64_cuda = _vector_ops_cuda.vector_reduction_recursive_sum_uint64
+
+_vector_reduction_recursive_max_float32_cuda = _vector_ops_cuda.vector_reduction_recursive_max_float32
+_vector_reduction_recursive_max_float64_cuda = _vector_ops_cuda.vector_reduction_recursive_max_float64
+_vector_reduction_recursive_max_int8_cuda = _vector_ops_cuda.vector_reduction_recursive_max_int8
+_vector_reduction_recursive_max_int16_cuda = _vector_ops_cuda.vector_reduction_recursive_max_int16
+_vector_reduction_recursive_max_int32_cuda = _vector_ops_cuda.vector_reduction_recursive_max_int32
+_vector_reduction_recursive_max_int64_cuda = _vector_ops_cuda.vector_reduction_recursive_max_int64
+_vector_reduction_recursive_max_uint8_cuda = _vector_ops_cuda.vector_reduction_recursive_max_uint8
+_vector_reduction_recursive_max_uint16_cuda = _vector_ops_cuda.vector_reduction_recursive_max_uint16
+_vector_reduction_recursive_max_uint32_cuda = _vector_ops_cuda.vector_reduction_recursive_max_uint32
+_vector_reduction_recursive_max_uint64_cuda = _vector_ops_cuda.vector_reduction_recursive_max_uint64
+
+_vector_reduction_recursive_min_float32_cuda = _vector_ops_cuda.vector_reduction_recursive_min_float32
+_vector_reduction_recursive_min_float64_cuda = _vector_ops_cuda.vector_reduction_recursive_min_float64
+_vector_reduction_recursive_min_int8_cuda = _vector_ops_cuda.vector_reduction_recursive_min_int8
+_vector_reduction_recursive_min_int16_cuda = _vector_ops_cuda.vector_reduction_recursive_min_int16
+_vector_reduction_recursive_min_int32_cuda = _vector_ops_cuda.vector_reduction_recursive_min_int32
+_vector_reduction_recursive_min_int64_cuda = _vector_ops_cuda.vector_reduction_recursive_min_int64
+_vector_reduction_recursive_min_uint8_cuda = _vector_ops_cuda.vector_reduction_recursive_min_uint8
+_vector_reduction_recursive_min_uint16_cuda = _vector_ops_cuda.vector_reduction_recursive_min_uint16
+_vector_reduction_recursive_min_uint32_cuda = _vector_ops_cuda.vector_reduction_recursive_min_uint32
+_vector_reduction_recursive_min_uint64_cuda = _vector_ops_cuda.vector_reduction_recursive_min_uint64
+
+_vector_reduction_recursive_prod_float32_cuda = _vector_ops_cuda.vector_reduction_recursive_prod_float32
+_vector_reduction_recursive_prod_float64_cuda = _vector_ops_cuda.vector_reduction_recursive_prod_float64
+_vector_reduction_recursive_prod_int8_cuda = _vector_ops_cuda.vector_reduction_recursive_prod_int8
+_vector_reduction_recursive_prod_int16_cuda = _vector_ops_cuda.vector_reduction_recursive_prod_int16
+_vector_reduction_recursive_prod_int32_cuda = _vector_ops_cuda.vector_reduction_recursive_prod_int32
+_vector_reduction_recursive_prod_int64_cuda = _vector_ops_cuda.vector_reduction_recursive_prod_int64
+_vector_reduction_recursive_prod_uint8_cuda = _vector_ops_cuda.vector_reduction_recursive_prod_uint8
+_vector_reduction_recursive_prod_uint16_cuda = _vector_ops_cuda.vector_reduction_recursive_prod_uint16
+_vector_reduction_recursive_prod_uint32_cuda = _vector_ops_cuda.vector_reduction_recursive_prod_uint32
+_vector_reduction_recursive_prod_uint64_cuda = _vector_ops_cuda.vector_reduction_recursive_prod_uint64
+
+_vector_sum_atomic_float32_cuda = _vector_ops_cuda.vector_sum_atomic_float32
+_vector_sum_atomic_float64_cuda = _vector_ops_cuda.vector_sum_atomic_float64
+_vector_sum_atomic_int8_cuda = _vector_ops_cuda.vector_sum_atomic_int8
+_vector_sum_atomic_int16_cuda = _vector_ops_cuda.vector_sum_atomic_int16
+_vector_sum_atomic_int32_cuda = _vector_ops_cuda.vector_sum_atomic_int32
+_vector_sum_atomic_int64_cuda = _vector_ops_cuda.vector_sum_atomic_int64
+_vector_sum_atomic_uint8_cuda = _vector_ops_cuda.vector_sum_atomic_uint8
+_vector_sum_atomic_uint16_cuda = _vector_ops_cuda.vector_sum_atomic_uint16
+_vector_sum_atomic_uint32_cuda = _vector_ops_cuda.vector_sum_atomic_uint32
+_vector_sum_atomic_uint64_cuda = _vector_ops_cuda.vector_sum_atomic_uint64
 
 
 T = TypeVar('T', bound=np.generic)
@@ -635,6 +693,360 @@ def vector_scan_parallel_prod_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64
 
     return _vector_scan_parallel_prod_uint64_cuda(a_contig)
 
+# Low-level type-specific functions for vector_reduction_recursive
+
+def vector_reduction_recursive_max_float32(a: NDArray[np.float32]) -> NDArray[np.float32]:
+    """Parallel reduction with max operation for float32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_max_float32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_max_float32_cuda(a_contig)
+
+def vector_reduction_recursive_max_float64(a: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Parallel reduction with max operation for float64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_max_float64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_max_float64_cuda(a_contig)
+
+def vector_reduction_recursive_max_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
+    """Parallel reduction with max operation for int8 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_max_int8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_max_int8_cuda(a_contig)
+
+def vector_reduction_recursive_max_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
+    """Parallel reduction with max operation for int16 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_max_int16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_max_int16_cuda(a_contig)
+
+def vector_reduction_recursive_max_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
+    """Parallel reduction with max operation for int32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_max_int32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_max_int32_cuda(a_contig)
+
+def vector_reduction_recursive_max_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
+    """Parallel reduction with max operation for int64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_max_int64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_max_int64_cuda(a_contig)
+
+def vector_reduction_recursive_max_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Parallel reduction with max operation for uint8 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_max_uint8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_max_uint8_cuda(a_contig)
+
+def vector_reduction_recursive_max_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
+    """Parallel reduction with max operation for uint16 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_max_uint16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_max_uint16_cuda(a_contig)
+
+def vector_reduction_recursive_max_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
+    """Parallel reduction with max operation for uint32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_max_uint32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_max_uint32_cuda(a_contig)
+
+def vector_reduction_recursive_max_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
+    """Parallel reduction with max operation for uint64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_max_uint64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_max_uint64_cuda(a_contig)
+
+def vector_reduction_recursive_min_float32(a: NDArray[np.float32]) -> NDArray[np.float32]:
+    """Parallel reduction with min operation for float32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_min_float32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_min_float32_cuda(a_contig)
+
+def vector_reduction_recursive_min_float64(a: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Parallel reduction with min operation for float64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_min_float64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_min_float64_cuda(a_contig)
+
+def vector_reduction_recursive_min_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
+    """Parallel reduction with min operation for int8 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_min_int8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_min_int8_cuda(a_contig)
+
+def vector_reduction_recursive_min_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
+    """Parallel reduction with min operation for int16 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_min_int16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_min_int16_cuda(a_contig)
+
+def vector_reduction_recursive_min_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
+    """Parallel reduction with min operation for int32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_min_int32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_min_int32_cuda(a_contig)
+
+def vector_reduction_recursive_min_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
+    """Parallel reduction with min operation for int64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_min_int64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_min_int64_cuda(a_contig)
+
+def vector_reduction_recursive_min_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Parallel reduction with min operation for uint8 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_min_uint8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_min_uint8_cuda(a_contig)
+
+def vector_reduction_recursive_min_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
+    """Parallel reduction with min operation for uint16 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_min_uint16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_min_uint16_cuda(a_contig)
+
+def vector_reduction_recursive_min_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
+    """Parallel reduction with min operation for uint32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_min_uint32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_min_uint32_cuda(a_contig)
+
+def vector_reduction_recursive_min_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
+    """Parallel reduction with min operation for uint64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_min_uint64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_min_uint64_cuda(a_contig)
+
+def vector_reduction_recursive_sum_float32(a: NDArray[np.float32]) -> NDArray[np.float32]:
+    """Parallel reduction with sum operation for float32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_sum_float32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_sum_float32_cuda(a_contig)
+
+def vector_reduction_recursive_sum_float64(a: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Parallel reduction with sum operation for float64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_sum_float64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_sum_float64_cuda(a_contig)
+
+def vector_reduction_recursive_sum_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
+    """Parallel reduction with sum operation for int8 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_sum_int8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_sum_int8_cuda(a_contig)
+
+def vector_reduction_recursive_sum_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
+    """Parallel reduction with sum operation for int16 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_sum_int16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_sum_int16_cuda(a_contig)
+
+def vector_reduction_recursive_sum_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
+    """Parallel reduction with sum operation for int32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_sum_int32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_sum_int32_cuda(a_contig)
+
+def vector_reduction_recursive_sum_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
+    """Parallel reduction with sum operation for int64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_sum_int64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_sum_int64_cuda(a_contig)
+
+def vector_reduction_recursive_sum_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Parallel reduction with sum operation for uint8 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_sum_uint8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_sum_uint8_cuda(a_contig)
+
+def vector_reduction_recursive_sum_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
+    """Parallel reduction with sum operation for uint16 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_sum_uint16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_sum_uint16_cuda(a_contig)
+
+def vector_reduction_recursive_sum_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
+    """Parallel reduction with sum operation for uint32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_sum_uint32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_sum_uint32_cuda(a_contig)
+
+def vector_reduction_recursive_sum_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
+    """Parallel reduction with sum operation for uint64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_sum_uint64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_sum_uint64_cuda(a_contig)
+
+def vector_reduction_recursive_prod_float32(a: NDArray[np.float32]) -> NDArray[np.float32]:
+    """Parallel reduction with prod operation for float32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_prod_float32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_prod_float32_cuda(a_contig)
+
+def vector_reduction_recursive_prod_float64(a: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Parallel reduction with prod operation for float64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_prod_float64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_prod_float64_cuda(a_contig)
+
+def vector_reduction_recursive_prod_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
+    """Parallel reduction with prod operation for int8 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_prod_int8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_prod_int8_cuda(a_contig)
+
+def vector_reduction_recursive_prod_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
+    """Parallel reduction with prod operation for int16 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_prod_int16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_prod_int16_cuda(a_contig)
+
+def vector_reduction_recursive_prod_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
+    """Parallel reduction with prod operation for int32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_prod_int32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_prod_int32_cuda(a_contig)
+
+def vector_reduction_recursive_prod_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
+    """Parallel reduction with prod operation for int64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_prod_int64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_prod_int64_cuda(a_contig)
+
+def vector_reduction_recursive_prod_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Parallel reduction with prod operation for uint8 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_prod_uint8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_prod_uint8_cuda(a_contig)
+
+def vector_reduction_recursive_prod_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
+    """Parallel reduction with prod operation for uint16 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_prod_uint16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_prod_uint16_cuda(a_contig)
+
+def vector_reduction_recursive_prod_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
+    """Parallel reduction with prod operation for uint32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_prod_uint32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_prod_uint32_cuda(a_contig)
+
+def vector_reduction_recursive_prod_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
+    """Parallel reduction with prod operation for uint64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive_prod_uint64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_prod_uint64_cuda(a_contig)
+
+# Low-level type-specific functions for vector_sum_atomic
+
+def vector_sum_atomic_float32(a: NDArray[np.float32]) -> NDArray[np.float32]:
+    """Atomic sum for float32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_sum_atomic_float32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_float32_cuda(a_contig)
+
+def vector_sum_atomic_float64(a: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Atomic sum for float64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_sum_atomic_float64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_float64_cuda(a_contig)
+
+def vector_sum_atomic_int8(a: NDArray[np.int8]) -> NDArray[np.int8]:
+    """Atomic sum for int8 arrays."""
+    _validate_vector_scan_inputs(a, "vector_sum_atomic_int8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_int8_cuda(a_contig)
+
+def vector_sum_atomic_int16(a: NDArray[np.int16]) -> NDArray[np.int16]:
+    """Atomic sum for int16 arrays."""
+    _validate_vector_scan_inputs(a, "vector_sum_atomic_int16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_int16_cuda(a_contig)
+
+def vector_sum_atomic_int32(a: NDArray[np.int32]) -> NDArray[np.int32]:
+    """Atomic sum for int32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_sum_atomic_int32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_int32_cuda(a_contig)
+
+def vector_sum_atomic_int64(a: NDArray[np.int64]) -> NDArray[np.int64]:
+    """Atomic sum for int64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_sum_atomic_int64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_int64_cuda(a_contig)
+
+def vector_sum_atomic_uint8(a: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Atomic sum for uint8 arrays."""
+    _validate_vector_scan_inputs(a, "vector_sum_atomic_uint8")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_uint8_cuda(a_contig)
+
+def vector_sum_atomic_uint16(a: NDArray[np.uint16]) -> NDArray[np.uint16]:
+    """Atomic sum for uint16 arrays."""
+    _validate_vector_scan_inputs(a, "vector_sum_atomic_uint16")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_uint16_cuda(a_contig)
+
+def vector_sum_atomic_uint32(a: NDArray[np.uint32]) -> NDArray[np.uint32]:
+    """Atomic sum for uint32 arrays."""
+    _validate_vector_scan_inputs(a, "vector_sum_atomic_uint32")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_uint32_cuda(a_contig)
+
+def vector_sum_atomic_uint64(a: NDArray[np.uint64]) -> NDArray[np.uint64]:
+    """Atomic sum for uint64 arrays."""
+    _validate_vector_scan_inputs(a, "vector_sum_atomic_uint64")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_uint64_cuda(a_contig)
+
 # High-level dispatch functions
 
 @overload
@@ -726,6 +1138,41 @@ def vector_scan_parallel(a: Union[NDArray[T], np.ndarray], operation: Literal["m
 
     return _vector_scan_parallel_cuda(a_contig, operation)
 
+@overload
+def vector_reduction_recursive(a: NDArray[T], operation: str = "sum") -> NDArray[T]: ...
+
+def vector_reduction_recursive(a: Union[NDArray[T], np.ndarray], operation: str = "sum") -> Union[NDArray[T], np.ndarray]:
+    """Recursive vector reduction with automatic type dispatch.
+
+    Args:
+        a: Input vector of shape (n,)
+        operation: Reduction operation ("sum", "max", "min", "prod")
+
+    Returns:
+        Result scalar of shape (1,) containing the reduction result
+    """
+    _validate_vector_scan_inputs(a, "vector_reduction_recursive")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_reduction_recursive_cuda(a_contig, operation)
+
+@overload
+def vector_sum_atomic(a: NDArray[T]) -> NDArray[T]: ...
+
+def vector_sum_atomic(a: Union[NDArray[T], np.ndarray]) -> Union[NDArray[T], np.ndarray]:
+    """Atomic vector sum with automatic type dispatch.
+
+    Args:
+        a: Input vector of shape (n,)
+
+    Returns:
+        Result scalar of shape (1,) containing the sum of all elements
+    """
+    _validate_vector_scan_inputs(a, "vector_sum_atomic")
+    a_contig = _ensure_contiguous(a)
+
+    return _vector_sum_atomic_cuda(a_contig)
+
 # Export all functions
 __all__ = [
     # High-level dispatch functions
@@ -733,6 +1180,8 @@ __all__ = [
     'vector_cumsum_parallel',
     'vector_cummax_parallel',
     'vector_scan_parallel',
+    'vector_reduction_recursive',
+    'vector_sum_atomic',
 
     # Low-level type-specific functions for cumsum_serial
     'vector_cumsum_serial_float32',
@@ -811,4 +1260,57 @@ __all__ = [
     'vector_scan_parallel_prod_uint16',
     'vector_scan_parallel_prod_uint32',
     'vector_scan_parallel_prod_uint64',
+    # Low-level type-specific functions for vector_reduction_recursive
+    'vector_reduction_recursive_max_float32',
+    'vector_reduction_recursive_max_float64',
+    'vector_reduction_recursive_max_int8',
+    'vector_reduction_recursive_max_int16',
+    'vector_reduction_recursive_max_int32',
+    'vector_reduction_recursive_max_int64',
+    'vector_reduction_recursive_max_uint8',
+    'vector_reduction_recursive_max_uint16',
+    'vector_reduction_recursive_max_uint32',
+    'vector_reduction_recursive_max_uint64',
+    'vector_reduction_recursive_min_float32',
+    'vector_reduction_recursive_min_float64',
+    'vector_reduction_recursive_min_int8',
+    'vector_reduction_recursive_min_int16',
+    'vector_reduction_recursive_min_int32',
+    'vector_reduction_recursive_min_int64',
+    'vector_reduction_recursive_min_uint8',
+    'vector_reduction_recursive_min_uint16',
+    'vector_reduction_recursive_min_uint32',
+    'vector_reduction_recursive_min_uint64',
+    'vector_reduction_recursive_sum_float32',
+    'vector_reduction_recursive_sum_float64',
+    'vector_reduction_recursive_sum_int8',
+    'vector_reduction_recursive_sum_int16',
+    'vector_reduction_recursive_sum_int32',
+    'vector_reduction_recursive_sum_int64',
+    'vector_reduction_recursive_sum_uint8',
+    'vector_reduction_recursive_sum_uint16',
+    'vector_reduction_recursive_sum_uint32',
+    'vector_reduction_recursive_sum_uint64',
+    'vector_reduction_recursive_prod_float32',
+    'vector_reduction_recursive_prod_float64',
+    'vector_reduction_recursive_prod_int8',
+    'vector_reduction_recursive_prod_int16',
+    'vector_reduction_recursive_prod_int32',
+    'vector_reduction_recursive_prod_int64',
+    'vector_reduction_recursive_prod_uint8',
+    'vector_reduction_recursive_prod_uint16',
+    'vector_reduction_recursive_prod_uint32',
+    'vector_reduction_recursive_prod_uint64',
+
+    # Low-level type-specific functions for vector_sum_atomic
+    'vector_sum_atomic_float32',
+    'vector_sum_atomic_float64',
+    'vector_sum_atomic_int8',
+    'vector_sum_atomic_int16',
+    'vector_sum_atomic_int32',
+    'vector_sum_atomic_int64',
+    'vector_sum_atomic_uint8',
+    'vector_sum_atomic_uint16',
+    'vector_sum_atomic_uint32',
+    'vector_sum_atomic_uint64',
 ]

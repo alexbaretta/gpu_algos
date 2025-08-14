@@ -34,13 +34,6 @@
 
 
 
-template <typename Operation>
-concept OPERATION = requires(typename Operation::Number a, typename Operation::Number b) {
-    { Operation::apply(a, b) } -> std::same_as<typename Operation::Number>;
-    requires std::is_empty_v<Operation>;
-};
-
-
 template <CUDA_scalar Number, OPERATION Operation>
 __global__ void vector_reduction_by_blocks_parallel(
     const Number* A,
@@ -57,12 +50,7 @@ __global__ void vector_reduction_by_blocks_parallel(
     const long tid_grid = long(threadIdx.x) + long(blockIdx.x) * long(blockDim.x);
     // printf("tid_grid: %d, n: %d, blockDim.x: %d, gridDim.x: %d\n", tid_grid, n, blockDim.x, gridDim.x);
 
-    Number value;
-    if constexpr (std::is_floating_point_v<Number>) {
-        value = DEVICE_NAN;
-    } else {
-        value = Number(0);
-    }
+    Number value = Operation::identity();
 
     const auto tid_warp = threadIdx.x % WARP_SIZE;
     const auto wid_block = threadIdx.x / WARP_SIZE;
@@ -90,7 +78,7 @@ __global__ void vector_reduction_by_blocks_parallel(
 
     // Use wid_block == 0 to sum the warp-level values recorded in shared memory
     if (wid_block == 0) {
-        value = (tid_warp < shm_size) ? shm[tid_warp] : Number(0);
+        value = (tid_warp < shm_size) ? shm[tid_warp] : Operation::identity();
 
         // Warp-shuffle reduction: compute total value for this block
         for (unsigned short reduced_lanes = 1; reduced_lanes < WARP_SIZE; reduced_lanes <<= 1) {

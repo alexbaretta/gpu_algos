@@ -36,3 +36,10 @@ consteval std::string_view type_name(type_t<uint8_t>) { return {"uint8"}; }
 consteval std::string_view type_name(type_t<uint16_t>) { return {"uint16"}; }
 consteval std::string_view type_name(type_t<uint32_t>) { return {"uint32"}; }
 consteval std::string_view type_name(type_t<uint64_t>) { return {"uint64"}; }
+
+template <typename Operation>
+concept OPERATION = requires(typename Operation::Number a, typename Operation::Number b) {
+    { Operation::apply(a, b) } -> std::same_as<typename Operation::Number>;
+    requires std::is_empty_v<Operation>;
+};
+

@@ -34,13 +34,6 @@
 
 
 
-template <typename Operation>
-concept OPERATION = requires(typename Operation::Number a, typename Operation::Number b) {
-    { Operation::apply(a, b) } -> std::same_as<typename Operation::Number>;
-    requires std::is_empty_v<Operation>;
-};
-
-
 template <HIP_scalar Number, OPERATION Operation>
 __global__ void vector_reduction_by_blocks_parallel(
     const Number* A,

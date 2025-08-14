@@ -35,17 +35,6 @@
 #include "cuda/check_errors.cuh"
 
 
-template <typename Number>
-Number sum(Number a, Number b) {
-    return a + b;
-}
-
-template <typename Operation>
-concept OPERATION = requires(typename Operation::Number a, typename Operation::Number b) {
-    { Operation::apply(a, b) } -> std::same_as<typename Operation::Number>;
-    requires std::is_empty_v<Operation>;
-};
-
 template <CUDA_scalar Number, OPERATION Op>
 __global__ void vector_scan_write_back_parallel(
     Number* prev_result,

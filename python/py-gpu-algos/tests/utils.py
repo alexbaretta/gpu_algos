@@ -198,6 +198,10 @@ def get_numpy_reference_cummax(vec):
     """NumPy reference for cumulative maximum."""
     return np.maximum.accumulate(vec, dtype=vec.dtype)
 
+def get_numpy_reference_reduction_sum(vec):
+    """NumPy reference for vector sum reduction."""
+    return np.array([np.sum(vec, dtype=vec.dtype)])
+
 def get_numpy_reference_scan(vec, operation):
     """NumPy reference for scan operations."""
     if operation == "sum":
@@ -211,6 +215,20 @@ def get_numpy_reference_scan(vec, operation):
     else:
         raise ValueError(f"Unknown scan operation: {operation}")
 
+def get_numpy_reference_reduction(vec, operation):
+    """NumPy reference for reduction operations."""
+    if operation == "sum":
+        result = np.sum(vec, dtype=vec.dtype)
+    elif operation == "max":
+        result = np.max(vec)
+    elif operation == "min":
+        result = np.min(vec)
+    elif operation == "prod":
+        result = np.prod(vec, dtype=vec.dtype)
+    else:
+        raise ValueError(f"Unknown scan operation: {operation}")
+    return np.array([result])
+
 def get_numpy_reference(func_name, vec, operation=None):
     """Get the NumPy reference for a named function."""
     if func_name.startswith("vector_cumsum"):
@@ -219,6 +237,10 @@ def get_numpy_reference(func_name, vec, operation=None):
         return np.maximum.accumulate(vec, dtype=vec.dtype)
     elif func_name.startswith("vector_scan"):
         return get_numpy_reference_scan(vec, operation)
+    elif func_name.startswith("vector_reduction_recursive"):
+        return get_numpy_reference_reduction(vec, operation)
+    elif func_name.startswith("vector_sum_atomic"):
+        return np.array([np.sum(vec, dtype=vec.dtype)])
     else:
         raise ValueError(f"Unknown function: {func_name}")
 

@@ -16,6 +16,8 @@
 #include "cuda/kernels/vector_cumsum/vector_cumsum_parallel.cuh"
 #include "cuda/kernels/vector_cummax/vector_cummax_parallel.cuh"
 #include "cuda/kernels/vector_scan_generic/vector_scan_parallel.cuh"
+#include "cuda/kernels/vector_reduction/vector_reduction_recursive.cuh"
+#include "cuda/kernels/vector_reduction/vector_sum_atomic.cuh"
 #include "cuda/cuda_utils.cuh"
 #include "cuda/check_errors.cuh"
 
@@ -354,6 +356,173 @@ pybind11::array_t<T> vector_scan_parallel_cuda_impl(const pybind11::array_t<T>& 
     return result;
 }
 
+// Helper function to launch vector_reduction_recursive kernels
+template<typename T, typename Op>
+pybind11::array_t<T> vector_reduction_recursive_cuda_impl(const pybind11::array_t<T>& a) {
+    // Validate input array
+    auto a_buf = a.request();
+
+    if (a_buf.ndim != 1) {
+        throw std::invalid_argument("Input array must be 1-dimensional");
+    }
+
+    if (!a.flags() & pybind11::array::c_style) {
+        throw std::invalid_argument("Array must be C-contiguous");
+    }
+
+    // Get vector size
+    long n = a_buf.shape[0];
+
+    // Create output array (single element for reduction)
+    auto result = pybind11::array_t<T>(1);
+    auto result_buf = result.request();
+
+    // Get data pointers
+    const T* a_ptr = static_cast<const T*>(a_buf.ptr);
+    T* result_ptr = static_cast<T*>(result_buf.ptr);
+
+    const auto spec = Vector_reduction_recursive_spec::make<T, Op>(n, 1024);
+
+    // Create kernel instance
+    Vector_reduction_recursive_kernel<T, Op> kernel(spec);
+
+    // Allocate GPU memory
+    T* d_a = nullptr;
+    T* d_result = nullptr;
+    T* d_temp = nullptr;
+
+    size_t size_a = n * sizeof(T);
+    size_t size_result = 1 * sizeof(T);
+    size_t size_temp = spec.n_temp_ * sizeof(T);
+
+    cuda_check_error(cudaMalloc(&d_a, size_a), "cudaMalloc for vector A");
+    cuda_check_error(cudaMalloc(&d_result, size_result), "cudaMalloc for result");
+    if (spec.n_temp_ > 0) {
+        cuda_check_error(cudaMalloc(&d_temp, size_temp), "cudaMalloc for temp vector");
+    }
+
+    try {
+        // Copy data to device
+        cuda_check_error(cudaMemcpy(d_a, a_ptr, size_a, cudaMemcpyHostToDevice), "cudaMemcpy A to device");
+
+        // Create CUDA stream
+        cudaStream_t stream;
+        cuda_check_error(cudaStreamCreate(&stream), "cudaStreamCreate");
+
+        // Run kernel
+        kernel.run_device_kernel(d_a, d_result, d_temp, stream);
+
+        // Wait for completion
+        cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
+
+        // Copy result back to host
+        cuda_check_error(cudaMemcpy(result_ptr, d_result, size_result, cudaMemcpyDeviceToHost), "cudaMemcpy result to host");
+
+        // Cleanup stream
+        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
+
+    } catch (...) {
+        // Cleanup on error
+        if (d_a) cudaFree(d_a);
+        if (d_result) cudaFree(d_result);
+        if (d_temp) cudaFree(d_temp);
+        throw;
+    }
+
+    // Cleanup GPU memory
+    cuda_check_error(cudaFree(d_a), "cudaFree A");
+    cuda_check_error(cudaFree(d_result), "cudaFree result");
+    if (d_temp) {
+        cuda_check_error(cudaFree(d_temp), "cudaFree temp");
+    }
+
+    return result;
+}
+
+// Helper function to launch vector_sum_atomic kernels
+template<typename T>
+pybind11::array_t<T> vector_sum_atomic_cuda_impl(const pybind11::array_t<T>& a) {
+    // Validate input array
+    auto a_buf = a.request();
+
+    if (a_buf.ndim != 1) {
+        throw std::invalid_argument("Input array must be 1-dimensional");
+    }
+
+    if (!a.flags() & pybind11::array::c_style) {
+        throw std::invalid_argument("Array must be C-contiguous");
+    }
+
+    // Get vector size
+    long n = a_buf.shape[0];
+
+    // Create output array (single element for reduction)
+    auto result = pybind11::array_t<T>(1);
+    auto result_buf = result.request();
+
+    // Get data pointers
+    const T* a_ptr = static_cast<const T*>(a_buf.ptr);
+    T* result_ptr = static_cast<T*>(result_buf.ptr);
+
+    // Create kernel specification
+    Vector_sum_atomic_spec spec = Vector_sum_atomic_spec::make<T>(n, Vector_sum_atomic_spec::DEFAULT_BLOCK_DIM_X);
+
+    // Create kernel instance
+    Vector_sum_atomic_kernel<T> kernel(spec);
+
+    // Allocate GPU memory
+    T* d_a = nullptr;
+    T* d_result = nullptr;
+    T* d_temp = nullptr;
+
+    size_t size_a = n * sizeof(T);
+    size_t size_result = 1 * sizeof(T);
+    size_t size_temp = spec.n_temp_ * sizeof(T);
+
+    cuda_check_error(cudaMalloc(&d_a, size_a), "cudaMalloc for vector A");
+    cuda_check_error(cudaMalloc(&d_result, size_result), "cudaMalloc for result");
+    if (spec.n_temp_ > 0) {
+        cuda_check_error(cudaMalloc(&d_temp, size_temp), "cudaMalloc for temp vector");
+    }
+
+    try {
+        // Copy data to device
+        cuda_check_error(cudaMemcpy(d_a, a_ptr, size_a, cudaMemcpyHostToDevice), "cudaMemcpy A to device");
+
+        // Create CUDA stream
+        cudaStream_t stream;
+        cuda_check_error(cudaStreamCreate(&stream), "cudaStreamCreate");
+
+        // Run kernel
+        kernel.run_device_kernel(d_a, d_result, d_temp, stream);
+
+        // Wait for completion
+        cuda_check_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
+
+        // Copy result back to host
+        cuda_check_error(cudaMemcpy(result_ptr, d_result, size_result, cudaMemcpyDeviceToHost), "cudaMemcpy result to host");
+
+        // Cleanup stream
+        cuda_check_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
+
+    } catch (...) {
+        // Cleanup on error
+        if (d_a) cudaFree(d_a);
+        if (d_result) cudaFree(d_result);
+        if (d_temp) cudaFree(d_temp);
+        throw;
+    }
+
+    // Cleanup GPU memory
+    cuda_check_error(cudaFree(d_a), "cudaFree A");
+    cuda_check_error(cudaFree(d_result), "cudaFree result");
+    if (d_temp) {
+        cuda_check_error(cudaFree(d_temp), "cudaFree temp");
+    }
+
+    return result;
+}
+
 // High-level dispatch functions
 pybind11::object vector_cumsum_serial_dispatch(pybind11::array a) {
     if (a.dtype().is(pybind11::dtype::of<float>())) {
@@ -535,6 +704,134 @@ pybind11::object vector_scan_parallel_dispatch(pybind11::array a, const std::str
     }
 }
 
+pybind11::object vector_reduction_recursive_dispatch(pybind11::array a, const std::string& operation) {
+    if (operation == "max") {
+        if (a.dtype().is(pybind11::dtype::of<float>())) {
+            return vector_reduction_recursive_cuda_impl<float, cuda_max_op<float>>(a.cast<pybind11::array_t<float>>());
+        } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+            return vector_reduction_recursive_cuda_impl<double, cuda_max_op<double>>(a.cast<pybind11::array_t<double>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int8_t, cuda_max_op<std::int8_t>>(a.cast<pybind11::array_t<std::int8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int16_t, cuda_max_op<std::int16_t>>(a.cast<pybind11::array_t<std::int16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int32_t, cuda_max_op<std::int32_t>>(a.cast<pybind11::array_t<std::int32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int64_t, cuda_max_op<std::int64_t>>(a.cast<pybind11::array_t<std::int64_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint8_t, cuda_max_op<std::uint8_t>>(a.cast<pybind11::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint16_t, cuda_max_op<std::uint16_t>>(a.cast<pybind11::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint32_t, cuda_max_op<std::uint32_t>>(a.cast<pybind11::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint64_t, cuda_max_op<std::uint64_t>>(a.cast<pybind11::array_t<std::uint64_t>>());
+        } else {
+            throw std::invalid_argument("Unsupported dtype for max operation: " + pybind11::str(a.dtype()).cast<std::string>());
+        }
+    } else if (operation == "min") {
+        if (a.dtype().is(pybind11::dtype::of<float>())) {
+            return vector_reduction_recursive_cuda_impl<float, cuda_min_op<float>>(a.cast<pybind11::array_t<float>>());
+        } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+            return vector_reduction_recursive_cuda_impl<double, cuda_min_op<double>>(a.cast<pybind11::array_t<double>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int8_t, cuda_min_op<std::int8_t>>(a.cast<pybind11::array_t<std::int8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int16_t, cuda_min_op<std::int16_t>>(a.cast<pybind11::array_t<std::int16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int32_t, cuda_min_op<std::int32_t>>(a.cast<pybind11::array_t<std::int32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int64_t, cuda_min_op<std::int64_t>>(a.cast<pybind11::array_t<std::int64_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint8_t, cuda_min_op<std::uint8_t>>(a.cast<pybind11::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint16_t, cuda_min_op<std::uint16_t>>(a.cast<pybind11::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint32_t, cuda_min_op<std::uint32_t>>(a.cast<pybind11::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint64_t, cuda_min_op<std::uint64_t>>(a.cast<pybind11::array_t<std::uint64_t>>());
+        } else {
+            throw std::invalid_argument("Unsupported dtype for min operation: " + pybind11::str(a.dtype()).cast<std::string>());
+        }
+    } else if (operation == "sum") {
+        if (a.dtype().is(pybind11::dtype::of<float>())) {
+            return vector_reduction_recursive_cuda_impl<float, cuda_sum_op<float>>(a.cast<pybind11::array_t<float>>());
+        } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+            return vector_reduction_recursive_cuda_impl<double, cuda_sum_op<double>>(a.cast<pybind11::array_t<double>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int8_t, cuda_sum_op<std::int8_t>>(a.cast<pybind11::array_t<std::int8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int16_t, cuda_sum_op<std::int16_t>>(a.cast<pybind11::array_t<std::int16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int32_t, cuda_sum_op<std::int32_t>>(a.cast<pybind11::array_t<std::int32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int64_t, cuda_sum_op<std::int64_t>>(a.cast<pybind11::array_t<std::int64_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint8_t, cuda_sum_op<std::uint8_t>>(a.cast<pybind11::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint16_t, cuda_sum_op<std::uint16_t>>(a.cast<pybind11::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint32_t, cuda_sum_op<std::uint32_t>>(a.cast<pybind11::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint64_t, cuda_sum_op<std::uint64_t>>(a.cast<pybind11::array_t<std::uint64_t>>());
+        } else {
+            throw std::invalid_argument("Unsupported dtype for sum operation: " + pybind11::str(a.dtype()).cast<std::string>());
+        }
+    } else if (operation == "prod") {
+        if (a.dtype().is(pybind11::dtype::of<float>())) {
+            return vector_reduction_recursive_cuda_impl<float, cuda_prod_op<float>>(a.cast<pybind11::array_t<float>>());
+        } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+            return vector_reduction_recursive_cuda_impl<double, cuda_prod_op<double>>(a.cast<pybind11::array_t<double>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int8_t, cuda_prod_op<std::int8_t>>(a.cast<pybind11::array_t<std::int8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int16_t, cuda_prod_op<std::int16_t>>(a.cast<pybind11::array_t<std::int16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int32_t, cuda_prod_op<std::int32_t>>(a.cast<pybind11::array_t<std::int32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::int64_t, cuda_prod_op<std::int64_t>>(a.cast<pybind11::array_t<std::int64_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint8_t, cuda_prod_op<std::uint8_t>>(a.cast<pybind11::array_t<std::uint8_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint16_t, cuda_prod_op<std::uint16_t>>(a.cast<pybind11::array_t<std::uint16_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint32_t, cuda_prod_op<std::uint32_t>>(a.cast<pybind11::array_t<std::uint32_t>>());
+        } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+            return vector_reduction_recursive_cuda_impl<std::uint64_t, cuda_prod_op<std::uint64_t>>(a.cast<pybind11::array_t<std::uint64_t>>());
+        } else {
+            throw std::invalid_argument("Unsupported dtype for prod operation: " + pybind11::str(a.dtype()).cast<std::string>());
+        }
+    } else {
+        throw std::invalid_argument("Unsupported operation: " + operation + ". Must be one of: max, min, sum, prod");
+    }
+}
+
+pybind11::object vector_sum_atomic_dispatch(pybind11::array a) {
+    if (a.dtype().is(pybind11::dtype::of<float>())) {
+        return vector_sum_atomic_cuda_impl<float>(a.cast<pybind11::array_t<float>>());
+    } else if (a.dtype().is(pybind11::dtype::of<double>())) {
+        return vector_sum_atomic_cuda_impl<double>(a.cast<pybind11::array_t<double>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int8_t>())) {
+        return vector_sum_atomic_cuda_impl<std::int8_t>(a.cast<pybind11::array_t<std::int8_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int16_t>())) {
+        return vector_sum_atomic_cuda_impl<std::int16_t>(a.cast<pybind11::array_t<std::int16_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int32_t>())) {
+        return vector_sum_atomic_cuda_impl<std::int32_t>(a.cast<pybind11::array_t<std::int32_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::int64_t>())) {
+        return vector_sum_atomic_cuda_impl<std::int64_t>(a.cast<pybind11::array_t<std::int64_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint8_t>())) {
+        return vector_sum_atomic_cuda_impl<std::uint8_t>(a.cast<pybind11::array_t<std::uint8_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint16_t>())) {
+        return vector_sum_atomic_cuda_impl<std::uint16_t>(a.cast<pybind11::array_t<std::uint16_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint32_t>())) {
+        return vector_sum_atomic_cuda_impl<std::uint32_t>(a.cast<pybind11::array_t<std::uint32_t>>());
+    } else if (a.dtype().is(pybind11::dtype::of<std::uint64_t>())) {
+        return vector_sum_atomic_cuda_impl<std::uint64_t>(a.cast<pybind11::array_t<std::uint64_t>>());
+    } else {
+        throw std::invalid_argument("Unsupported dtype: " + pybind11::str(a.dtype()).cast<std::string>());
+    }
+}
+
 // Python module definition
 PYBIND11_MODULE(_vector_ops_cuda, m) {
     m.doc() = "CUDA vector operations for py-gpu-algos";
@@ -694,6 +991,117 @@ PYBIND11_MODULE(_vector_ops_cuda, m) {
     m.def("vector_scan_parallel_prod_uint64", &vector_scan_parallel_cuda_impl<std::uint64_t, cuda_prod_op<std::uint64_t>>,
           "Parallel scan with prod operation for uint64", pybind11::arg("a"));
 
+    // Low-level type-specific functions for vector_reduction_recursive
+    // Sum operations
+    m.def("vector_reduction_recursive_sum_float32", &vector_reduction_recursive_cuda_impl<float, cuda_sum_op<float>>,
+        "Recursive reduction for float32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_sum_float64", &vector_reduction_recursive_cuda_impl<double, cuda_sum_op<double>>,
+          "Recursive reduction for float64", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_sum_int8", &vector_reduction_recursive_cuda_impl<std::int8_t, cuda_sum_op<std::int8_t>>,
+          "Recursive reduction for int8", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_sum_int16", &vector_reduction_recursive_cuda_impl<std::int16_t, cuda_sum_op<std::int16_t>>,
+          "Recursive reduction for int16", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_sum_int32", &vector_reduction_recursive_cuda_impl<std::int32_t, cuda_sum_op<std::int32_t>>,
+          "Recursive reduction for int32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_sum_int64", &vector_reduction_recursive_cuda_impl<std::int64_t, cuda_sum_op<std::int64_t>>,
+          "Recursive reduction for int64", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_sum_uint8", &vector_reduction_recursive_cuda_impl<std::uint8_t, cuda_sum_op<std::uint8_t>>,
+          "Recursive reduction for uint8", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_sum_uint16", &vector_reduction_recursive_cuda_impl<std::uint16_t, cuda_sum_op<std::uint16_t>>,
+          "Recursive reduction for uint16", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_sum_uint32", &vector_reduction_recursive_cuda_impl<std::uint32_t, cuda_sum_op<std::uint32_t>>,
+          "Recursive reduction for uint32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_sum_uint64", &vector_reduction_recursive_cuda_impl<std::uint64_t, cuda_sum_op<std::uint64_t>>,
+          "Recursive reduction for uint64", pybind11::arg("a"));
+
+    // Max operations
+    m.def("vector_reduction_recursive_max_float32", &vector_reduction_recursive_cuda_impl<float, cuda_max_op<float>>,
+          "Recursive reduction for float32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_max_float64", &vector_reduction_recursive_cuda_impl<double, cuda_max_op<double>>,
+          "Recursive reduction for float64", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_max_int8", &vector_reduction_recursive_cuda_impl<std::int8_t, cuda_max_op<std::int8_t>>,
+          "Recursive reduction for int8", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_max_int16", &vector_reduction_recursive_cuda_impl<std::int16_t, cuda_max_op<std::int16_t>>,
+          "Recursive reduction for int16", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_max_int32", &vector_reduction_recursive_cuda_impl<std::int32_t, cuda_max_op<std::int32_t>>,
+          "Recursive reduction for int32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_max_int64", &vector_reduction_recursive_cuda_impl<std::int64_t, cuda_max_op<std::int64_t>>,
+          "Recursive reduction for int64", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_max_uint8", &vector_reduction_recursive_cuda_impl<std::uint8_t, cuda_max_op<std::uint8_t>>,
+          "Recursive reduction for uint8", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_max_uint16", &vector_reduction_recursive_cuda_impl<std::uint16_t, cuda_max_op<std::uint16_t>>,
+          "Recursive reduction for uint16", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_max_uint32", &vector_reduction_recursive_cuda_impl<std::uint32_t, cuda_max_op<std::uint32_t>>,
+          "Recursive reduction for uint32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_max_uint64", &vector_reduction_recursive_cuda_impl<std::uint64_t, cuda_max_op<std::uint64_t>>,
+          "Recursive reduction for uint64", pybind11::arg("a"));
+
+    // Min operations
+    m.def("vector_reduction_recursive_min_float32", &vector_reduction_recursive_cuda_impl<float, cuda_min_op<float>>,
+          "Recursive reduction for float32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_min_float64", &vector_reduction_recursive_cuda_impl<double, cuda_min_op<double>>,
+          "Recursive reduction for float64", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_min_int8", &vector_reduction_recursive_cuda_impl<std::int8_t, cuda_min_op<std::int8_t>>,
+          "Recursive reduction for int8", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_min_int16", &vector_reduction_recursive_cuda_impl<std::int16_t, cuda_min_op<std::int16_t>>,
+          "Recursive reduction for int16", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_min_int32", &vector_reduction_recursive_cuda_impl<std::int32_t, cuda_min_op<std::int32_t>>,
+          "Recursive reduction for int32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_min_int64", &vector_reduction_recursive_cuda_impl<std::int64_t, cuda_min_op<std::int64_t>>,
+          "Recursive reduction for int64", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_min_uint8", &vector_reduction_recursive_cuda_impl<std::uint8_t, cuda_min_op<std::uint8_t>>,
+          "Recursive reduction for uint8", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_min_uint16", &vector_reduction_recursive_cuda_impl<std::uint16_t, cuda_min_op<std::uint16_t>>,
+          "Recursive reduction for uint16", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_min_uint32", &vector_reduction_recursive_cuda_impl<std::uint32_t, cuda_min_op<std::uint32_t>>,
+          "Recursive reduction for uint32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_min_uint64", &vector_reduction_recursive_cuda_impl<std::uint64_t, cuda_min_op<std::uint64_t>>,
+          "Recursive reduction for uint64", pybind11::arg("a"));
+
+    // Prod operations
+    m.def("vector_reduction_recursive_prod_float32", &vector_reduction_recursive_cuda_impl<float, cuda_prod_op<float>>,
+          "Recursive reduction for float32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_prod_float64", &vector_reduction_recursive_cuda_impl<double, cuda_prod_op<double>>,
+          "Recursive reduction for float64", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_prod_int8", &vector_reduction_recursive_cuda_impl<std::int8_t, cuda_prod_op<std::int8_t>>,
+          "Recursive reduction for int8", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_prod_int16", &vector_reduction_recursive_cuda_impl<std::int16_t, cuda_prod_op<std::int16_t>>,
+          "Recursive reduction for int16", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_prod_int32", &vector_reduction_recursive_cuda_impl<std::int32_t, cuda_prod_op<std::int32_t>>,
+          "Recursive reduction for int32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_prod_int64", &vector_reduction_recursive_cuda_impl<std::int64_t, cuda_prod_op<std::int64_t>>,
+          "Recursive reduction for int64", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_prod_uint8", &vector_reduction_recursive_cuda_impl<std::uint8_t, cuda_prod_op<std::uint8_t>>,
+          "Recursive reduction for uint8", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_prod_uint16", &vector_reduction_recursive_cuda_impl<std::uint16_t, cuda_prod_op<std::uint16_t>>,
+          "Recursive reduction for uint16", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_prod_uint32", &vector_reduction_recursive_cuda_impl<std::uint32_t, cuda_prod_op<std::uint32_t>>,
+          "Recursive reduction for uint32", pybind11::arg("a"));
+    m.def("vector_reduction_recursive_prod_uint64", &vector_reduction_recursive_cuda_impl<std::uint64_t, cuda_prod_op<std::uint64_t>>,
+          "Recursive reduction for uint64", pybind11::arg("a"));
+
+    // Low-level type-specific functions for vector_sum_atomic
+    m.def("vector_sum_atomic_float32", &vector_sum_atomic_cuda_impl<float>,
+        "Atomic sum for float32", pybind11::arg("a"));
+    m.def("vector_sum_atomic_float64", &vector_sum_atomic_cuda_impl<double>,
+          "Atomic sum for float64", pybind11::arg("a"));
+    m.def("vector_sum_atomic_int8", &vector_sum_atomic_cuda_impl<std::int8_t>,
+          "Atomic sum for int8", pybind11::arg("a"));
+    m.def("vector_sum_atomic_int16", &vector_sum_atomic_cuda_impl<std::int16_t>,
+          "Atomic sum for int16", pybind11::arg("a"));
+    m.def("vector_sum_atomic_int32", &vector_sum_atomic_cuda_impl<std::int32_t>,
+          "Atomic sum for int32", pybind11::arg("a"));
+    m.def("vector_sum_atomic_int64", &vector_sum_atomic_cuda_impl<std::int64_t>,
+          "Atomic sum for int64", pybind11::arg("a"));
+    m.def("vector_sum_atomic_uint8", &vector_sum_atomic_cuda_impl<std::uint8_t>,
+          "Atomic sum for uint8", pybind11::arg("a"));
+    m.def("vector_sum_atomic_uint16", &vector_sum_atomic_cuda_impl<std::uint16_t>,
+          "Atomic sum for uint16", pybind11::arg("a"));
+    m.def("vector_sum_atomic_uint32", &vector_sum_atomic_cuda_impl<std::uint32_t>,
+          "Atomic sum for uint32", pybind11::arg("a"));
+    m.def("vector_sum_atomic_uint64", &vector_sum_atomic_cuda_impl<std::uint64_t>,
+          "Atomic sum for uint64", pybind11::arg("a"));
+
     // High-level dispatch functions
     m.def("vector_cumsum_serial", &vector_cumsum_serial_dispatch,
           "Cumulative sum (serial algorithm) with automatic type dispatch", pybind11::arg("a"));
@@ -703,4 +1111,8 @@ PYBIND11_MODULE(_vector_ops_cuda, m) {
           "Cumulative maximum (parallel algorithm) with automatic type dispatch", pybind11::arg("a"));
     m.def("vector_scan_parallel", &vector_scan_parallel_dispatch,
           "Parallel scan with automatic type dispatch", pybind11::arg("a"), pybind11::arg("operation"));
+    m.def("vector_reduction_recursive", &vector_reduction_recursive_dispatch,
+          "Recursive reduction with automatic type dispatch", pybind11::arg("a"), pybind11::arg("operation"));
+    m.def("vector_sum_atomic", &vector_sum_atomic_dispatch,
+          "Atomic sum with automatic type dispatch", pybind11::arg("a"));
 }

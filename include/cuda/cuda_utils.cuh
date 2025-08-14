@@ -210,7 +210,7 @@ struct cuda_max_op {
         } else if constexpr (std::is_floating_point_v<Number>) {
             return -std::numeric_limits<Number>::infinity();
         } else {
-            return Number(1) << (sizeof(Number) * 8 - 1);
+            return std::numeric_limits<Number>::lowest();
         }
     }
 };
@@ -246,7 +246,7 @@ struct cuda_min_op {
         } else if constexpr (std::is_floating_point_v<Number>) {
             return std::numeric_limits<Number>::infinity();
         } else {
-            return ~(Number(1) << (sizeof(Number) * 8 - 1));
+            return std::numeric_limits<Number>::max();
         }
     }
 };
@@ -510,16 +510,18 @@ requires (sizeof(Number) < 4)
 __inline__ __device__ Number atomicAdd(Number* const ptr, const Number value) {
     const std::uintptr_t ptr_value = reinterpret_cast<std::uintptr_t>(ptr);
     const std::uintptr_t word_ptr_value = ptr_value & ~(sizeof(int) - 1);
-    const std::uintptr_t ptr_modulo = ptr_value % sizeof(int);
-    const std::uintptr_t mask_bit_shift = ptr_modulo * 8;
-    const std::uintptr_t mask = (sizeof(Number) - 1) << mask_bit_shift;
+    const unsigned ptr_modulo = ptr_value % sizeof(int);
+    const unsigned mask_bit_shift = ptr_modulo * 8;
+    const unsigned mask = ((1 << sizeof(Number)*8)- 1) << mask_bit_shift;
     unsigned* const word_ptr = reinterpret_cast<unsigned*>(word_ptr_value);
     unsigned curr_word = *word_ptr;
     unsigned compare;
 
     do {
         compare = curr_word;
-        const unsigned new_word = (curr_word & ~mask) | (value << mask_bit_shift);
+        const unsigned curr_value = (curr_word & mask) >> mask_bit_shift;
+        const unsigned new_value = curr_value + value; // This is where the add in atomicAdd is performed
+        const unsigned new_word = (curr_word & ~mask) | (new_value << mask_bit_shift);
         curr_word = atomicCAS(word_ptr, compare, new_word);
     } while (curr_word != compare);
 
