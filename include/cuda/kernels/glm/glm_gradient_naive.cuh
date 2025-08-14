@@ -417,11 +417,11 @@ class Glm_gradient_naive_kernel {
 
         if (spec_.cpu_algo_ == "nested-loop") {
             #pragma omp parallel for
-            for (int i_feature = 0; i_feature < spec_.nfeatures_; ++i_feature) {
-                for (int i_target = 0; i_target < spec_.ntargets_; ++i_target) {
-                    for (int i_task = 0; i_task < spec_.ntasks_; ++i_task) {
+            for (long i_feature = 0; i_feature < spec_.nfeatures_; ++i_feature) {
+                for (long i_target = 0; i_target < spec_.ntargets_; ++i_target) {
+                    for (long i_task = 0; i_task < spec_.ntasks_; ++i_task) {
                         Number sum_obs{0};
-                        for (int i_obs = 0; i_obs < spec_.nobs_; ++i_obs) {
+                        for (long i_obs = 0; i_obs < spec_.nobs_; ++i_obs) {
                             const auto sum_feature = M.row_at(i_target, i_task).dot(X.row_at(i_task, i_obs));
                             sum_obs += (sum_feature - Y.at(i_target, i_task, i_obs)) * X.at(i_feature, i_task, i_obs);
                         }
@@ -435,7 +435,7 @@ class Glm_gradient_naive_kernel {
             // Y: (ntargets, ntasks, nobs)
             // M: (nfeatures, ntargets, ntasks)
             // const Eigen::IOFormat eigen_format(4, 0, ", ", "\n", "  [", "]");
-            for (int i_task = 0; i_task < spec_.ntasks_; ++i_task) {
+            for (long i_task = 0; i_task < spec_.ntasks_; ++i_task) {
                 // Matrix dimensions: [nrows (outer), ncols (inner)]
                 auto X_task_matrix = X.chip_at_dim1(i_task);  // tensor:(nfeatures, nobs) -> matrix:[nobs, nfeatures]
                 auto Y_task_matrix = Y.chip_at_dim1(i_task);  // tensor:(ntargets,  nobs) -> matrix:[nobs, ntargets]

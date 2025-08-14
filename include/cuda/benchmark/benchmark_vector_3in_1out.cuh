@@ -363,7 +363,7 @@ class Benchmark_Vector_3In_1Out {
         if (errors) {
             std::cout << "Non-zero error elements:\n";
             bool found_errors = false;
-            for (int i = 0; i < E.size(); ++i) {
+            for (long i = 0; i < E.size(); ++i) {
                 if (E(i) != NumberE(0)) {
                     found_errors = true;
                     std::cout << "(" << i << "): "

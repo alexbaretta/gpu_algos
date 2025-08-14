@@ -356,7 +356,7 @@ class Benchmark_Tensor3D_1Inout {
         if (errors) {
             std::cout << "Non-zero error elements:\n";
             bool found_errors = false;
-            for (int i = 0; i < tensor3d_E.rows(); ++i) {
+            for (long i = 0; i < tensor3d_E.rows(); ++i) {
                 for (int j = 0; j < tensor3d_E.cols(); ++j) {
                     for (int k = 0; k < tensor3d_E.sheets(); ++k) {
                         if (tensor3d_E(i, j, k) != 0.0) {

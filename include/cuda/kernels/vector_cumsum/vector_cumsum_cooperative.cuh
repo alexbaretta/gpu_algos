@@ -367,7 +367,7 @@ class Vector_cumsum_cooperative_kernel {
         Eigen::Vector<Number, Eigen::Dynamic> result(A.rows(), A.cols());
         Number accu = A(0);
         result(0) = accu;
-        for (int i = 1; i < A.size(); ++i) {
+        for (long i = 1; i < A.size(); ++i) {
             accu += A(i);
             result(i) = accu;
         }

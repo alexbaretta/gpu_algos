@@ -363,7 +363,7 @@ class Benchmark_Matrix_3In_1Out {
         if (errors) {
             std::cout << "Non-zero error elements:\n";
             bool found_errors = false;
-            for (int i = 0; i < E.rows(); ++i) {
+            for (long i = 0; i < E.rows(); ++i) {
                 for (int j = 0; j < E.cols(); ++j) {
                     if (E(i, j) != NumberE(0)) {
                         found_errors = true;

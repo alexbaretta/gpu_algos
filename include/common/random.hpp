@@ -41,12 +41,12 @@ template <typename Container, typename T = contained_type<Container>, std::float
 requires Forward_iterable<Container, T> && (!std::is_integral_v<T>)
 void randomize_container(
     Container& data,
-    int seed
+    long seed
 ) {
     // static_assert(std::is_floating_point_v<U>, "U must be a C++ floating point type");
     constexpr U min = 0.0;
     constexpr U max = 1.0;
-    std::mt19937 generator(seed);
+    std::mt19937_64 generator(seed);
     std::uniform_real_distribution<U> distribution(min, max);
 
     for (auto& value : data) value = distribution(generator);
@@ -57,12 +57,12 @@ template <typename Container, typename T = contained_type<Container>, std::integ
 requires Forward_iterable<Container, T> && std::is_integral_v<T>
 void randomize_container(
     Container& data,
-    int seed,
+    long seed,
     const U min = U(0),
     const U max = U(100)
 ) {
     // static_assert(std::is_integral_v<U>, "U must be a C++ integral type");
-    std::mt19937 generator(seed);
+    std::mt19937_64 generator(seed);
     std::uniform_int_distribution<U> distribution(min, max);
 
     for (auto& value : data) value = distribution(generator);

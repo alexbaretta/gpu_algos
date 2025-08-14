@@ -104,52 +104,52 @@ public:
     long sheet_size()  const { return nrows_ * ncols_; }
     long tensor_size() const { return nsheets_ * sheet_size(); }
 
-    std::size_t iat(const int col, const int row, const int sheet) const {
+    std::size_t iat(const long col, const long row, const long sheet) const {
         if (col > ncols_) throw std::invalid_argument("col out of bounds: col=" + std::to_string(col) + " ncols_=" + std::to_string(ncols_));
         if (row > nrows_) throw std::invalid_argument("row out of bounds: row=" + std::to_string(row) + " nrows_=" + std::to_string(nrows_));
         if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
         return sheet * sheet_size() + row * row_size() + col;
     }
-    Number& operator()(const int col, const int row, const int sheet) {
+    Number& operator()(const long col, const long row, const long sheet) {
         return vector_[iat(col, row, sheet)];
     }
-    const Number& operator()(const int col, const int row, const int sheet) const {
+    const Number& operator()(const long col, const long row, const long sheet) const {
         return vector_[iat(col, row, sheet)];
     }
-    Number& at(const int col, const int row, const int sheet) {
+    Number& at(const long col, const long row, const long sheet) {
         return vector_.at(iat(col, row, sheet));
     }
-    const Number& at(const int col, const int row, const int sheet) const {
+    const Number& at(const long col, const long row, const long sheet) const {
         return vector_.at(iat(col, row, sheet));
     }
 
-    Sheet sheet_at(const int sheet) {
+    Sheet sheet_at(const long sheet) {
         if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
         Number* const start = &vector_.at(sheet * sheet_size());
         return {start, nrows_, ncols_}; // This is the constructor of Eigen::Matrix: must be nrows, ncols
     }
 
-    Sheet_const sheet_at(const int sheet) const {
+    Sheet_const sheet_at(const long sheet) const {
         if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
         const Number* const start = &vector_.at(sheet * sheet_size());
         return {start, nrows_, ncols_}; // This is the constructor of Eigen::Matrix: must be nrows, ncols
     }
 
-    Row row_at(const int row, const int sheet) {
+    Row row_at(const long row, const long sheet) {
         if (row > nrows_) throw std::invalid_argument("row out of bounds: row=" + std::to_string(row) + " nrows_=" + std::to_string(nrows_));
         if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
         Number* const start = &vector_.at(sheet * sheet_size() + row * row_size());
         return {start, ncols_};
     }
 
-    Row_const row_at(const int row, const int sheet) const {
+    Row_const row_at(const long row, const long sheet) const {
         if (row > nrows_) throw std::invalid_argument("row out of bounds: row=" + std::to_string(row) + " nrows_=" + std::to_string(nrows_));
         if (sheet > nsheets_) throw std::invalid_argument("sheet out of bounds: sheet=" + std::to_string(sheet) + " nsheets_=" + std::to_string(nsheets_));
         const Number* const start = &vector_.at(sheet * sheet_size() + row * row_size());
         return {start, ncols_};
     }
 
-    Chip chip_at_dim1(const int row) {
+    Chip chip_at_dim1(const long row) {
         // We are selecting a row across all sheets, so the outer stride is sheet_size
         const long outer_stride = sheet_size();
         const long inner_stride = 1;
@@ -158,7 +158,7 @@ public:
         Number* const map_data = &at(/* col= */0, row, /* sheet= */ 0);
         return {map_data, nsheets_, ncols_, stride};
     }
-    Chip_const chip_at_dim1(const int row) const {
+    Chip_const chip_at_dim1(const long row) const {
         // We are selecting a row across all sheets, so the outer stride is sheet_size
         const long outer_stride = sheet_size();
         const long inner_stride = 1;

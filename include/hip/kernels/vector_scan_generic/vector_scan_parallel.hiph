@@ -519,7 +519,7 @@ class Vector_scan_parallel_kernel {
         Eigen::Vector<Number, Eigen::Dynamic> result(A.rows(), A.cols());
         Number accu = A(0);
         result(0) = accu;
-        for (int i = 1; i < A.size(); ++i) {
+        for (long i = 1; i < A.size(); ++i) {
             accu = Operation::apply(A(i),accu);
             result(i) = accu;
         }
