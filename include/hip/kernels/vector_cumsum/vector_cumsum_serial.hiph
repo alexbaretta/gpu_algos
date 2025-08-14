@@ -33,7 +33,7 @@ __global__ void vector_cumsum_serial(
     HIP_Number* C,
     const long n  // size of vector
 ) {
-
+    assert(n >= 0);
     HIP_Number sum = 0.0f;
     for (long i = 0; i < n; ++i) {
         sum += A[i];
@@ -89,7 +89,11 @@ struct Vector_cumsum_serial_spec {
         n_temp_(0),
         block_dim_(1),
         grid_dim_(1)
-    {}
+    {
+        assert(n_ >= 0);
+        assert(n_A_ == n_);
+        assert(n_C_ == n_);
+    }
 };
 
 static_assert(Check_vector_kernel_spec_1In_1Out<Vector_cumsum_serial_spec>::check_passed, "Vector_cumsum_serial_spec is not a valid kernel spec");

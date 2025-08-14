@@ -123,6 +123,9 @@ namespace glm {
             const auto dst_obs_idx = Yhat_idx % Y_sheet_size;
             const auto dst_task = dst_obs_idx / ntargets;
             const auto dst_target = dst_obs_idx % ntargets;
+            assert(dst_target < ntargets);
+            assert(dst_task < ntasks);
+            assert(dst_obs < nobs);
 
             // compute SUM_feature M[feature,target',task'] * X[feature,task',obs']
             Number sum_feature{0};
@@ -192,6 +195,9 @@ namespace glm {
             const auto dst_obs_idx = Yhat_idx % Y_sheet_size;
             const auto dst_task = dst_obs_idx / ntargets;
             const auto dst_target = dst_obs_idx % ntargets;
+            assert(dst_target < ntargets);
+            assert(dst_task < ntasks);
+            assert(dst_obs < nobs);
 
             // compute SUM_feature M[feature,target',task'] * X[feature,task',obs']
             Number sum_feature{0};
@@ -249,6 +255,9 @@ namespace glm {
             const auto dst_obs_idx = Yhat_idx % Y_sheet_size;
             const auto dst_task = dst_obs_idx / ntargets;
             const auto dst_target = dst_obs_idx % ntargets;
+            assert(dst_target < ntargets);
+            assert(dst_task < ntasks);
+            assert(dst_obs < nobs);
 
             // compute SUM_feature M[feature,target',task'] * X[feature,task',obs']
             Number sum_feature{0};

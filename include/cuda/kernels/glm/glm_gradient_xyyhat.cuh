@@ -162,6 +162,9 @@ namespace glm {
             const auto dst_task_idx = grad_M_idx % M_sheet_size;
             const auto dst_target = dst_task_idx / nfeatures;
             const auto dst_feature = dst_task_idx % nfeatures;
+            assert(dst_task < ntasks);
+            assert(dst_target < ntargets);
+            assert(dst_feature < nfeatures);
 
             Number sum_obs{0};
             for (long obs = 0; obs < nobs; obs += nobs_per_block ) {
@@ -244,6 +247,9 @@ namespace glm {
             const auto dst_task_idx = grad_M_idx % M_sheet_size;
             const auto dst_target = dst_task_idx / nfeatures;
             const auto dst_feature = dst_task_idx % nfeatures;
+            assert(dst_task < ntasks);
+            assert(dst_target < ntargets);
+            assert(dst_feature < nfeatures);
 
             Number sum_obs{0};
             for (long obs = 0; obs < nobs; obs += 1) {
@@ -379,6 +385,9 @@ namespace glm {
             const auto dst_task_idx = grad_M_idx % M_sheet_size;
             const auto dst_target = dst_task_idx / nfeatures;
             const auto dst_feature = dst_task_idx % nfeatures;
+            assert(dst_task < ntasks);
+            assert(dst_target < ntargets);
+            assert(dst_feature < nfeatures);
             assert(grad_M_idx == dst_feature + dst_target * nfeatures + dst_task * M_sheet_size);
             for (long obs = tid_warp; obs < nobs; obs += WARP_SIZE) {
                 const auto Y_idx = dst_target + dst_task * ntargets + obs * Y_sheet_size;
