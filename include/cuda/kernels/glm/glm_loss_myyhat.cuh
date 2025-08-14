@@ -114,7 +114,7 @@ namespace glm {
         const auto size_M = nfeatures * ntargets * ntasks;
         const auto size_Y = ntargets * ntasks * nobs;
 
-        const auto tid_grid = blockIdx.x * blockDim.x + threadIdx.x; // 1D grid
+        const long tid_grid = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x); // 1D grid
         const auto wid_block = threadIdx.x / WARP_SIZE;
         const auto tid_warp = threadIdx.x % WARP_SIZE;
 
@@ -381,17 +381,17 @@ class Glm_loss_myyhat_kernel {
         const auto Yhat_data = Yhat.data();
 
         Number error_loss{0};
-        for (int i = 0; i < spec_.size_Y_; ++i) {
+        for (long i = 0; i < spec_.size_Y_; ++i) {
             const auto error = Yhat_data[i] - Y_data[i];
             error_loss += error * error;
         }
 
         Number l1_loss = 0;
-        for (int i = 0; i < spec_.size_M_; ++i) {
+        for (long i = 0; i < spec_.size_M_; ++i) {
             l1_loss += abs(M_data[i]);
         }
         Number l2_loss = 0;
-        for (int i = 0; i < spec_.size_M_; ++i) {
+        for (long i = 0; i < spec_.size_M_; ++i) {
             l2_loss += M_data[i] * M_data[i];
         }
         const Number regularization_loss = lambda_ * (alpha_ * l1_loss + (Number(1) - alpha_) * l2_loss);

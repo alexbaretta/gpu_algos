@@ -44,15 +44,14 @@ __global__ void vector_cumsum_write_back_parallel(
     // We have to update our block of prev_result with the final value from the previous block
 
     // tid_xxx represent the index of the thread within grid, block, and warp
-    const long bid_grid = blockIdx.x;
-    const unsigned short tid_block = threadIdx.x;
-    const long tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+    const auto tid_block = threadIdx.x;
+    const long tid_grid = long(threadIdx.x) + long(blockIdx.x) * long(blockDim.x);
     // printf("tid_grid: %d, n: %d, blockDim.x: %d, gridDim.x: %d\n", tid_grid, n, blockDim.x, gridDim.x);
 
     if (tid_block == 0) {
         // This is the first thread in the block.
         // We need to read the element from curr_result that corresponds to this block,
-        const Number curr_bid_minus_1_value = (bid_grid > 0) ? curr_result[bid_grid-1] : Number(0);
+        const Number curr_bid_minus_1_value = (blockIdx.x > 0) ? curr_result[blockIdx.x-1] : Number(0);
         shm[0] = curr_bid_minus_1_value;
     }
 
@@ -70,9 +69,9 @@ template <CUDA_scalar Number>
 __global__ void vector_cumsum_by_blocks_parallel(
     const Number* A,
     Number* C,
-    const int n,  // size of vector
-    const int stride_A,
-    const int source_array_size = -1  // size of source array for bounds checking
+    const long n,  // size of vector
+    const long stride_A,
+    const long source_array_size = -1  // size of source array for bounds checking
 ) {
     // for writing, index this using `wid_block` (warp id)
     Number* shm = get_dynamic_shm<Number>();
@@ -82,7 +81,7 @@ __global__ void vector_cumsum_by_blocks_parallel(
     // tid_xxx represent the index of the thread within grid, block, and warp
     // const long bid_grid = blockIdx.x;
     // const unsigned short tid_block = threadIdx.x;
-    const long tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+    const long tid_grid = long(threadIdx.x) + long(blockIdx.x) * long(blockDim.x);
     // printf("tid_grid: %d, n: %d, blockDim.x: %d, gridDim.x: %d\n", tid_grid, n, blockDim.x, gridDim.x);
 
     Number value;
@@ -94,9 +93,9 @@ __global__ void vector_cumsum_by_blocks_parallel(
 
     // bid_grid (block ID relative to the whole grid) can be >= n_blocks when we call ourselves
     // recursively on a reduced dataset. In this case, we can skip directly to the synchronization,
-    const unsigned short tid_warp = threadIdx.x % WARP_SIZE;
-    const unsigned short wid_block = threadIdx.x / WARP_SIZE;
-    const unsigned short n_warps_per_block = blockDim.x / WARP_SIZE;
+    const auto tid_warp = threadIdx.x % WARP_SIZE;
+    const auto wid_block = threadIdx.x / WARP_SIZE;
+    const auto n_warps_per_block = blockDim.x / WARP_SIZE;
 
     // the size of shm must be at least the number of warps in the block
 
@@ -139,10 +138,10 @@ __global__ void vector_cumsum_by_blocks_parallel(
     // 0  1  3  6   10 15 21 28 36  45 55 66 78 91  105 120
 
 
-    for (int subtree_size = 1, subtree_id = tid_warp;
+    for (short subtree_size = 1, subtree_id = tid_warp;
             subtree_size < WARP_SIZE;
             subtree_size <<= 1, subtree_id >>= 1) {
-        const int from_lane = max(0, subtree_id * subtree_size - 1);
+        const short from_lane = max(0, subtree_id * subtree_size - 1);
         const Number received_value = __shfl_sync(__activemask(), value, from_lane);
         if (subtree_id % 2 == 1) {
             value += received_value;
@@ -177,10 +176,10 @@ __global__ void vector_cumsum_by_blocks_parallel(
             if (tid_warp < n_warps_per_block) {
                 shm_value = shm[tid_warp];
             }
-            for (int subtree_size = 1, subtree_id = tid_warp;
+            for (short subtree_size = 1, subtree_id = tid_warp;
                 subtree_size < WARP_SIZE;
                 subtree_size <<= 1, subtree_id /= 2) {
-                const int from_lane = max(0, subtree_id * subtree_size - 1);
+                const short from_lane = max(0, subtree_id * subtree_size - 1);
                 const Number received_value = __shfl_sync(__activemask(), shm_value, from_lane);
                 if (subtree_id % 2 == 1) {
                     shm_value += received_value;

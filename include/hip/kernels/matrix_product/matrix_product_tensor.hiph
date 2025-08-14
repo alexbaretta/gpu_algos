@@ -306,9 +306,9 @@ __global__ void matrix_product_tensor_wmma(
     constexpr int K = Wmma_config::K;
 
     // Calculate which tile this warp handles
-    const int x_wid_grid = blockIdx.x * blockDim.y + threadIdx.y;
-    const int y_wid_grid = blockIdx.y * blockDim.z + threadIdx.z;
-    const int wid_in_block = threadIdx.z * blockDim.y + threadIdx.y;
+    const long x_wid_grid = long(blockIdx.x) * long(blockDim.y) + long(threadIdx.y);
+    const long y_wid_grid = long(blockIdx.y) * long(blockDim.z) + long(threadIdx.z);
+    const long wid_in_block = long(threadIdx.z) * long(blockDim.y) + long(threadIdx.y);
 
     if (x_wid_grid * N >= n || y_wid_grid * M >= m) {
         return;
@@ -325,7 +325,7 @@ __global__ void matrix_product_tensor_wmma(
 
     // Loop over inner dimension one tile at a time
     const auto k_tiles = (k + K - 1) / K;
-    for (int k_tile_i = 0; k_tile_i < k_tiles; ++k_tile_i) {
+    for (long k_tile_i = 0; k_tile_i < k_tiles; ++k_tile_i) {
         // Load fragments from input arrays with bounds checking
         using namespace nvhip::wmma;
         auto argument_tile = (typename Wmma_config::argument_type*)(temp_tile + wid_in_block * Wmma_config::temp_tile_bytes);

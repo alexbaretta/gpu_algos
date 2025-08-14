@@ -140,9 +140,9 @@ __global__ void matrix_product_warp(
     // int thread_id = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
     // but blockDim.x is 32, so the lane id is just threadIdx.x
 
-    int tid_warp = threadIdx.x;
-    int col = threadIdx.y + blockIdx.x * blockDim.y;
-    int row = threadIdx.z + blockIdx.y * blockDim.z;
+    const long tid_warp = long(threadIdx.x);
+    const long col = long(threadIdx.y) + long(blockIdx.x) * long(blockDim.y);
+    const long row = long(threadIdx.z) + long(blockIdx.y) * long(blockDim.z);
 
     // Bounds checking to prevent out-of-bounds memory access
     if (row >= m || col >= n) {
@@ -152,7 +152,7 @@ __global__ void matrix_product_warp(
     HIP_Number sum{0};
 
     // Compute the partial sum for the current thread by iterating over shared dimension k
-    for (int i = tid_warp; i < k; i += warpSize) {
+    for (long i = tid_warp; i < k; i += warpSize) {
         sum += A[row * k + i] * B[i * n + col];
     }
 

@@ -38,12 +38,12 @@ __global__ void matrix_product_naive(
     const long k,
     const long n
 ) {
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    const long col = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x);
+    const long row = long(blockIdx.y) * long(blockDim.y) + long(threadIdx.y);
 
     if (row < m && col < n) {
         HIP_Number sum = 0.0f;
-        for (int i = 0; i < k; ++i) {
+        for (long i = 0; i < k; ++i) {
             sum += A[row * k + i] * B[i * n + col];
         }
         C[row * n + col] = sum;

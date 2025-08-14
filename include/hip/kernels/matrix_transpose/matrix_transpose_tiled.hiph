@@ -67,6 +67,7 @@ __global__ void matrix_transpose_tiled(
     */
     __shared__ HIP_Number shm[TILE_DIM][TILE_DIM + 1];
     #ifdef DEBUG
+    // This declaration is useful to be able to display the contents of shm in the debugger.
     [[maybe_unused]] const HIP_Number* __shm = (HIP_Number*)shm;
     #endif
 
@@ -74,8 +75,8 @@ __global__ void matrix_transpose_tiled(
     // We add one element of padding to each row to avoid bank conflicts
     // const auto block_size = blockDim.x * blockDim.y;
 
-    const auto A_row = blockIdx.y * blockDim.y + threadIdx.y;
-    const auto A_col = blockIdx.x * blockDim.x + threadIdx.x;
+    const long A_row = long(blockIdx.y) * long(blockDim.y) + long(threadIdx.y);
+    const long A_col = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x);
 
     if (A_row < A_nrows && A_col < A_ncols) {
         // We can read
@@ -83,14 +84,14 @@ __global__ void matrix_transpose_tiled(
         if constexpr (debug) {
             const auto n_elems = long(A_ncols)*A_nrows;
             if (A_idx >= n_elems) {
-                printf("Bad indexing: A_idx=%ld at xy=(%d,%d) when A is %ldx%ld = %ld\n",
+                printf("Bad indexing: A_idx=%ld at xy=(%ld,%ld) when A is %ldx%ld = %ld\n",
                 A_idx, A_row, A_col, A_nrows, A_ncols, n_elems);
             }
         }
         const auto shared_value = A[A_idx];
         shm[threadIdx.x][threadIdx.y] = shared_value;
     } else if constexpr(debug) {
-        printf("No can read at xy=(%d,%d)\n", A_row, A_col);
+        printf("No can read at xy=(%ld,%ld)\n", A_row, A_col);
     }
 
     __syncthreads();

@@ -144,7 +144,7 @@ namespace glm {
         assert(gridDim.z == 1);
 
         // We use one block per location in grad_M to sum over obs and over feature
-        const auto bid_grid = blockIdx.x; // We use a 1D grid
+        const long bid_grid = long(blockIdx.x); // We use a 1D grid
         // const auto& tid_block = threadIdx.x; // We use a 1D block
         const auto tid_warp = threadIdx.x % WARP_SIZE;
         const auto wid_block = threadIdx.x / WARP_SIZE;
@@ -231,13 +231,13 @@ namespace glm {
         assert(gridDim.z == 1);
 
         // We use one thread per location in grad_M to sum over obs and over feature
-        const auto tid_grid = threadIdx.x + blockIdx.x * blockDim.x; // We use a 1D grid
+        const long tid_grid = long(threadIdx.x) + long(blockIdx.x) * long(blockDim.x); // We use a 1D grid
         const auto X_sheet_size = nfeatures * ntasks;
         const auto Y_sheet_size = ntargets * ntasks;
         const auto M_sheet_size = nfeatures * ntargets;
         const auto M_output_size = M_sheet_size * ntasks;
 
-        const auto nthreads_per_grid = gridDim.x * blockDim.x;
+        const long nthreads_per_grid = long(gridDim.x) * long(blockDim.x);
 
         for (auto grad_M_idx = tid_grid; grad_M_idx < M_output_size; grad_M_idx += nthreads_per_grid) {
             const auto dst_task = grad_M_idx / M_sheet_size;
@@ -292,9 +292,9 @@ namespace glm {
         const Number lambda,
         const Number alpha
     ) {
-        const auto dst_feature = blockIdx.x * blockDim.x + threadIdx.x;
-        const auto dst_target = blockIdx.y * blockDim.y + threadIdx.y;
-        const auto dst_task = blockIdx.z * blockDim.z + threadIdx.z;
+        const long dst_feature = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x);
+        const long dst_target = long(blockIdx.y) * long(blockDim.y) + long(threadIdx.y);
+        const long dst_task = long(blockIdx.z) * long(blockDim.z) + long(threadIdx.z);
 
         if (dst_feature < nfeatures && dst_target < ntargets && dst_task < ntasks) {
             const auto X_sheet_size = nfeatures * ntasks;
@@ -360,7 +360,7 @@ namespace glm {
         // We use one warp per location in grad_M to sum over obs and over feature
         // const auto bid_grid = blockIdx.x;
         // We use a 1D grid
-        const auto tid_grid = blockIdx.x * blockDim.x + threadIdx.x;
+        const long tid_grid = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x);
         const auto wid = tid_grid/WARP_SIZE;
         // const auto& tid_block = threadIdx.x; // We use a 1D block
         const auto tid_warp = threadIdx.x % WARP_SIZE;
@@ -790,11 +790,11 @@ class Glm_gradient_xyyhat_kernel {
 
         if (spec_.cpu_algo_ == "nested-loop") {
             #pragma omp parallel for
-            for (int i_feature = 0; i_feature < spec_.nfeatures_; ++i_feature) {
-                for (int i_target = 0; i_target < spec_.ntargets_; ++i_target) {
-                    for (int i_task = 0; i_task < spec_.ntasks_; ++i_task) {
+            for (long i_feature = 0; i_feature < spec_.nfeatures_; ++i_feature) {
+                for (long i_target = 0; i_target < spec_.ntargets_; ++i_target) {
+                    for (long i_task = 0; i_task < spec_.ntasks_; ++i_task) {
                         Number sum_obs{0};
-                        for (int i_obs = 0; i_obs < spec_.nobs_; ++i_obs) {
+                        for (long i_obs = 0; i_obs < spec_.nobs_; ++i_obs) {
                             const auto sum_feature = M.row_at(i_target, i_task).dot(X.row_at(i_task, i_obs));
                             sum_obs += (sum_feature - Y.at(i_target, i_task, i_obs)) * X.at(i_feature, i_task, i_obs);
                         }
@@ -812,7 +812,7 @@ class Glm_gradient_xyyhat_kernel {
             const auto _1_minus_alpha = Number(1) - alpha_;
             const auto _2_lambda_1_minus_alpha = _2_lambda * _1_minus_alpha;
             const auto lambda_alpha = lambda_ * alpha_;
-            for (int i_task = 0; i_task < spec_.ntasks_; ++i_task) {
+            for (long i_task = 0; i_task < spec_.ntasks_; ++i_task) {
                 // Matrix dimensions: [nrows (outer), ncols (inner)]
                 auto X_task_matrix = X.chip_at_dim1(i_task);  // tensor:(nfeatures, nobs) -> matrix:[nobs, nfeatures]
                 auto Y_task_matrix = Y.chip_at_dim1(i_task);  // tensor:(ntargets,  nobs) -> matrix:[nobs, ntargets]

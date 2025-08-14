@@ -68,7 +68,7 @@ __global__ void matrix_transpose_striped(
     const long start_row_A = blockIdx.y * STRIPE_WIDTH;
 
     if (col_A < ncols_A) {
-        for (int tile_row_A = 0; tile_row_A < STRIPE_WIDTH; tile_row_A++) {
+        for (long tile_row_A = 0; tile_row_A < STRIPE_WIDTH; tile_row_A++) {
             const long row_A = start_row_A + tile_row_A;
             if (row_A >= nrows_A) {
                 break;
@@ -84,10 +84,10 @@ __global__ void matrix_transpose_striped(
     __syncthreads();
 
     // Iterate over the columns to cooperatively store a tile to C
-    const int start_col_C = start_row_A;
-    const int row_C = col_A;
+    const long start_col_C = start_row_A;
+    const long row_C = col_A;
     if (row_C < nrows_C) {
-        for (int tile_col_C = 0; tile_col_C < STRIPE_WIDTH; tile_col_C++) {
+        for (long tile_col_C = 0; tile_col_C < STRIPE_WIDTH; tile_col_C++) {
             const long col_C = start_col_C + tile_col_C;
             if (col_C >= ncols_C) {
                 break;

@@ -178,9 +178,9 @@ namespace glm {
 
         // We use one block per location in Yhat
         const auto tid_warp = threadIdx.x % WARP_SIZE;
-        const auto tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+        const long tid_grid = long(threadIdx.x) + long(blockIdx.x) * long(blockDim.x);
         const auto wid = tid_grid / WARP_SIZE;
-        const auto nthreads_per_grid = blockDim.x * gridDim.x;
+        const long nthreads_per_grid = long(blockDim.x) * long(gridDim.x);
         const auto nwarps_per_grid = nthreads_per_grid / WARP_SIZE;
         const auto X_sheet_size = nfeatures * ntasks;
         const auto Y_sheet_size = ntargets * ntasks;
@@ -235,9 +235,9 @@ namespace glm {
 
         // We use one block per location in Yhat
         const auto tid_group = threadIdx.x % GROUP_SIZE;
-        const auto tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+        const long tid_grid = long(threadIdx.x) + long(blockIdx.x) * long(blockDim.x);
         const auto groupid_grid = tid_grid / GROUP_SIZE;
-        const auto nthreads_per_grid = blockDim.x * gridDim.x;
+        const long nthreads_per_grid = long(blockDim.x) * long(gridDim.x);
         const auto nwarps_per_grid = nthreads_per_grid / GROUP_SIZE;
         const auto X_sheet_size = nfeatures * ntasks;
         const auto Y_sheet_size = ntargets * ntasks;
@@ -286,7 +286,7 @@ namespace glm {
         const transform_ptr<Number> transform
     ) {
         // We use one thread per location in Yhat
-        const auto& tid_grid = threadIdx.x + blockIdx.x * blockDim.x; // We use a 1D block
+        const long tid_grid = long(threadIdx.x) + long(blockIdx.x) * long(blockDim.x); // We use a 1D block
         const auto X_sheet_size = nfeatures * ntasks;
         const auto Y_sheet_size = ntargets * ntasks;
         const auto M_sheet_size = nfeatures * ntargets;
@@ -326,9 +326,9 @@ namespace glm {
         const transform_ptr<Number> transform
     ) {
         // We use one thread per location in Yhat
-        const auto dst_target = blockIdx.x * blockDim.x + threadIdx.x;
-        const auto dst_task = blockIdx.y * blockDim.y + threadIdx.y;
-        const auto dst_obs = blockIdx.z * blockDim.z + threadIdx.z;
+        const long dst_target = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x);
+        const long dst_task = long(blockIdx.y) * long(blockDim.y) + long(threadIdx.y);
+        const long dst_obs = long(blockIdx.z) * long(blockDim.z) + long(threadIdx.z);
 
         const auto X_sheet_size = nfeatures * ntasks;
         const auto Y_sheet_size = ntargets * ntasks;

@@ -40,8 +40,8 @@ __global__ void matrix_transpose_naive(
     // const long nrows_C = n;
     const long ncols_C = m;
 
-    int i = blockIdx.x * blockDim.x + threadIdx.x; // col of A, row of B
-    int j = blockIdx.y * blockDim.y + threadIdx.y; // row of A, col of B
+    const long i = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x); // col of A, row of B
+    const long j = long(blockIdx.y) * long(blockDim.y) + long(threadIdx.y); // row of A, col of B
 
     // for readability
     const long col_A = i;

@@ -44,14 +44,14 @@ __global__ void matrix_product_tiled(
     __shared__ CUDA_Number tile_B[TILE_SIZE][TILE_SIZE];
 
     // Thread indices within the block
-    const int tx = threadIdx.x;
-    const int ty = threadIdx.y;
+    const long tx = long(threadIdx.x);
+    const long ty = long(threadIdx.y);
 
     // Global indices for the output element this thread computes
     // NOTE: This algorithm uses "one thread per output value" strategy
     // Each thread computes exactly one element C[global_row][global_col]
-    const int global_col = blockIdx.x * blockDim.x + threadIdx.x;
-    const int global_row = blockIdx.y * blockDim.y + threadIdx.y;
+    const long global_col = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x);
+    const long global_row = long(blockIdx.y) * long(blockDim.y) + long(threadIdx.y);
 
     CUDA_Number accumulator = 0.0f;
 
@@ -76,9 +76,9 @@ __global__ void matrix_product_tiled(
     // - Matrix C: square 16x16 output tile (true 2D tiling)
 
     // Process matrix multiplication in tiles across the shared dimension k
-    const int num_tiles = (k + TILE_SIZE - 1) / TILE_SIZE;
+    const long num_tiles = (k + TILE_SIZE - 1) / TILE_SIZE;
 
-    for (int tile_idx = 0; tile_idx < num_tiles; ++tile_idx) {
+    for (long tile_idx = 0; tile_idx < num_tiles; ++tile_idx) {
         // COOPERATIVE LOADING PHASE:
         // All threads in the block work together to load two 16x16 square tiles
         // into shared memory for maximum data reuse.
@@ -86,7 +86,7 @@ __global__ void matrix_product_tiled(
         // Load tile of matrix A into shared memory
         // This loads A^(I,t) where I=blockIdx.y, t=tile_idx
         // Accessing: A[blockIdx.y*16:(blockIdx.y+1)*16, tile_idx*16:(tile_idx+1)*16]
-        int a_col = tile_idx * TILE_SIZE + tx;
+        const long a_col = tile_idx * TILE_SIZE + tx;
         if (global_row < m && a_col < k) {
             tile_A[ty][tx] = A[global_row * k + a_col];
         } else {
@@ -96,7 +96,7 @@ __global__ void matrix_product_tiled(
         // Load tile of matrix B into shared memory
         // This loads B^(t,J) where t=tile_idx, J=blockIdx.x
         // Accessing: B[tile_idx*16:(tile_idx+1)*16, blockIdx.x*16:(blockIdx.x+1)*16]
-        int b_row = tile_idx * TILE_SIZE + ty;
+        const long b_row = tile_idx * TILE_SIZE + ty;
         if (b_row < k && global_col < n) {
             tile_B[ty][tx] = B[b_row * n + global_col];
         } else {
@@ -110,7 +110,7 @@ __global__ void matrix_product_tiled(
         // Now each thread computes its portion of the dot product using the
         // cached tiles. Thread (tx,ty) computes element C[global_row][global_col]
         // by accumulating: tile_A[ty][i] * tile_B[i][tx] for i=0..15
-        for (int i = 0; i < TILE_SIZE; ++i) {
+        for (long i = 0; i < TILE_SIZE; ++i) {
             accumulator += tile_A[ty][i] * tile_B[i][tx];
         }
 

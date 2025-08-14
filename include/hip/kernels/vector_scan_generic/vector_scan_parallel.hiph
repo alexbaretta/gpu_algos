@@ -59,15 +59,14 @@ __global__ void vector_scan_write_back_parallel(
     // We have to update our block of prev_result with the final value from the previous block
 
     // tid_xxx represent the index of the thread within grid, block, and warp
-    const long bid_grid = blockIdx.x;
-    const unsigned short tid_block = threadIdx.x;
-    const long tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+    const auto tid_block = threadIdx.x;
+    const long tid_grid = long(threadIdx.x) + long(blockIdx.x) * long(blockDim.x);
     // printf("tid_grid: %d, n: %d, blockDim.x: %d, gridDim.x: %d\n", tid_grid, n, blockDim.x, gridDim.x);
 
     if (tid_block == 0) {
         // This is the first thread in the block.
         // We read from curr_result the last element of this block in prev_result
-        const Number curr_bid_minus_1_value = curr_result[bid_grid];
+        const Number curr_bid_minus_1_value = curr_result[blockIdx.x];
         shm[0] = curr_bid_minus_1_value;
     }
 
@@ -87,9 +86,9 @@ template <HIP_scalar Number, OPERATION Operation>
 __global__ void vector_scan_by_blocks_parallel(
     const Number* A,
     Number* C,
-    const int n,  // size of vector
-    const int stride_A,
-    const int source_array_size = -1  // size of source array for bounds checking
+    const long n,  // size of vector
+    const long stride_A,
+    const long source_array_size = -1  // size of source array for bounds checking
 ) {
     // for writing, index this using `wid_block` (warp id)
     Number* shm = get_dynamic_shm<Number>();
@@ -99,7 +98,7 @@ __global__ void vector_scan_by_blocks_parallel(
     // tid_xxx represent the index of the thread within grid, block, and warp
     // const long bid_grid = blockIdx.x;
     // const unsigned short tid_block = threadIdx.x;
-    const long tid_grid = threadIdx.x + blockIdx.x * blockDim.x;
+    const long tid_grid = long(threadIdx.x) + long(blockIdx.x) * long(blockDim.x);
     // printf("tid_grid: %d, n: %d, blockDim.x: %d, gridDim.x: %d\n", tid_grid, n, blockDim.x, gridDim.x);
 
     Number value;

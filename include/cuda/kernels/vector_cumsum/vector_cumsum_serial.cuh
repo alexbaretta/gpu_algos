@@ -35,7 +35,7 @@ __global__ void vector_cumsum_serial(
 ) {
 
     CUDA_Number sum = 0.0f;
-    for (int i = 0; i < n; ++i) {
+    for (long i = 0; i < n; ++i) {
         sum += A[i];
         C[i] = sum;
     }
@@ -44,9 +44,7 @@ __global__ void vector_cumsum_serial(
 struct Vector_cumsum_serial_spec {
     const std::string type_;
 
-    const long m_;    // unused for vector cumsum
     const long n_;    // size of vector
-    const long k_;    // unused for vector cumsum
 
     const long n_A_;
     const long n_C_;
@@ -56,9 +54,7 @@ struct Vector_cumsum_serial_spec {
     const dim3 grid_dim_;
     const size_t dynamic_shared_mem_words_ = 0;
 
-    constexpr static int DEFAULT_M = 0;    // unused
     constexpr static int DEFAULT_N = 3000; // size of vector
-    constexpr static int DEFAULT_K = 0;    // unused
     constexpr static int DEFAULT_BLOCK_DIM_X = 32;
 
     inline static void add_kernel_spec_options(cxxopts::Options& options) {
@@ -87,9 +83,7 @@ struct Vector_cumsum_serial_spec {
         const std::string& type,
         const long size
     ) : type_(type),
-        m_(0),  // unused
         n_(size),
-        k_(0),  // unused
         n_A_(size),
         n_C_(size),
         n_temp_(0),

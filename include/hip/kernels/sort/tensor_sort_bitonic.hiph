@@ -46,7 +46,7 @@ __global__ void bitonic_compare_and_swap_3d(
     const long step,
     const long stage
 ) {
-    const long global_tid = blockIdx.x * blockDim.x + threadIdx.x;
+    const long global_tid = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x);
 
     long n_elements, n_problems, stride;
 

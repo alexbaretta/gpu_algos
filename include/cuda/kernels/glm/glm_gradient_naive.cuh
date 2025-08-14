@@ -126,9 +126,9 @@ namespace glm {
         const long nobs
     ) {
 
-        const long i_feature = blockIdx.x * blockDim.x + threadIdx.x;
-        const long i_target = blockIdx.y * blockDim.y + threadIdx.y;
-        const long i_task = blockIdx.z * blockDim.z + threadIdx.z;
+        const long i_feature = long(blockIdx.x) * long(blockDim.x) + long(threadIdx.x);
+        const long i_target = long(blockIdx.y) * long(blockDim.y) + long(threadIdx.y);
+        const long i_task = long(blockIdx.z) * long(blockDim.z) + long(threadIdx.z);
         if (i_feature >= nfeatures || i_target >= ntargets || i_task >= ntasks) return;
 
         const auto X_sheet_size = nfeatures * ntasks;
@@ -146,10 +146,10 @@ namespace glm {
         #endif
 
         Number sum_obs{0};
-        for (int i_obs = 0; i_obs < nobs; ++i_obs ) {
+        for (long i_obs = 0; i_obs < nobs; ++i_obs ) {
             // compute SUM_feature M[feature,target',task'] * X[feature,task',obs]
             Number sum_feature{0};
-            for (int j_feature = 0; j_feature < nfeatures; j_feature += 1) {
+            for (long j_feature = 0; j_feature < nfeatures; j_feature += 1) {
                 // compute M[feature,target',task'] * X[feature,task',obs]
                 sum_feature += (
                     // compute M[feature,target',task']
